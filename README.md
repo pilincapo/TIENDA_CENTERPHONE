@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 📱 CenterPhone Celulares
 
 Catálogo web de celulares con **cierre de venta por WhatsApp**. Todo corre en Cloudflare con plan gratuito.
@@ -113,3 +114,6 @@ npm test       # 30 tests de parsers, normalizador y WhatsApp
 npm run build  # frontend + 404.html
 npm run typecheck
 ```
+=======
+# TIENDA_CENTERPHONE
+>>>>>>> origin/main
