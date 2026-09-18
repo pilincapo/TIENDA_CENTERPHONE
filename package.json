@@ -1,0 +1,31 @@
+{
+  "name": "celu-store",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "echo \"Usá npm run dev:web y npm run dev:worker en dos terminales\"",
+    "dev:web": "vite build --watch --emptyOutDir=false",
+    "dev:worker": "wrangler dev --port 8787",
+    "build": "vite build && node tools/build-web.js",
+    "build:web": "vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.worker.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "setup": "node tools/setup.mjs",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "dependencies": {
+    "hono": "^4.9.10"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260917.1",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.6",
+    "vitest": "~3.2.4",
+    "wrangler": "^4.42.0"
+  }
+}

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin — CenterPhone Celulares</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="stylesheet" href="/src/web/styles.css" />
+  </head>
+  <body>
+    <div id="login" class="login" hidden>
+      <form id="login-form" class="login-card">
+        <h1>Admin · CenterPhone Celulares</h1>
+        <input id="login-password" type="password" placeholder="Contraseña" required />
+        <button type="submit" class="btn btn-primary">Ingresar</button>
+        <p id="login-error" class="error" hidden></p>
+      </form>
+    </div>
+
+    <div id="app" hidden>
+      <header class="topbar">
+        <a class="brand" href="/admin/"><img class="brand-logo" src="/logo.jpg" alt=""/><span>Admin</span></a>
+        <nav class="tabs" id="tabs">
+          <a href="#dashboard" data-tab="dashboard">Dashboard</a>
+          <a href="#products" data-tab="products">Productos</a>
+          <a href="#categories" data-tab="categories">Categorías</a>
+          <a href="#import" data-tab="import">Importar</a>
+          <a href="#rules" data-tab="rules">Reglas de precios</a>
+          <a href="#auto" data-tab="auto">Auto-importaciones</a>
+          <a href="#settings" data-tab="settings">Configuración</a>
+        </nav>
+        <button id="logout" class="btn btn-ghost">Salir</button>
+      </header>
+      <main class="admin-main" id="view"></main>
+    </div>
+
+    <script type="module" src="/src/web/admin.ts"></script>
+  </body>
+</html>

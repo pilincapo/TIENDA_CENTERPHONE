@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Catálogo de celulares. Consultá y comprá por WhatsApp." />
+    <title>CenterPhone Celulares — Catálogo</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="stylesheet" href="/src/web/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/"><img class="brand-logo" src="/logo.jpg" alt="CenterPhone Celulares"/><span class="brand-name">CenterPhone</span><span class="brand-tag">Celulares</span></a>
+    </header>
+
+    <section class="hero">
+      <p class="hero-eyebrow">Catálogo</p>
+      <div class="hero-row">
+        <h1 class="hero-title">Tecnología que necesitás</h1>
+      </div>
+      <div class="hero-search">
+        <span class="hero-search-icon" aria-hidden="true">🔍</span>
+        <input id="search" type="search" placeholder="Buscar productos" autocomplete="off" />
+      </div>
+    </section>
+
+    <main class="layout">
+      <aside class="filters" id="filters" aria-label="Filtros"></aside>
+      <section class="content" id="content" aria-live="polite"></section>
+    </main>
+
+    <a id="wa-float" class="wa-float" href="#" target="_blank" rel="noopener" aria-label="WhatsApp" hidden>💬</a>
+
+    <script type="module" src="/src/web/catalog.ts"></script>
+  </body>
+</html>

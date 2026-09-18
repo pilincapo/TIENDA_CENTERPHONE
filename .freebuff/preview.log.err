@@ -1,0 +1,21 @@
+[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mScheduled Workers are not automatically triggered during local development.[0m
+
+  To manually trigger a scheduled event, run:
+    curl "http://127.0.0.1:8787/cdn-cgi/local/scheduled"
+  For more details, see [4mhttps://developers.cloudflare.com/workers/configuration/cron-triggers/#test-cron-triggers-locally[0m
+
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1m*** Fatal uncaught kj::Exception: workerd/util/sqlite.c++:873: failed: SQLite failed; dbErrorMessage(prepareResult, db) = database is locked: SQLITE_BUSY (extended: SQLITE_BUSY_RECOVERY)[0m
+
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1mstack: 7ff6f640a08c 7ff6f6b0aaa4 7ff6f6b0ec4c 7ff6f61bd552 7ff6f65024e7 7ff6f6501a60 7ff6f619fbf8 7ff6f619f528 7ff6f6199a81 7ff6f624b093 7ff6f640a0da 7ff6f4c469a6 7ff6f6410a7b 7ff6f6418330 7ff6f64111cd 7ff6f6418330 7ff6f640e2d3 7ff6f640deab 7ff6f4c31ea8 7ff6f838660e 7ffd52d17373 7ffd534fcc90[0m
+
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1mThe Workers runtime failed to start. There was likely a problem with the workerd binary or your configuration.[0m
+
+  Runtime stderr:
+  *** Fatal uncaught kj::Exception: workerd/util/sqlite.c++:873: failed: SQLite failed; dbErrorMessage(prepareResult, db) = database is locked: SQLITE_BUSY (extended: SQLITE_BUSY_RECOVERY)
+  stack: 7ff6f640a08c 7ff6f6b0aaa4 7ff6f6b0ec4c 7ff6f61bd552 7ff6f65024e7 7ff6f6501a60 7ff6f619fbf8 7ff6f619f528 7ff6f6199a81 7ff6f624b093 7ff6f640a0da 7ff6f4c469a6 7ff6f6410a7b 7ff6f6418330 7ff6f64111cd 7ff6f6418330 7ff6f640e2d3 7ff6f640deab 7ff6f4c31ea8 7ff6f838660e 7ffd52d17373 7ffd534fcc90
+
+
+🪵  Logs were written to "C:\Users\Toshiba\AppData\Roaming\xdg.config\.wrangler\logs\wrangler-2026-09-17_20-36-56_282.log"

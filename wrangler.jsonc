@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "celu-store",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "triggers": {
+    // Despierta cada 15 min; el worker decide si corresponde sincronizar
+    // según el intervalo configurado en el panel de administración.
+    "crons": ["0 * * * *"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "celu-store-db",
+      "database_id": "b56c2cb6-5865-4c3f-98e0-192846a1576e"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "71875a431359487e954c86f15edf54ae"
+    }
+  ]
+}
