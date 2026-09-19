@@ -72,7 +72,65 @@ async function render(): Promise<void> {
   }
 }
 
+// Filtro activo del historial del dashboard (compartido entre renders dinámicos).
+let dashSyncFilter = "";
+
+function triggerLabel(t: string): string {
+  return t === "cron" ? "⟳ Automática" : t === "manual" ? "✋ Manual" : "⤓ Importación";
+}
+
+/** Fila del historial (compartida entre render inicial y actualización dinámica). */
+function syncLogRow(l: SyncLogEntry): string {
+  return `
+    <tr>
+      <td>${esc(new Date(l.startedAt).toLocaleString("es-AR"))}</td>
+      <td>${triggerLabel(l.trigger)}</td>
+      <td class="muted">${l.detail ? esc(l.detail.replace(/^https?:\/\//, "").slice(0, 40)) : "—"}</td>
+      <td class="${l.status === "ok" ? "ok" : "err"}">${esc(l.status)}</td>
+      <td>${l.itemsImported ?? "—"}</td>
+      <td class="muted">${l.error ? (l.status === "ok"
+        ? `<span class="muted" title="Avisos de la corrida (los artículos inválidos se saltaron): ${esc(l.error)}">ⓘ ${esc(l.error.slice(0, 90))}${l.error.length > 90 ? "…" : ""}</span>`
+        : `<span class="err-detail" title="${esc(l.error)}">⚠ ${esc(l.error.slice(0, 90))}${l.error.length > 90 ? "…" : ""}</span>`) : "—"}</td>
+    </tr>`;
+}
+
+/** Actualiza estado + historial del dashboard in-place (sin re-render de la vista). */
+async function refreshDashboardDynamic(): Promise<void> {
+  const stateEl = document.getElementById("dash-state");
+  const bodyEl = document.getElementById("dash-log-body");
+  if (!stateEl || !bodyEl) return; // no estamos en el dashboard
+  try {
+    const { state, log } = await api<{ state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }; log: SyncLogEntry[] }>(
+      `/sync/log?limit=50${dashSyncFilter ? `&trigger=${encodeURIComponent(dashSyncFilter)}` : ""}`
+    );
+    const last = state.lastSyncAt ? new Date(state.lastSyncAt).toLocaleString("es-AR") : "nunca";
+    const lastRow = state.lastStatus
+      ? `<span class="${state.lastStatus === "ok" ? "ok" : "err"}">${esc(state.lastStatus)}</span>`
+      : '<span class="muted">—</span>';
+    stateEl.innerHTML = `
+      <span class="k">Última sincronización</span><span>${esc(last)}</span>
+      <span class="k">Resultado</span><span>${lastRow}</span>
+      <span class="k">Error</span><span>${esc(state.lastError ?? "—")}</span>`;
+    bodyEl.innerHTML = log.length === 0
+      ? '<tr><td colspan="6" class="muted">Todavía no hubo sincronizaciones.</td></tr>'
+      : log.map(syncLogRow).join("");
+  } catch {
+    /* silencioso: el polling no debe molestar */
+  }
+}
+
+/** Polling del historial mientras la pestaña dashboard está visible. */
+function scheduleDashRefresh(): void {
+  setTimeout(() => {
+    if (document.getElementById("dash-log-body")) {
+      void refreshDashboardDynamic();
+      scheduleDashRefresh();
+    }
+  }, 15000);
+}
+
 async function viewDashboard(syncFilter = ""): Promise<void> {
+  dashSyncFilter = syncFilter;
   const { state, log } = await api<{ state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }; log: SyncLogEntry[] }>(
     `/sync/log?limit=50${syncFilter ? `&trigger=${encodeURIComponent(syncFilter)}` : ""}`
   );
@@ -80,11 +138,10 @@ async function viewDashboard(syncFilter = ""): Promise<void> {
   const lastRow = state.lastStatus
     ? `<span class="${state.lastStatus === "ok" ? "ok" : "err"}">${esc(state.lastStatus)}</span>`
     : '<span class="muted">—</span>';
-  const triggerLabel = (t: string): string => (t === "cron" ? "⟳ Automática" : t === "manual" ? "✋ Manual" : "⤓ Importación");
   el.view.innerHTML = `
     <div class="panel">
       <h2>Estado del catálogo</h2>
-      <div class="kv">
+      <div class="kv" id="dash-state">
         <span class="k">Última sincronización</span><span>${esc(last)}</span>
         <span class="k">Resultado</span><span>${lastRow}</span>
         <span class="k">Error</span><span>${esc(state.lastError ?? "—")}</span>
@@ -103,57 +160,71 @@ async function viewDashboard(syncFilter = ""): Promise<void> {
           <option value="manual" ${syncFilter === "manual" ? "selected" : ""}>Manuales</option>
         </select>
       </div>
-      <p class="muted" style="margin-top:4px">Últimas 50 corridas, incluyendo las automáticas del cron y los botones del panel.</p>
-      ${log.length === 0 ? '<p class="muted">Todavía no hubo sincronizaciones.</p>' : `
+      <p class="muted" style="margin-top:4px">Últimas 50 corridas — se actualiza solo cada 15 segundos.</p>
       <div class="table-scroll">
       <table class="table">
         <thead><tr><th>Fecha</th><th>Origen</th><th>Detalle</th><th>Estado</th><th>Importados</th><th>Error</th></tr></thead>
-        <tbody>
-          ${log.map((l) => `
-            <tr>
-              <td>${esc(new Date(l.startedAt).toLocaleString("es-AR"))}</td>
-              <td>${triggerLabel(l.trigger)}</td>
-              <td class="muted">${l.detail ? esc(l.detail.replace(/^https?:\/\//, "").slice(0, 40)) : "—"}</td>
-              <td class="${l.status === "ok" ? "ok" : "err"}">${esc(l.status)}</td>
-              <td>${l.itemsImported ?? "—"}</td>
-              <td class="muted">${l.error ? (l.status === "ok"
-                ? `<span class="muted" title="Avisos de la corrida (los artículos inválidos se saltaron): ${esc(l.error)}">ⓘ ${esc(l.error.slice(0, 90))}${l.error.length > 90 ? "…" : ""}</span>`
-                : `<span class="err-detail" title="${esc(l.error)}">⚠ ${esc(l.error.slice(0, 90))}${l.error.length > 90 ? "…" : ""}</span>`) : "—"}</td>
-            </tr>`).join("")}
+        <tbody id="dash-log-body">
+          ${log.length === 0 ? '<tr><td colspan="6" class="muted">Todavía no hubo sincronizaciones.</td></tr>' : log.map(syncLogRow).join("")}
         </tbody>
-      </table>`}
+      </table>
       </div>
     </div>`;
   el.view.querySelector("#sync-now")?.addEventListener("click", () => void doSync());
   el.view.querySelector("#rebuild")?.addEventListener("click", () => void rebuildSnapshot());
   el.view.querySelector("#sync-filter")?.addEventListener("change", (ev) => {
-    void viewDashboard((ev.target as HTMLSelectElement).value);
+    dashSyncFilter = (ev.target as HTMLSelectElement).value;
+    void refreshDashboardDynamic();
   });
+  scheduleDashRefresh();
 }
 
 async function doSync(): Promise<void> {
-  toast("Sincronizando…");
+  // Contenedor de progreso junto a los botones del dashboard.
+  const box = document.createElement("div");
+  el.view.querySelector(".panel .row")?.after(box);
+  const prog = showProgress(box, "Sincronizando catálogo…", SYNC_STEPS);
+  prog.set(10, "Descargando la fuente…", 0);
+  const ph2 = setTimeout(() => prog.set(55, "Importando productos…", 1), 1500);
+  const ph3 = setTimeout(() => prog.set(80, "Generando snapshot público…", 2), 6000);
+  const btn = el.view.querySelector("#sync-now") as HTMLButtonElement | null;
+  if (btn) btn.disabled = true;
   try {
-    const r = await api<{ ok: boolean; imported: number; failed: number; total?: number; mode?: string; errors?: string[] }>(
+    const r = await api<{ ok: boolean; imported: number; failed: number; total?: number; mode?: string; errors?: string[]; warnings?: string[] }>(
       "/sync",
       { method: "POST" }
     );
+    clearTimeout(ph2); clearTimeout(ph3);
     if (r.mode === "auto-imports") {
-      const n = r.imported;
-      const j = r.total;
+      const j = r.total ?? 0;
+      const fails = r.errors ?? [];
+      const resumen = fails.length > 0
+        ? fails.slice(0, 3).map((e) => esc(e.replace(/^https?:\/\//, "").slice(0, 50))).join(" · ")
+        : (r.warnings && r.warnings.length > 0
+          ? `${r.warnings.length} artículo(s) salteado(s) por precio inválido`
+          : "sin errores");
+      prog.set(100, `${j} fuente(s) · ${r.imported} importados · ${resumen}`, 3, !r.ok);
+      const warn = r.warnings && r.warnings.length > 0 ? ` Avisos: ${r.warnings.length} salteado(s).` : "";
       toast(
         r.ok
-          ? `Listo: ${j} auto-importación${j === 1 ? "" : "es"} corrida${j === 1 ? "" : "s"} (${n} productos importados)`
+          ? `Listo: ${j} fuente(s), ${r.imported} productos importados.${warn}`
           : `Falló en ${r.failed} de ${j} links. ${r.errors?.join(" · ") ?? ""}`.trim(),
         r.ok
       );
     } else {
+      prog.set(100, `${r.imported} importados, ${r.failed} fallidos`, 3, !r.ok);
       toast(`Listo: ${r.imported} importados, ${r.failed} fallidos`, r.ok);
     }
   } catch (e) {
+    clearTimeout(ph2); clearTimeout(ph3);
+    prog.set(100, e instanceof Error ? e.message : "Error de sync", 1, true);
     toast(e instanceof Error ? e.message : "Error de sync", false);
   }
-  void render();
+  prog.done();
+  if (btn) btn.disabled = false;
+  // Historial y estado se refrescan solos, sin recargar la vista.
+  await refreshDashboardDynamic();
+  setTimeout(() => box.remove(), 6000);
 }
 
 async function rebuildSnapshot(): Promise<void> {
@@ -636,29 +707,31 @@ function currentRuleId(): string | null {
   return sel && sel.value !== "" ? sel.value : null;
 }
 
-// ---- Barra de progreso de importación ----
+// ---- Barra de progreso (importar, sincronizar, auto-importaciones) ----
 
 const IMPORT_STEPS = ["Descargando", "Extrayendo", "Calculando precios"] as const;
+const SYNC_STEPS = ["Descargando", "Importando", "Generando snapshot"] as const;
+const AUTO_STEPS = ["Descargando", "Extrayendo", "Importando"] as const;
 
 type ProgressCtl = {
   set: (pct: number, label?: string, stepIdx?: number, stepErr?: boolean) => void;
   done: () => void;
 };
 
-function showProgress(container: HTMLElement, title: string): ProgressCtl {
+function showProgress(container: HTMLElement, title: string, steps: readonly string[] = IMPORT_STEPS): ProgressCtl {
   container.innerHTML = `
     <div class="panel progress-wrap">
       <strong>${esc(title)}</strong>
       <div class="progress-track"><div class="progress-fill" style="width:5%"></div></div>
       <div class="progress-label"><span class="progress-pct">5%</span> — <span class="progress-text">Preparando…</span></div>
       <div class="progress-steps">
-        ${IMPORT_STEPS.map((s) => `<span class="progress-step">${s}</span>`).join("")}
+        ${steps.map((s) => `<span class="progress-step">${s}</span>`).join("")}
       </div>
     </div>`;
   const fill = container.querySelector(".progress-fill") as HTMLElement;
   const pctEl = container.querySelector(".progress-pct") as HTMLElement;
   const textEl = container.querySelector(".progress-text") as HTMLElement;
-  const steps = [...container.querySelectorAll(".progress-step")];
+  const stepEls = [...container.querySelectorAll(".progress-step")] as HTMLElement[];
   let timer: ReturnType<typeof setInterval> | null = null;
   const ctl: ProgressCtl = {
     set: (pct, label, stepIdx, stepErr) => {
@@ -666,7 +739,7 @@ function showProgress(container: HTMLElement, title: string): ProgressCtl {
       fill.style.width = `${Math.min(100, Math.max(0, pct))}%`;
       pctEl.textContent = `${Math.round(pct)}%`;
       if (label) textEl.textContent = label;
-      steps.forEach((s, i) => {
+      stepEls.forEach((s, i) => {
         s.classList.toggle("done", stepIdx !== undefined && i < stepIdx);
         s.classList.toggle("active", stepIdx === i);
         s.classList.toggle("err", stepErr === true && stepIdx === i);
@@ -977,6 +1050,26 @@ function ruleOrAutoLabel(priceRuleId: string | null, rules: PriceRule[]): string
   return r ? r.name : priceRuleId;
 }
 
+/** Re-consulta el último run de cada auto-importación y actualiza las filas in-place. */
+async function refreshAutoLastRuns(): Promise<void> {
+  const rows = [...document.querySelectorAll<HTMLTableRowElement>("tr[data-autourl]")];
+  await Promise.all(rows.map(async (row) => {
+    const url = row.dataset.autourl ?? "";
+    if (!url) return;
+    try {
+      const { entry } = await api<{ entry: SyncLogEntry | null }>(`/auto-imports/last-run?url=${encodeURIComponent(url)}`);
+      const cell = row.querySelectorAll("td")[4];
+      if (!cell) return;
+      if (!entry) { cell.innerHTML = '<span class="muted">nunca</span>'; return; }
+      const err = entry.error ?? "";
+      const errHtml = !err ? "" : entry.status === "ok"
+        ? `<br/><span class="muted" style="font-size:12px;display:inline-block;max-width:280px;white-space:normal" title="Avisos de la corrida (los artículos inválidos se saltaron): ${esc(err)}">ⓘ ${esc(err.slice(0, 90))}${err.length > 90 ? "…" : ""}</span>`
+        : `<br/><span class="err-detail" style="font-size:12px;display:inline-block;max-width:280px;white-space:normal" title="${esc(err)}">⚠ ${esc(err.slice(0, 90))}${err.length > 90 ? "…" : ""}</span>`;
+      cell.innerHTML = `<span class="${entry.status === "ok" ? "ok" : "err"}">${esc(entry.status)}</span><br/><span class="muted" style="font-size:12px">${new Date(entry.startedAt).toLocaleString("es-AR")}</span>${errHtml}`;
+    } catch { /* silencioso */ }
+  }));
+}
+
 async function viewAutoImports(): Promise<void> {
   const [jobs, rules] = await Promise.all([fetchAutoImports(), fetchRules().catch(() => [] as PriceRule[])]);
   const groups = groupNames(rules);
@@ -1005,7 +1098,7 @@ async function viewAutoImports(): Promise<void> {
   };
   const rows = jobs
     .map((j) => `
-      <tr>
+      <tr data-autourl="${esc(j.url)}">
         <td>
           <label class="checks"><input type="checkbox" class="auto-active" data-id="${esc(j.id)}" ${j.active ? "checked" : ""}/> Activa</label>
         </td>
@@ -1039,19 +1132,38 @@ async function viewAutoImports(): Promise<void> {
     </div>`;
   el.view.querySelector("#new-auto")?.addEventListener("click", () => void openAutoForm(null, rules, groups));
   el.view.querySelector("#run-auto")?.addEventListener("click", async () => {
-    toast("Ejecutando auto-importaciones…");
+    const box = document.createElement("div");
+    el.view.querySelector(".panel .row")?.after(box);
+    const prog = showProgress(box, "Ejecutando auto-importaciones…", AUTO_STEPS);
+    prog.set(8, "Descargando fuentes…", 0);
+    const ph2 = setTimeout(() => prog.set(50, "Extrayendo productos…", 1), 1500);
+    const ph3 = setTimeout(() => prog.set(78, "Importando y aplicando reglas…", 2), 6000);
+    const btn = el.view.querySelector("#run-auto") as HTMLButtonElement | null;
+    if (btn) btn.disabled = true;
     try {
       const r = await api<{ ok: boolean; results: { url: string; ok: boolean; imported: number; error: string | null }[] }>("/auto-imports/run", {
         method: "POST",
         body: JSON.stringify({ all: true }),
       });
+      clearTimeout(ph2); clearTimeout(ph3);
       const imported = r.results.reduce((n, x) => n + x.imported, 0);
       const failed = r.results.filter((x) => !x.ok).length;
+      // Resumen por fuente en la barra (más información, no solo %).
+      const porFuente = r.results
+        .map((x) => `${esc(x.url.replace(/^https?:\/\//, "").replace("www.", "").slice(0, 24))}: ${x.ok ? `+${x.imported}` : "error"}`)
+        .join(" · ");
+      prog.set(100, `${r.results.length} fuente(s) · ${imported} importados · ${porFuente}`, 3, failed > 0);
       toast(`Listo: ${imported} productos, ${failed} con error`, r.ok);
+      // Refrescar los lastRun de las filas sin re-render completo.
+      await refreshAutoLastRuns();
     } catch (e) {
+      clearTimeout(ph2); clearTimeout(ph3);
+      prog.set(100, e instanceof Error ? e.message : "Error", 1, true);
       toast(e instanceof Error ? e.message : "Error", false);
     }
-    void render();
+    prog.done();
+    if (btn) btn.disabled = false;
+    setTimeout(() => box.remove(), 8000);
   });
   el.view.querySelectorAll(".auto-active").forEach((cb) => {
     cb.addEventListener("change", async () => {

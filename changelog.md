@@ -93,6 +93,18 @@
 
 # Changelog
 
+## 2026-09-19 (11)
+- **Panel dinámico sin recargas**: sincronizar y ejecutar auto-importaciones ya no re-renderizan la vista (sin scroll ni perdida de estado); historial y estado del catálogo se actualizan in-place al terminar, más auto-refresh cada 15 s con polling; la barra de progreso muestra resumen real (fuentes, importados, salteados/errores, resumen por URL); botones deshabilitados durante la corrida. Deploy `9c1456de`.
+
+## 2026-09-19 (10)
+- **Barra de progreso en las tres operaciones del panel**: generalizado `showProgress` para aceptar pasos custom. Dashboard "Sincronizar ahora" (Descargando → Importando → Generando snapshot), Auto-importaciones "Ejecutar ahora" (Descargando → Extrayendo → Importando), e Importar ya lo tenía. Los toasts de sync ahora avisan cantidad de artículos salteados.
+
+## 2026-09-19 (9)
+- **Deploy a producción** (versión `0d829461`): salto de items sin precio con corrida ok/avisos, detalle de error en Auto-importaciones, y todo lo del commit `4ae1155`. 76 tests OK antes de subir. GitHub y producción quedaron sincronizados.
+
+## 2026-09-19 (8)
+- **Push a GitHub** (commit `4ae1155`): historial de sincronizaciones con causa de errores, salto de items sin precio, detalle de error en Auto-importaciones, README arreglado y `.freebuff/` quitado del repositorio.
+
 ## 2026-09-19 (7)
 - **Los items con precio inválido ya no fallan la sincronización**: se saltan individualmente (con aviso "X: precio inválido, se salta el artículo") y la corrida continúa con el resto. La corrida queda `ok` si al menos un producto se importó; los avisos se muestran con ⓘ en el historial y en Auto-importaciones (los errores reales de red/extracción siguen en rojo ⚠). Solo es error si ningún producto pudo importarse. Test actualizado al nuevo comportamiento.
 
