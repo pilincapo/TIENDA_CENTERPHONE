@@ -1,3 +1,25 @@
+## 2026-09-19 — Deploy: paginador "Cargar más" en producción
+
+- Deploy a Cloudflare (`c311525d`) con el botón "Cargar más" (20 por página) y el fix del hueco del toolbar sticky
+- 76 tests ✅ antes de subir; verificado en producción que el JS del home incluye el paginador
+
+## 2026-09-19 — Botón "Cargar más" en vez de scroll infinito
+
+- Eliminado el scroll infinito del catálogo: ahora muestra 20 productos y un botón "Cargar más (N restantes)" que agrega 20 por clic
+- Botón con estilo terminal (sombra dura, hover con desplazamiento) centrado bajo el grid
+- Verificado en preview: 20 iniciales → 40 tras un clic → contador decreciente correcto; pendiente de deploy
+
+## 2026-09-19 — Revisión visual del tema terminal
+
+- Ajustado el `top` sticky de la toolbar de 63px/65px a 57px: el header mide 58px con el nuevo tema y quedaba un hueco de 5px
+- Revisados en preview: home (hero, toolbar, tarjetas), modal Cómo comprar, ficha con tarjeta HORARIOS/LOCAL y login del admin — todo consistente con el tema
+- Pendiente de deploy
+
+## 2026-09-19 — Deploy: tema terminal en producción
+
+- Deploy a Cloudflare (`fa4d1c60`) con el tema terminal/CRT, íconos oficiales de WhatsApp/Facebook/Instagram y el popup de Contacto completo
+- 76 tests ✅ antes de subir; verificado HTTP 200 y fuentes JetBrains Mono servidas en producción
+
 ## 2026-09-19 — Íconos de redes en el popup de Contacto
 
 - La fila REDES del modal de Contacto ahora muestra los logos SVG de Instagram y Facebook junto a cada link (igual que en el footer)

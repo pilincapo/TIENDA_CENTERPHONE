@@ -405,7 +405,7 @@ img { max-width: 100%; display: block; }
   max-width: 1280px; margin: 0 auto; padding: 16px 24px 24px;
 }
 .toolbar {
-  position: sticky; top: 63px; z-index: 9;
+  position: sticky; top: 57px; z-index: 9;
   display: flex; flex-direction: column; gap: 8px;
   max-width: 1280px; margin: 0 auto; padding: 10px 24px;
   background: color-mix(in srgb, var(--bg) 94%, transparent);
@@ -456,6 +456,11 @@ img { max-width: 100%; display: block; }
 }
 .card-wa:hover { background: var(--brand); color: #04180a; box-shadow: var(--term-shadow-sm); }
 .loader-more { display: flex; justify-content: center; padding: 24px; }
+.load-more-wrap { display: flex; justify-content: center; padding: 26px 0 10px; }
+.load-more { padding: 11px 26px; font-size: 14px; box-shadow: var(--term-shadow-sm); }
+.load-more:hover { transform: translate(-2px, -2px); box-shadow: var(--term-shadow); }
+.load-more:active { transform: none; box-shadow: var(--term-shadow-sm); }
+.load-more .lm-count { color: inherit; opacity: .65; font-weight: 500; font-size: 12px; }
 
 /* Móvil: exactamente 2 columnas de productos */
 @media (max-width: 800px) {
@@ -471,7 +476,7 @@ img { max-width: 100%; display: block; }
   .toolbar { top: 51px; padding: 8px 10px; gap: 6px; }
 }
 @media (max-width: 800px) and (min-width: 481px) {
-  .toolbar { top: 65px; }
+  .toolbar { top: 57px; }
   .chip { font-size: 11.5px; padding: 6px 11px; }
   .tb-sort { font-size: 11px; }
   .tb-sort select { padding: 6px 8px; font-size: 11.5px; }

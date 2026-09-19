@@ -8,7 +8,7 @@ import { fillStoreInfo, setupModals } from "./store-modals";
 
 type SortMode = "default" | "price-asc" | "price-desc" | "random";
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 20;
 
 const state = {
   snapshot: null as CatalogSnapshot | null,
@@ -334,21 +334,10 @@ function bindWaButtons(): void {
   });
 }
 
-// ---- Scroll infinito ----
+// ---- Paginación con botón "Cargar más" ----
 
 function resetPager(): void {
   state.shown = PAGE_SIZE;
-}
-
-function maybeShowMore(): void {
-  const total = sortedProducts().length;
-  if (state.shown >= total) return;
-  const nearBottom =
-    window.innerHeight + window.scrollY >= document.body.offsetHeight - 600;
-  if (nearBottom) {
-    state.shown += PAGE_SIZE;
-    renderGrid();
-  }
 }
 
 function renderGrid(): void {
@@ -373,8 +362,12 @@ function renderGrid(): void {
   const more = sorted.length > visible.length;
   setContent(`
     <div class="grid">${visible.map(cardHtml).join("")}</div>
-    ${more ? `<div class="loader-more"><div class="spinner"></div></div>` : ""}
+    ${more ? `<div class="load-more-wrap"><button class="btn load-more" id="load-more">Cargar más <span class="lm-count">(${sorted.length - visible.length} restantes)</span></button></div>` : ""}
   `);
+  document.getElementById("load-more")?.addEventListener("click", () => {
+    state.shown += PAGE_SIZE;
+    renderGrid();
+  });
   bindWaButtons();
 }
 
@@ -382,7 +375,5 @@ function render(): void {
   renderToolbar();
   renderGrid();
 }
-
-window.addEventListener("scroll", () => requestAnimationFrame(() => maybeShowMore()), { passive: true });
 
 void init();
