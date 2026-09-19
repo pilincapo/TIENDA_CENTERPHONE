@@ -4,33 +4,113 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Catálogo de celulares. Consultá y comprá por WhatsApp." />
-    <title>CenterPhone Celulares — Catálogo</title>
+    <title>Catálogo</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
     <link rel="stylesheet" href="/src/web/styles.css" />
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="/"><img class="brand-logo" src="/logo.jpg" alt="CenterPhone Celulares"/><span class="brand-name">CenterPhone</span><span class="brand-tag">Celulares</span></a>
+      <a class="brand" href="/"><img class="brand-logo" src="/logo.jpg" alt="Tienda"/><span class="brand-name">Catálogo</span><span class="brand-tag" hidden></span></a>
+      <nav class="topnav" aria-label="Principal">
+        <a href="#catalog">Productos</a>
+        <button class="topnav-btn" id="nav-how" type="button">Cómo comprar</button>
+        <button class="topnav-btn" id="nav-contact" type="button">Contacto</button>
+      </nav>
     </header>
 
-    <section class="hero">
-      <p class="hero-eyebrow">Catálogo</p>
+    <section class="hero" id="catalog">
+      <p class="hero-eyebrow">Catálogo actualizado · Atención directa por WhatsApp</p>
       <div class="hero-row">
-        <h1 class="hero-title">Tecnología que necesitás</h1>
+        <h1 class="hero-title">La tecnología que necesitás, <span class="hero-accent">al precio justo</span></h1>
+      </div>
+      <div class="hero-stats" id="hero-stats" hidden>
+        <span><span class="arrow">›</span><b id="stat-count">—</b> productos publicados</span>
+        <span><span class="arrow">›</span>Consultas por <b>WhatsApp</b></span>
       </div>
       <div class="hero-search">
         <span class="hero-search-icon" aria-hidden="true">🔍</span>
-        <input id="search" type="search" placeholder="Buscar productos" autocomplete="off" />
+        <input id="search" type="search" placeholder="Buscar modelo, marca o descripción…" autocomplete="off" />
       </div>
     </section>
 
-    <main class="layout">
-      <aside class="filters" id="filters" aria-label="Filtros"></aside>
+    <div class="toolbar" id="toolbar" aria-label="Filtros"></div>
+
+    <main class="catalog-main">
       <section class="content" id="content" aria-live="polite"></section>
     </main>
 
+    <footer class="footer" id="how" aria-label="Cómo comprar y contacto">
+      <div class="footer-steps">
+        <div class="footer-step">
+          <span class="footer-step-num">01</span>
+          <h3>Explorá</h3>
+          <p>Buscá por nombre de producto o explorá las categorías para encontrar lo que necesitás.</p>
+        </div>
+        <div class="footer-step">
+          <span class="footer-step-num">02</span>
+          <h3>Consultá</h3>
+          <p>Te mostramos el precio y te ayudamos a verificar disponibilidad real.</p>
+        </div>
+        <div class="footer-step">
+          <span class="footer-step-num">03</span>
+          <h3>Coordinamos</h3>
+          <p>Escribinos por WhatsApp y avanzamos con una atención directa.</p>
+        </div>
+      </div>
+      <div class="footer-cols">
+        <div class="footer-col">
+          <p class="footer-brand"></p>
+          <p class="footer-tagline">Tecnología para elegir con información clara y atención directa.</p>
+        </div>
+        <div class="footer-col">
+          <p class="footer-head">Horarios</p>
+          <p id="footer-hours">—</p>
+        </div>
+        <div class="footer-col">
+          <p class="footer-head">Visitános</p>
+          <p id="footer-address">—</p>
+        </div>
+        <div class="footer-col">
+          <p class="footer-head">Seguinos</p>
+          <div class="footer-social" id="footer-social"></div>
+        </div>
+      </div>
+    </footer>
+
     <a id="wa-float" class="wa-float" href="#" target="_blank" rel="noopener" aria-label="WhatsApp" hidden>💬</a>
+
+    <!-- Modal: Cómo comprar -->
+    <div class="modal" id="modal-how" hidden>
+      <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-how-title">
+        <button class="modal-x" type="button" aria-label="Cerrar">✕</button>
+        <h2 id="modal-how-title">Cómo comprar</h2>
+        <ol class="modal-steps">
+          <li><strong>Explorá el catálogo.</strong> Buscá por nombre o filtrá por categoría y etiquetas (Nuevo, Destacado, Oferta).</li>
+          <li><strong>Tocá "Consultar".</strong> En cada producto tenés el botón para preguntarnos por WhatsApp sin entrar a la ficha.</li>
+          <li><strong>Confirmamos stock y precio.</strong> Te respondemos con la disponibilidad real, colores/memoria y el precio final.</li>
+          <li><strong>Coordinamos el pago.</strong> Efectivo, transferencia o tarjeta — lo que prefieras.</li>
+          <li><strong>Recibilo o pasá a buscarlo.</strong> Envíos a todo el país o retiro en el local.</li>
+        </ol>
+        <p class="modal-note" id="modal-how-note" hidden></p>
+        <a class="modal-wa" id="modal-how-wa" href="#" target="_blank" rel="noopener">💬 Consultar por WhatsApp</a>
+      </div>
+    </div>
+
+    <!-- Modal: Contacto -->
+    <div class="modal" id="modal-contact" hidden>
+      <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-contact-title">
+        <button class="modal-x" type="button" aria-label="Cerrar">✕</button>
+        <h2 id="modal-contact-title">Contacto</h2>
+        <div class="modal-contact" id="modal-contact-items">
+          <!-- Los ítems se completan desde /api/public/settings -->
+        </div>
+        <a class="modal-wa" id="modal-contact-wa" href="#" target="_blank" rel="noopener">💬 Escribinos por WhatsApp</a>
+      </div>
+    </div>
 
     <script type="module" src="/src/web/catalog.ts"></script>
   </body>

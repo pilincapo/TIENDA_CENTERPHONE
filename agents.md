@@ -15,4 +15,5 @@
 - Verificar cada archivo escrito leyéndolo de vuelta antes de seguir.
 - Al terminar **cualquier** modificación, agregar una entrada en `changelog.md` (ver formato allí).
 - No commitear ni pushear sin pedido explícito del usuario.
+- **NO hacer deploy automático**: trabajar solo con la versión local (dev server en `127.0.0.1:8787`). NO correr `npm run deploy` ni subir nada a Cloudflare/producción salvo que el usuario lo pida explícitamente con una orden como "deploy", "subir a producción", "publicar", etc. Verificar los cambios siempre en local.
 - Secrets: solo en `.dev.vars` (local) o `wrangler secret put` (producción). Nunca en el repo.

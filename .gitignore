@@ -5,3 +5,4 @@ public/
 *.log
 .dev.vars
 .DS_Store
+.freebuff/

@@ -234,6 +234,13 @@ adminApp.post("/snapshot", async (c) => {
 
 // ---- Configuración ----
 
+// Normaliza una URL opcional: acepta vacío; fuerza https:// si falta el esquema.
+function normalizeUrl(v: unknown, max: number): string {
+  const s = String(v ?? "").trim().slice(0, max);
+  if (s === "") return "";
+  return /^https?:\/\//.test(s) ? s : `https://${s}`;
+}
+
 adminApp.get("/settings", async (c) => {
   return c.json({ settings: await getSettings(c.env.KV) });
 });
@@ -247,6 +254,12 @@ adminApp.put("/settings", async (c) => {
     syncUrl: String(body.syncUrl ?? "").slice(0, 500),
     syncIntervalMinutes: Math.max(15, Math.round(Number(body.syncIntervalMinutes ?? 60))),
     syncToken: String(body.syncToken ?? "").slice(0, 200),
+    storeName: String(body.storeName ?? "").slice(0, 60),
+    storeAddress: String(body.storeAddress ?? "").slice(0, 200),
+    storeMapUrl: normalizeUrl(body.storeMapUrl, 500),
+    storeHours: String(body.storeHours ?? "").slice(0, 300),
+    instagramUrl: normalizeUrl(body.instagramUrl, 300),
+    facebookUrl: normalizeUrl(body.facebookUrl, 300),
   });
   return c.json({ settings });
 });

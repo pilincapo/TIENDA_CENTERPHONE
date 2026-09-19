@@ -41,6 +41,12 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     whatsappPhone: s.whatsappPhone,
     currencySymbol: s.currencySymbol,
     whatsappOk: isValidPhone(s.whatsappPhone),
+    storeName: s.storeName,
+    storeAddress: s.storeAddress,
+    storeMapUrl: s.storeMapUrl,
+    storeHours: s.storeHours,
+    instagramUrl: s.instagramUrl,
+    facebookUrl: s.facebookUrl,
   };
 }
 

@@ -39,13 +39,13 @@ describe("isValidPhone", () => {
 });
 
 describe("waLink", () => {
-  it("incluye número, mensaje y URL del producto", () => {
+  it("incluye número, título y precio, sin URL del producto", () => {
     const link = waLink(settings, product, "https://tienda.example");
     expect(link.startsWith("https://wa.me/5491112345678?text=")).toBe(true);
     const text = decodeURIComponent(link.split("text=")[1] ?? "");
     expect(text).toContain('Galaxy S24 "Ultra"');
     expect(text).toContain("$1.299.999");
-    expect(text).toContain("https://tienda.example/producto/galaxy-s24");
+    expect(text).not.toContain("https://");
   });
 
   it("URL-encodea el mensaje", () => {

@@ -1,6 +1,133 @@
 # Changelog
 
-Formato: `- [fecha] — descripción de la modificación`. Una entrada por cambio, la más nueva arriba.
+Formato: `- [fecha]_[hora] — descripción de la modificación`. Una entrada por cambio, la más nueva arriba.
+
+## 2026-09-18 — Deploy a producción (6b3aeaa8)
+
+- Subido el rediseño completo: tema claro minimalista (Inter, verde esmeralda, esquinas redondeadas, botón flotante circular), hero limpio y centrado robusto de modales. Verificado post-deploy: home 200, settings públicas correctas (storeName, dirección, horarios, WhatsApp). Cron horario activo.
+
+## 2026-09-18 — Modales: centrado robusto + sombra
+
+- Los popups "Cómo comprar" y "Contacto" ya estaban centrados (flex) y cerraban con clic afuera, ✕ y Escape — verificado por DOM. Refuerzo: `.modal-box` con `margin: auto` para que el centrado no recorte la parte superior cuando el contenido es más alto que la pantalla, y sombra difusa para separarlos del fondo.
+
+## 2026-09-18 — Rediseño: tema claro minimalista (reemplaza al terminal/CRT)
+
+- Nuevo estilo visual según referencia del usuario (capturas): fondo blanco, tipografía **Inter** (sans-serif) en lugar de JetBrains Mono, acento **verde esmeralda** `#0e9f6e`, esquinas redondeadas (`--radius: 10px`), chips con forma de píldora, tarjetas con sombra suave al hover, botón flotante de WhatsApp **circular verde** estilo oficial. Eliminados los efectos CRT: scanlines, sombras duras, prompt de terminal y cursor parpadeante — el hero ahora lleva eyebrow de texto simple y buscador con lupa. **Se preservan todos los datos y funcionalidad**: WhatsApp, dirección, horarios y redes siguen saliendo del panel; filtros, orden, scroll infinito, modales y ficha sin cambios. Verificado en preview: home, toolbar, tarjetas, modal Cómo comprar, ficha con tarjeta de horarios/local. 76 tests ✅. Pendiente de deploy.
+
+## 2026-09-18 — Deploy a producción (33c123b1)
+
+- Subido todo lo acumulado de la sesión: QA móvil 390px (header de ficha, precios largos con ellipsis, tablas del admin con `.table-scroll`), degradado "hay más chips" en la toolbar, header dinámico con fix del brand-tag oculto, y eliminación total del hardcodeo de marca. Verificado en producción: home 200, settings con storeName/dirección correctos.
+
+## 2026-09-18 — Hardcodeo de marca eliminado por completo
+
+- Últimos restos de "CenterPhone" grabado en el código: `alt` del logo en home/ficha (ahora "Tienda", que el JS reemplaza por el storeName), `footer-brand` del home (vacío de reserva, lo llena `fillStoreInfo`), fallback del título de ficha (ya no fuerza la marca si no hay storeName) y placeholder del campo en el panel ("Mi Tienda"). Verificado con nombre de prueba "Tecno Store Santa Fe": **cero apariciones** de "CenterPhone" en el texto renderizado de home, ficha y admin; restaurado el nombre real. Todo el branding sale ahora del único campo "Nombre de la tienda" del panel.
+
+## 2026-09-18 — Header dinámico: bug del tag oculto corregido
+
+- Al probar el header dinámico con otro nombre ("Tecno Store Santa Fe") se descubrió que la segunda palabra (verde) **no aparecía**: los HTML reservan el span `brand-tag` con el atributo `hidden`, y `applyBrandName` solo ajustaba `style.display`, que pierde contra la regla global `[hidden] { display: none !important }`. Ahora `applyBrandName` setea `tagEl.hidden = !rest` — verificado en home y ficha: "Tecno" blanco + "Store Santa Fe" verde junto al logo, y restaurado "CenterPhone" + "Celulares".
+
+## 2026-09-18 — QA móvil 390px: 2 roturas corregidas
+
+- **Ficha de producto a ≤390px**: el header desbordaba (~479px: marca + "Volver" + "Cómo comprar" + "Contacto"). Ahora a ≤390px se oculta "Contacto" (el popup sigue accesible desde el botón flotante y la store-card), el link "Volver" baja a 12px y cede espacio — verificado: header exacto en 390px sin overflow. (En el home la regla ya existía pero los botones de la ficha no estaban dentro de `.topnav`, por eso no aplicaba.)
+- **Tarjetas con precio largo ($1.234.567)**: precio + botón "Consultar" no entraban en las ~150px de una tarjeta de 2 columnas. Ahora el precio cede con `text-overflow: ellipsis` y el botón no se achica — la fila entra exacta (verificado con clon a 146px).
+- **Admin: tablas desbordaban a 390px** (Productos medía 621px). Las 6 tablas del panel quedaron envueltas en `.table-scroll` (overflow-x auto): scrollean horizontal dentro del panel sin romper el layout. Verificado en las vistas Dashboard/Productos/Reglas/Auto-importaciones.
+- Auditado sin roturas: hero, buscador, toolbar (scroll + degradado), grilla 2 col, modales (caja de 358px a 390, sin overflow), store-card, relacionados, breadcrumbs (envuelven a 2 líneas, sin desborde), botón flotante y footer.
+
+## 2026-09-18 — Degradado "hay más chips" en la toolbar
+
+- Las filas de chips de la toolbar muestran un **degradado de desvanecimiento en el borde derecho** (mask-image de 28px) mientras quede contenido por scrollear, y desaparece al llegar al final. Lógica `updateToolbarMasks()` + listener de scroll delegado (un solo listener) + refresco en resize. Verificado en preview: degradado al inicio (chip cortado se desvanece), se quita al scrollear al final y reaparece al volver.
+
+## 2026-09-18 — Marca y títulos unificados con storeName (sin hardcodear)
+
+- **Header dinámico**: `applyBrandName()` (en el módulo compartido) divide el nombre del panel en primera palabra (blanca) + resto (verde) y actualiza los spans `.brand-name`/`.brand-tag` del header del home y de la ficha, junto con el alt del logo y el title del link. Los HTML ya no traen "CenterPhone" grabado (texto neutro de reserva si la API falla).
+- **Títulos de pestaña**: home `{nombre} — Catálogo`, ficha `{producto} — {nombre}`, admin `Admin — {nombre}` (el admin lo resuelve desde `/api/public/settings` antes del login, junto al h1 "Admin · {nombre}").
+- **Footer**: la marca del pie ya seguía al storeName; ahora todo el branding sale de un solo campo del panel.
+- Verificado end-to-end: cambio a "Tecno Store Santa Fe" → header "Tecno" + "Store Santa Fe", títulos y footer actualizados en las 3 páginas; restaurado "CenterPhone Celulares".
+
+## 2026-09-18 — Popup de Contacto en la ficha de producto
+
+- La ficha ahora tiene también el botón **"Contacto"** en el header (junto a "Cómo comprar") que abre el mismo modal del home: Local con link a Maps, Horarios, WhatsApp y Redes, con el botón verde "Escribinos por WhatsApp" — todo alimentado por los datos configurables del panel vía el módulo compartido `store-modals.ts` (no hubo que tocar product.ts: `setupModals` ya cableaba `nav-contact`).
+- Verificado en preview: botón abre el modal con los 4 ítems y el WA del panel; cierre por ✕; header de la ficha sigue entrando en una línea.
+
+## 2026-09-18 — Nombre de la tienda configurable (storeName)
+
+- Nuevo campo **"Nombre de la tienda"** en Configuración (junto a los datos del comercio), guardado en `StoreSettings` como `storeName` (max 60 chars, con default "CenterPhone Celulares").
+- **Dónde se aplica**: título de la pestaña del home ("{nombre} — Catálogo") y de la ficha ("{producto} — {nombre}"), y el texto de marca del footer. El header con logo se mantiene como está (imagen + texto estático). Nota: el título de la ficha lo pisa `fillStoreInfo` si se llama después — ordenado para que cada página ponga el suyo.
+- Verificado end-to-end: cambio a "Mi Tienda de Prueba" vía API → título del home, título de ficha y footer reflejan el cambio; restaurado el nombre real. 76 tests ✅.
+
+## 2026-09-18 — Horario y dirección en la ficha de producto
+
+- Debajo de los botones de acción de la ficha ahora hay una **tarjeta con HORARIOS y LOCAL** (dirección con link ↗ a Google Maps), alimentada por los mismos datos configurables del panel (`fillStoreInfo` en el módulo compartido `store-modals.ts`). Si algún campo está vacío en el panel, la tarjeta se oculta entera o el ítem no aparece.
+- De paso: header de la ficha compactado en ≤640px ("Volver al catálogo" cede espacio, 13px) — verifico que marca + volver + "Cómo comprar" entren en una línea sin overflow; `white-space: nowrap` en el link.
+
+## 2026-09-18 — Hover en chips y botones de la toolbar
+
+- Los chips de la toolbar ahora tienen el mismo efecto hover que las tarjetas: **elevación de 2px + borde verde + sombra difusa**, con transición de 0.22s y feedback `:active` que baja a su posición. Los chips activos (seleccionados) suman un anillo verde translúcido al hover. El select "Ordenar" también responde con borde verde + sombra. De paso: `white-space: nowrap` en la nav del header para que "Cómo comprar" no se parta en dos líneas en pantallas angostas.
+
+## 2026-09-18 — Toolbar de filtros verificada y corregida en móvil
+
+- **Scroll horizontal de chips**: filas `.tb-row` con overflow-x auto y scrollbar oculta — verificado que scrollean hasta el final ("Ordenar" accesible) y vuelven a "Todos" al inicio, con y sin subcategorías.
+- **Corregido solape del sticky**: el toolbar usaba `top: 57px` fijo, pero el header mide 67px en ≥481px y 53px en ≤480px (compacto). Ahora: `top: 67px` desktop, `67px` en tablets angostas (481–800px) y `53px` en ≤480px — verificado sin solape ni hueco en 581px y en los dos regímenes de header.
+- **Header compacto a ≤390px**: nav reducida a 12px y se ocultan "Productos" y "Contacto" (quedan marca + "Cómo comprar") para que marca + nav entren en 390px sin envolver. Chips a 11.5px/6-11px y spacer oculto en móvil para que el scroll de la fila llegue justo al select "Ordenar".
+
+## 2026-09-18 — Botón "Cómo comprar" en la ficha de producto
+
+- La ficha ahora tiene el botón "Cómo comprar" en el header (junto a "← Volver al catálogo") que abre el mismo modal del home: 5 pasos + nota de retiro con la dirección del panel + botón de WhatsApp. Los modales y el llenado de datos del comercio se **extrajeron a un módulo compartido** (`store-modals.ts` + `types-web.ts`), usado por catalog.ts y product.ts — una sola implementación para las dos páginas.
+- Verificado en preview: ficha abre el modal (nota "📍 Retiro en el local: Mendoza 2974 · Santa Fe", WA con el número del panel, cierre por ✕) y el home sigue funcionando igual con el módulo compartido.
+
+## 2026-09-18 — Datos del comercio configurables desde el panel
+
+- Nuevos campos en **Configuración** (admin): dirección del local, link de Google Maps, horarios (textarea, una línea por rango), Instagram y Facebook. Se guardan en `StoreSettings` (KV, con merge a defaults para bases existentes — no hace falta migración) y salen por `/api/public/settings`.
+- **Popups y footer dinámicos**: "Contacto" y "Cómo comprar" (nota de retiro con la dirección) y las columnas del footer (horarios, dirección ↗ a Maps, botones de redes) se arman desde esas settings; los ítems vacíos no se muestran. Los datos hardcodeados en `index.html` se reemplazaron por contenedores que completa `fillStoreInfo()` en catalog.ts. URLs normalizadas (https automático) y limitadas en el worker.
+- Verificado end-to-end en local: PUT /api/admin/settings con otros datos → popup/footer reflejan el cambio (y desaparecen los vacíos); restaurados los valores originales. 76 tests ✅.
+
+## 2026-09-18 — Hover mejorado en las tarjetas de producto
+
+- El hover de `.card` pasó de un leve `-2px` a **elevación suave de 5px + borde verde + sombra difusa** (dos capas), con transición más fluida (0.22s ease para transform/borde/sombra). `:active` vuelve a 2px para dar feedback táctil al presionar.
+
+## 2026-09-18 — Filtro de precio quitado del catálogo
+
+- Eliminado el botón "Precio ▾" de la toolbar (rangos rápidos + rango manual Mín/Máx) y toda su lógica (`priceMin`/`priceMax` del state, filtrado, contadores, CSS de `.tb-drop`/`.tb-panel`). La barra queda: categorías + Nuevo/Destacado/Oferta + Ordenar. El orden por precio sigue disponible en el selector "Ordenar".
+
+## 2026-09-18 — Popups "Cómo comprar" y "Contacto" en el header
+
+- "Cómo comprar" y "Contacto" dejaron de ser anclas al footer (que con el scroll infinito ya no existía como "final fijo") y ahora **abren modales**: guía en 5 pasos + botón WhatsApp el primero; local, horarios, WhatsApp y redes el segundo. Ambos con el link de WhatsApp dinámico configurado en el panel, cierre por ✕, clic afuera y Escape, y bloqueo del scroll de fondo mientras están abiertos. El footer del home se mantiene con el mismo contenido para quien scrollea hasta el final.
+
+## 2026-09-18 — Botón "Consultar" con texto en las tarjetas
+
+- El botón de WhatsApp de cada tarjeta pasó del ícono solo (💬) a **"Consultar"** con texto. Paddings ajustados (6/12px, 13px; en móvil 4/9px, 12px) y `white-space: nowrap` para que no se corte. Verificado en preview: texto "Consultar", misma fila que el precio y sin desbordar la tarjeta.
+
+## 2026-09-18 — Header con navegación y footer nuevo (mockup)
+
+- **Header**: agregada nav derecha con "Productos" (ancla `#catalog`, al hero), "Cómo comprar" y "Contacto" (ambos anclan a `#how`, el pie de página). En móvil la nav se compacta (13px).
+- **Footer nuevo**: reemplaza la sección "Cómo comprar" — tarjetas **01 Explorá / 02 Consultá / 03 Coordinamos** con numerito verde arriba (estilo mockup) y debajo 4 columnas: marca con tagline, **HORARIOS** (L–V 9–19, Sáb 10–13), **VISITÁNOS** (Mendoza 2974 · Santa Fe ↗, link a Google Maps) y **SEGUINOS** (botones Facebook / Instagram con borde). CSS `.topnav` + `.footer*` reemplazan a `.how*` (el `id="how"` se conserva, el lazy-observer de catalog.ts sigue funcionando).
+- Verificado en preview: ancla "Cómo comprar" scrollea al footer (footerTop=10), 143 tarjetas cargadas por scroll infinito y el footer al final con el diseño del mockup.
+
+## 2026-09-18 — Botón de WhatsApp junto al precio en las tarjetas
+
+- El botón "💬 Consultar" pasó de franja inferior ancha a un botón compacto redondeado **dentro de la tarjeta, en la misma línea que el precio** (a la derecha de este, en `.card-foot`). Abre WhatsApp directo sin entrar a la ficha. En móvil queda más chico (5px/10px, 13px).
+
+## 2026-09-18 — Marca completa en la ficha de producto
+
+- El header de la ficha (`product.html`) decía solo "CenterPhone": le faltaba el span "Celulares" que sí tenía el home. Agregado con las mismas clases (`brand-name`/`brand-tag`). Además, en pantallas ≤480px el link "← Volver al catálogo" cede espacio (13px, alineado a la derecha) y el logo se compacta, para que la marca nunca se corte.
+
+## 2026-09-18 — Imágenes de tamaño uniforme
+
+- La ficha de producto dibujaba la imagen a su tamaño natural: una imagen alta/larga estiraba el contenedor y deformaba la vista. Ahora `.product-detail .img img` usa `width/height: 100%` + `object-fit: cover` (recorte centrado en cuadrado). Reforzado también `.card-img` (home y relacionadas) con `overflow: hidden` y `display: block`. Verificado: home 12/12 tarjetas exactamente 368×368, ficha 748×748 con imagen de 640×640 recortada al cuadrado.
+
+## 2026-09-18 — Rediseño del catálogo: 7 mejoras del home
+
+- **Orden**: nuevo grupo "Ordenar por" en filtros — Más recientes / Menor precio / Mayor precio / Aleatorio (seed estable para que las tarjetas no "salten" al hacer scroll).
+- **Rangos de precio rápidos**: chips (Todos / < $300 mil / $300–600 mil / $600 mil–1 M / > $1 M) además del rango manual.
+- **Scroll infinito**: se cargan 12 productos y se agregan de a 12 al acercarse al final de la página.
+- **WhatsApp en cada tarjeta**: botón "💬 Consultar" en cada artículo sin entrar a la ficha; el mensaje ya **no incluye el link del producto** (también en la ficha).
+- **Móvil a 2 columnas**: grilla fija de 2 columnas en pantallas chicas para ver más artículos a la vez.
+- **Botón flotante de consultas**: ya existía; verificado su funcionamiento.
+- **Sección "Cómo comprar"** al final del home: 3 pasos + contacto (Mendoza 2974 Santa Fe, horarios, Instagram @centerphonesantafe). Imágenes cargadas diferidas con IntersectionObserver.
+
+## 2026-09-18 — Regla: sin deploy automático
+
+- Nueva instrucción en `AGENTS.md`: los agentes trabajan solo con la versión local (dev server) y **no corren `npm run deploy`** ni suben nada a Cloudflare salvo orden explícita del usuario ("deploy", "subir a producción", etc.).
 
 ## 2026-09-18 — Marca con estilo unificado
 

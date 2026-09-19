@@ -2,14 +2,10 @@
 
 import type { Category, Product } from "../shared/types";
 import type { CatalogSnapshot } from "../shared/types";
+import type { PublicSettings } from "./types-web";
 import { formatPrice, availabilityLabel } from "../shared/format";
 import { waLink } from "../shared/whatsapp";
-
-interface PublicSettings {
-  whatsappPhone: string;
-  currencySymbol: string;
-  whatsappOk: boolean;
-}
+import { setupModals, fillStoreInfo } from "./store-modals";
 
 interface DetailResponse {
   product: Product;
@@ -66,7 +62,8 @@ async function init(): Promise<void> {
 
 function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
   const { product, related, settings } = data;
-  document.title = `${product.title} — CenterPhone Celulares`;
+  document.title = settings.storeName ? `${product.title} — ${settings.storeName}` : `${product.title}`;
+  // La marca del footer también sigue al storeName (lo aplica fillStoreInfo).
   const symbol = settings.currencySymbol || "$";
   const cat = snapshot?.categories.find((c) => c.id === product.categoryId);
 
@@ -112,6 +109,10 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
     el.waFloat.href = wa;
     el.waFloat.hidden = false;
   }
+
+  // Botón "Cómo comprar" del header: modal compartido con el home.
+  setupModals(settings);
+  fillStoreInfo(settings);
 
   el.related.innerHTML = related
     .map((p) => {

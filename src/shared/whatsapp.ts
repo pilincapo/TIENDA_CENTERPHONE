@@ -14,20 +14,18 @@ export function isValidPhone(phone: string): boolean {
 
 export function waMessage(
   settings: Pick<StoreSettings, "whatsappPhone" | "currencySymbol">,
-  product: Product,
-  baseUrl: string
+  product: Product
 ): string {
   const price = formatPrice(product.priceCents, settings.currencySymbol);
-  const url = `${baseUrl}/producto/${product.id}`;
-  return `Hola! Me interesa "${product.title}" (${price}). ${url}`;
+  return `Hola! Me interesa "${product.title}" (${price}). ¿Sigue disponible?`;
 }
 
 export function waLink(
   settings: Pick<StoreSettings, "whatsappPhone" | "currencySymbol">,
   product: Product,
-  baseUrl: string
+  _baseUrl?: string
 ): string {
-  const text = waMessage(settings, product, baseUrl);
+  const text = waMessage(settings, product);
   return `https://wa.me/${normalizePhone(settings.whatsappPhone)}?text=${encodeURIComponent(text)}`;
 }
 

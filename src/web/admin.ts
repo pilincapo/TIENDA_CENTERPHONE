@@ -94,6 +94,7 @@ async function viewDashboard(): Promise<void> {
     <div class="panel">
       <h2>Historial de sincronización</h2>
       ${log.length === 0 ? '<p class="muted">Todavía no hubo sincronizaciones.</p>' : `
+      <div class="table-scroll">
       <table class="table">
         <thead><tr><th>Fecha</th><th>Origen</th><th>Estado</th><th>Importados</th><th>Fallidos</th></tr></thead>
         <tbody>
@@ -107,6 +108,7 @@ async function viewDashboard(): Promise<void> {
             </tr>`).join("")}
         </tbody>
       </table>`}
+      </div>
     </div>`;
   el.view.querySelector("#sync-now")?.addEventListener("click", () => void doSync());
   el.view.querySelector("#rebuild")?.addEventListener("click", () => void rebuildSnapshot());
@@ -149,6 +151,23 @@ async function rebuildSnapshot(): Promise<void> {
 async function showLogin(): Promise<void> {
   el.login.hidden = false;
   el.app.hidden = true;
+  await applyStoreName();
+}
+
+// Nombre de la tienda desde la config pública: título de la pestaña + login.
+async function applyStoreName(): Promise<void> {
+  try {
+    const res = await fetch("/api/public/settings");
+    if (!res.ok) return;
+    const s = (await res.json()) as { storeName?: string };
+    if (s.storeName) {
+      document.title = `Admin — ${s.storeName}`;
+      const span = document.getElementById("login-store");
+      if (span) span.textContent = s.storeName;
+    }
+  } catch {
+    /* sin nombre: quedan los textos genéricos */
+  }
 }
 
 async function checkSession(): Promise<boolean> {
@@ -161,6 +180,7 @@ async function checkSession(): Promise<boolean> {
 }
 
 async function boot(): Promise<void> {
+  await applyStoreName();
   if (await checkSession()) {
     el.login.hidden = true;
     el.app.hidden = false;
@@ -223,6 +243,7 @@ async function viewProducts(): Promise<void> {
         <span class="muted" id="bulk-count" hidden></span>
       </div>
       ${products.length === 0 ? '<p class="muted">No hay productos todavía.</p>' : `
+      <div class="table-scroll">
       <table class="table" style="margin-top:14px">
         <thead><tr><th><input type="checkbox" id="sel-all" title="Marcar todos"/></th><th>Título</th><th>Precio</th><th>Categoría</th><th>Estado</th><th>Tags</th><th></th></tr></thead>
         <tbody>
@@ -241,6 +262,7 @@ async function viewProducts(): Promise<void> {
             </tr>`).join("")}
         </tbody>
       </table>`}
+      </div>
     </div>`;
   el.view.querySelector("#new-product")?.addEventListener("click", () => void openProductForm(null, categories));
   el.view.querySelectorAll(".btn-edit").forEach((b) => {
@@ -445,6 +467,7 @@ async function viewCategories(): Promise<void> {
         <button class="btn btn-primary" id="new-cat" style="margin-left:auto">+ Nueva categoría</button>
       </div>
       ${categories.length === 0 ? '<p class="muted">No hay categorías.</p>' : `
+      <div class="table-scroll">
       <table class="table" style="margin-top:14px">
         <thead><tr><th>Nombre</th><th>Padre</th><th>Activa</th><th></th></tr></thead>
         <tbody>
@@ -460,6 +483,7 @@ async function viewCategories(): Promise<void> {
             </tr>`).join("")}
         </tbody>
       </table>`}
+      </div>
     </div>`;
   el.view.querySelector("#new-cat")?.addEventListener("click", () => void openCategoryForm(null, roots));
   el.view.querySelectorAll(".btn-cat-edit").forEach((b) => {
@@ -715,10 +739,12 @@ function renderImportPreview(out: HTMLElement, r: PreviewResponse, sourceUrl = "
         <span class="muted" id="imp-count"></span>
         <button class="btn btn-primary" id="imp-confirm-top" style="margin-left:auto">Importar seleccionados</button>
       </div>
+      <div class="table-scroll">
       <table class="table" style="margin-top:8px">
         <thead><tr><th></th><th></th><th>Título</th><th>Precio a importar</th><th>Regla aplicada</th><th>Categoría</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
+      </div>
       <div class="row" style="margin-top:12px">
         <span class="muted" id="imp-count-bottom"></span>
         <button class="btn btn-primary" id="imp-confirm" style="margin-left:auto">Importar seleccionados</button>
@@ -825,6 +851,7 @@ async function viewRules(): Promise<void> {
         o desactivá la regla que sobra.</p>
       </div>` : ""}
       ${rules.length === 0 ? '<p class="muted">Todavía no hay reglas. Creá una, ej: "Entre $0 y $10.000 → +40%".</p>' : `
+      <div class="table-scroll">
       <table class="table" style="margin-top:14px">
         <thead><tr><th>Regla</th><th>Grupo</th><th>Rango</th><th>Recargo</th><th>Prioridad</th><th>Activa</th><th></th></tr></thead>
         <tbody>
@@ -843,6 +870,7 @@ async function viewRules(): Promise<void> {
             </tr>`).join("")}
         </tbody>
       </table>`}
+      </div>
     </div>`;
   el.view.querySelector("#new-rule")?.addEventListener("click", () => void openRuleForm(null));
   el.view.querySelectorAll(".btn-rule-edit").forEach((b) => {
@@ -962,10 +990,12 @@ async function viewAutoImports(): Promise<void> {
       Activá uno, elegile regla o grupo de precios y horarios (hora Argentina): el sistema lo vuelve a
       importar solo en esos momentos, todos los días.</p>
       ${jobs.length === 0 ? '<p class="muted">Todavía no hay links. Importá uno desde la pestaña Importar y va a aparecer acá.</p>' : `
+      <div class="table-scroll">
       <table class="table" style="margin-top:14px">
         <thead><tr><th></th><th>Link</th><th>Regla / Grupo</th><th>Horarios</th><th>Última corrida</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`}
+      </div>
     </div>`;
   el.view.querySelector("#new-auto")?.addEventListener("click", () => void openAutoForm(null, rules, groups));
   el.view.querySelector("#run-auto")?.addEventListener("click", async () => {
@@ -1090,6 +1120,19 @@ async function viewSettings(): Promise<void> {
           <input name="whatsappPhone" value="${esc(settings.whatsappPhone)}" placeholder="5491100000000"/></div>
         <div class="field"><label>Símbolo de moneda</label>
           <input name="currencySymbol" value="${esc(settings.currencySymbol)}" maxlength="3"/></div>
+        <h2 style="margin-top:24px">Datos del comercio (popups y footer)</h2>
+        <div class="field"><label>Nombre de la tienda</label>
+          <input name="storeName" value="${esc(settings.storeName)}" placeholder="Mi Tienda"/></div>
+        <div class="field"><label>Dirección del local</label>
+          <input name="storeAddress" value="${esc(settings.storeAddress)}" placeholder="Mendoza 2974 · Santa Fe"/></div>
+        <div class="field"><label>Link de Google Maps</label>
+          <input name="storeMapUrl" value="${esc(settings.storeMapUrl)}" placeholder="https://maps.google.com/?q=…"/></div>
+        <div class="field"><label>Horarios (una línea por rango)</label>
+          <textarea name="storeHours" rows="2" placeholder="Lunes a viernes: 9:00 a 19:00 hs">${esc(settings.storeHours)}</textarea></div>
+        <div class="field"><label>Instagram (URL)</label>
+          <input name="instagramUrl" value="${esc(settings.instagramUrl)}" placeholder="https://www.instagram.com/…"/></div>
+        <div class="field"><label>Facebook (URL)</label>
+          <input name="facebookUrl" value="${esc(settings.facebookUrl)}" placeholder="https://www.facebook.com/…"/></div>
         <h2 style="margin-top:24px">Sincronización</h2>
         <div class="field"><label>URL del JSON a sincronizar</label>
           <input name="syncUrl" value="${esc(settings.syncUrl)}" placeholder="https://…"/></div>
@@ -1114,6 +1157,12 @@ async function viewSettings(): Promise<void> {
           syncUrl: fd.get("syncUrl"),
           syncToken: fd.get("syncToken"),
           syncIntervalMinutes: Number(fd.get("syncIntervalMinutes") ?? 60),
+          storeName: fd.get("storeName"),
+          storeAddress: fd.get("storeAddress"),
+          storeMapUrl: fd.get("storeMapUrl"),
+          storeHours: fd.get("storeHours"),
+          instagramUrl: fd.get("instagramUrl"),
+          facebookUrl: fd.get("facebookUrl"),
         }),
       });
       toast("Configuración guardada");

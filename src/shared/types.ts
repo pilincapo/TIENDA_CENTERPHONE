@@ -50,6 +50,13 @@ export interface StoreSettings {
   syncUrl: string;
   syncIntervalMinutes: number;
   syncToken: string;
+  // Datos del comercio para popups/footer (configurables desde el panel).
+  storeName: string;
+  storeAddress: string;
+  storeMapUrl: string;
+  storeHours: string;
+  instagramUrl: string;
+  facebookUrl: string;
 }
 
 export const TAGS: Tag[] = ["new", "featured", "offer"];
@@ -72,6 +79,12 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   syncUrl: "",
   syncIntervalMinutes: 60,
   syncToken: "",
+  storeName: "CenterPhone Celulares",
+  storeAddress: "Mendoza 2974 · Santa Fe",
+  storeMapUrl: "https://maps.google.com/?q=Mendoza+2974+Santa+Fe",
+  storeHours: "Lunes a viernes: 9:00 a 19:00 hs\nSábados: 10:00 a 13:00 hs",
+  instagramUrl: "https://www.instagram.com/centerphonesantafe",
+  facebookUrl: "https://www.facebook.com/centerphonesantafe",
 };
 
 export const KV_SNAPSHOT_KEY = "catalog:snapshot:v1";

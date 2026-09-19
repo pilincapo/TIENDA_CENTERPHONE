@@ -1,14 +1,14 @@
 // SPA del catálogo público.
 
 import type { CatalogSnapshot, Category, Product, Tag } from "../shared/types";
+import type { PublicSettings } from "./types-web";
 import { formatPrice, tagLabel } from "../shared/format";
 import { waLinkText } from "../shared/whatsapp";
+import { fillStoreInfo, setupModals } from "./store-modals";
 
-interface PublicSettings {
-  whatsappPhone: string;
-  currencySymbol: string;
-  whatsappOk: boolean;
-}
+type SortMode = "default" | "price-asc" | "price-desc" | "random";
+
+const PAGE_SIZE = 12;
 
 const state = {
   snapshot: null as CatalogSnapshot | null,
@@ -16,15 +16,17 @@ const state = {
   search: "",
   category: "",
   tags: new Set<Tag>(),
-  priceMin: "",
-  priceMax: "",
+  sort: "default" as SortMode,
+  seed: 1,
+  shown: PAGE_SIZE,
 };
 
 const el = {
   search: document.getElementById("search") as HTMLInputElement,
-  filters: document.getElementById("filters") as HTMLElement,
+  toolbar: document.getElementById("toolbar") as HTMLElement,
   content: document.getElementById("content") as HTMLElement,
   waFloat: document.getElementById("wa-float") as HTMLAnchorElement,
+  how: document.getElementById("how") as HTMLElement,
 };
 
 function esc(s: string): string {
@@ -46,8 +48,21 @@ async function init(): Promise<void> {
     if (catParam) state.category = catParam;
     el.search.addEventListener("input", () => {
       state.search = el.search.value;
+      resetPager();
       render();
     });
+    setupHowObserver();
+    if (state.settings) {
+      setupModals(state.settings);
+      fillStoreInfo(state.settings);
+      if (state.settings.storeName) document.title = `${state.settings.storeName} — Catálogo`;
+    }
+    // Stats de la línea terminal del hero (se muestran cuando hay catálogo)
+    const published = (state.snapshot?.products ?? []).length;
+    const statCount = document.getElementById("stat-count");
+    const statWrap = document.getElementById("hero-stats");
+    if (statCount && published > 0) statCount.textContent = String(published);
+    if (statWrap && published > 0) statWrap.hidden = false;
     render();
   } catch (e) {
     renderError(e instanceof Error ? e : new Error(String(e)));
@@ -73,6 +88,26 @@ function setupWaFloat(): void {
   el.waFloat.hidden = false;
 }
 
+// Sección "Cómo comprar": las imágenes se cargan recién cuando está por verse.
+function setupHowObserver(): void {
+  if (!("IntersectionObserver" in window)) {
+    el.how.setAttribute("loading", "eager");
+    return;
+  }
+  const io = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        el.how.querySelectorAll<HTMLImageElement>("img[data-src]").forEach((img) => {
+          img.src = img.dataset.src ?? "";
+          delete img.dataset.src;
+        });
+        io.disconnect();
+      }
+    }
+  }, { rootMargin: "400px" });
+  io.observe(el.how);
+}
+
 // ---- Filtros ----
 
 function rootCategories(): Category[] {
@@ -84,64 +119,115 @@ function subcategoriesOf(parentId: string): Category[] {
   return (state.snapshot?.categories ?? []).filter((c) => c.parentId === parentId);
 }
 
-function renderFilters(): void {
+function sortLabel(): string {
+  switch (state.sort) {
+    case "price-asc": return "Menor precio";
+    case "price-desc": return "Mayor precio";
+    case "random": return "Aleatorio";
+    default: return "Más recientes";
+  }
+}
+
+function activeFilterCount(): number {
+  return (state.category ? 1 : 0) + state.tags.size;
+}
+
+function renderToolbar(): void {
   const cats = rootCategories();
   const subs = state.category ? subcategoriesOf(state.category) : [];
-  el.filters.innerHTML = `
-    <div>
-      <h3>Categorías</h3>
-      <label><input type="radio" name="cat" value="" ${state.category === "" ? "checked" : ""}/> Todas</label>
+  const n = activeFilterCount();
+  el.toolbar.innerHTML = `
+    <div class="tb-row">
+      <button class="chip ${state.category === "" ? "on" : ""}" data-cat="">Todos</button>
       ${cats.map((c) => `
-        <label><input type="radio" name="cat" value="${esc(c.id)}" ${state.category === c.id ? "checked" : ""}/> ${esc(c.name)}</label>
-        ${state.category === c.id ? subs.map((s) => `
-          <label class="sub"><input type="radio" name="cat" value="${esc(s.id)}"/> ↳ ${esc(s.name)}</label>`).join("") : ""}
+        <button class="chip ${state.category === c.id ? "on" : ""}" data-cat="${esc(c.id)}">${esc(c.name)}</button>
       `).join("")}
+      <div class="tb-spacer"></div>
+      <label class="tb-sort">Ordenar
+        <select id="sort-sel">
+          <option value="default" ${state.sort === "default" ? "selected" : ""}>Más recientes</option>
+          <option value="price-asc" ${state.sort === "price-asc" ? "selected" : ""}>Menor precio</option>
+          <option value="price-desc" ${state.sort === "price-desc" ? "selected" : ""}>Mayor precio</option>
+          <option value="random" ${state.sort === "random" ? "selected" : ""}>Aleatorio</option>
+        </select>
+      </label>
     </div>
-    <div>
-      <h3>Precio</h3>
-      <div class="price-row">
-        <input id="price-min" type="number" min="0" placeholder="Mín" value="${esc(state.priceMin)}" />
-        <span>–</span>
-        <input id="price-max" type="number" min="0" placeholder="Máx" value="${esc(state.priceMax)}" />
-      </div>
-    </div>
-    <div>
-      <h3>Etiquetas</h3>
+    ${subs.length ? `
+    <div class="tb-row tb-row--sub">
+      ${subs.map((s) => `
+        <button class="chip chip--sub ${state.category === s.id ? "on" : ""}" data-cat="${esc(s.id)}">↳ ${esc(s.name)}</button>
+      `).join("")}
+    </div>` : ""}
+    <div class="tb-row">
       ${(["new", "featured", "offer"] as Tag[]).map((t) => `
-        <label><input type="checkbox" data-tag="${t}" ${state.tags.has(t) ? "checked" : ""}/> ${tagLabel(t)}</label>
+        <button class="chip ${state.tags.has(t) ? "on" : ""}" data-tag="${t}">${tagLabel(t)}</button>
       `).join("")}
+      ${n > 0 ? `<button class="chip chip--clear" id="clear-filters">✕ Limpiar (${n})</button>` : ""}
     </div>
-    <button class="btn" id="clear-filters">Limpiar filtros</button>
   `;
 
-  el.filters.querySelectorAll('input[name="cat"]').forEach((input) => {
-    input.addEventListener("change", () => {
-      state.category = (input as HTMLInputElement).value;
+  el.toolbar.querySelectorAll<HTMLButtonElement>("button[data-cat]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.category = btn.dataset.cat ?? "";
+      resetPager();
       render();
     });
   });
-  el.filters.querySelectorAll("input[data-tag]").forEach((input) => {
-    input.addEventListener("change", () => {
-      const t = (input as HTMLInputElement).dataset.tag as Tag;
-      if ((input as HTMLInputElement).checked) state.tags.add(t);
-      else state.tags.delete(t);
+  el.toolbar.querySelector("#sort-sel")?.addEventListener("change", (ev) => {
+    const v = (ev.target as HTMLSelectElement).value as SortMode;
+    if (v === "random" && state.sort !== "random") state.seed = Math.floor(Math.random() * 1e9);
+    state.sort = v;
+    resetPager();
+    render();
+  });
+  el.toolbar.querySelectorAll<HTMLButtonElement>("button[data-tag]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const t = btn.dataset.tag as Tag;
+      if (state.tags.has(t)) state.tags.delete(t);
+      else state.tags.add(t);
+      resetPager();
       render();
     });
   });
-  const min = el.filters.querySelector("#price-min") as HTMLInputElement | null;
-  const max = el.filters.querySelector("#price-max") as HTMLInputElement | null;
-  min?.addEventListener("change", () => { state.priceMin = min.value; render(); });
-  max?.addEventListener("change", () => { state.priceMax = max.value; render(); });
-  el.filters.querySelector("#clear-filters")?.addEventListener("click", clearFilters);
+  el.toolbar.querySelector("#clear-filters")?.addEventListener("click", clearFilters);
+  updateToolbarMasks();
+  setupToolbarMaskScroll();
+}
+
+// ---- Degradado "hay más chips" ----
+
+// Marca cada fila con .has-more si queda contenido por scrollear a la derecha.
+function updateToolbarMasks(): void {
+  for (const row of el.toolbar.querySelectorAll<HTMLElement>(".tb-row")) {
+    const hasMore = row.scrollWidth > row.clientWidth + 2 &&
+      row.scrollLeft + row.clientWidth < row.scrollWidth - 2;
+    row.classList.toggle("has-more", hasMore);
+  }
+}
+
+// Un solo listener de scroll (delegado) que refresca las máscaras.
+let maskScrollWired = false;
+function setupToolbarMaskScroll(): void {
+  if (maskScrollWired) return;
+  maskScrollWired = true;
+  el.toolbar.addEventListener("scroll", (ev) => {
+    const t = ev.target as HTMLElement;
+    if (t.classList?.contains("tb-row")) {
+      const hasMore = t.scrollLeft + t.clientWidth < t.scrollWidth - 2;
+      t.classList.toggle("has-more", hasMore);
+    }
+  }, true);
+  // Resize también puede cambiar si hay overflow
+  window.addEventListener("resize", updateToolbarMasks);
 }
 
 function clearFilters(): void {
   state.category = "";
   state.tags.clear();
-  state.priceMin = "";
-  state.priceMax = "";
+  state.sort = "default";
   state.search = "";
   el.search.value = "";
+  resetPager();
   render();
 }
 
@@ -158,18 +244,42 @@ function collectCategoryIds(): Set<string> {
 function applyFilters(products: Product[]): Product[] {
   const term = state.search.trim().toLowerCase();
   const catIds = collectCategoryIds();
-  const min = state.priceMin === "" ? null : Number(state.priceMin) * 100;
-  const max = state.priceMax === "" ? null : Number(state.priceMax) * 100;
   return products.filter((p) => {
     if (term !== "" && !`${p.title} ${p.description}`.toLowerCase().includes(term)) return false;
     if (catIds.size > 0 && (!p.categoryId || !catIds.has(p.categoryId))) return false;
-    if (min !== null && p.priceCents < min) return false;
-    if (max !== null && p.priceCents > max) return false;
     for (const t of state.tags) {
       if (!p.tags.includes(t)) return false;
     }
     return true;
   });
+}
+
+// Orden estable determinístico: mismo seed = mismo orden (si no, el orden
+// cambia con cada re-render y las tarjetas "saltan" al hacer scroll).
+function shuffled<T>(list: T[], seed: number): T[] {
+  const arr = [...list];
+  let s = seed || 1;
+  const rand = () => {
+    s = (s * 1103515245 + 12345) % 2147483648;
+    return s / 2147483648;
+  };
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    const tmp = arr[i] as T;
+    arr[i] = arr[j] as T;
+    arr[j] = tmp;
+  }
+  return arr;
+}
+
+function sortedProducts(): Product[] {
+  const filtered = applyFilters(state.snapshot?.products ?? []);
+  switch (state.sort) {
+    case "price-asc": return [...filtered].sort((a, b) => a.priceCents - b.priceCents);
+    case "price-desc": return [...filtered].sort((a, b) => b.priceCents - a.priceCents);
+    case "random": return shuffled(filtered, state.seed);
+    default: return filtered;
+  }
 }
 
 function cardHtml(p: Product): string {
@@ -182,23 +292,67 @@ function cardHtml(p: Product): string {
     p.availability === "out_of_stock" ? `<span class="badge badge--stock-out">Sin stock</span>` : "",
     p.availability === "preorder" ? `<span class="badge badge--stock-pre">Bajo pedido</span>` : "",
   ].join("");
+  const wa = state.settings?.whatsappOk
+    ? `<button class="card-wa" data-wa="${esc(p.id)}" title="Consultar por WhatsApp">Consultar</button>`
+    : "";
   return `
-    <a class="card" href="/producto/${esc(p.id)}">
-      <div class="card-img">${img}</div>
-      <div class="card-body">
-        ${badges ? `<div class="badges">${badges}</div>` : ""}
-        <h3 class="card-title">${esc(p.title)}</h3>
-        <div class="card-foot">
-          <span class="card-price">${formatPrice(p.priceCents, symbol)}</span>
+    <div class="card-wrap">
+      <a class="card" href="/producto/${esc(p.id)}">
+        <div class="card-img">${img}</div>
+        <div class="card-body">
+          ${badges ? `<div class="badges">${badges}</div>` : ""}
+          <h3 class="card-title">${esc(p.title)}</h3>
+          <div class="card-foot">
+            <span class="card-price">${formatPrice(p.priceCents, symbol)}</span>
+            ${wa}
+          </div>
         </div>
-      </div>
-    </a>`;
+      </a>
+    </div>`;
 }
 
-function render(): void {
-  renderFilters();
+// Consultas por WhatsApp desde la tarjeta (sin abrir la ficha).
+function productById(id: string): Product | undefined {
+  return state.snapshot?.products.find((p) => p.id === id);
+}
+
+function waLinkForProduct(p: Product): string {
+  const symbol = state.settings?.currencySymbol ?? "$";
+  const price = formatPrice(p.priceCents, symbol);
+  const text = `Hola! Me interesa "${p.title}" (${price}). ¿Sigue disponible?`;
+  return `https://wa.me/${(state.settings?.whatsappPhone ?? "").replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
+}
+
+function bindWaButtons(): void {
+  el.content.querySelectorAll<HTMLButtonElement>(".card-wa").forEach((btn) => {
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const p = productById(btn.dataset.wa ?? "");
+      if (p && state.settings) window.open(waLinkForProduct(p), "_blank", "noopener");
+    });
+  });
+}
+
+// ---- Scroll infinito ----
+
+function resetPager(): void {
+  state.shown = PAGE_SIZE;
+}
+
+function maybeShowMore(): void {
+  const total = sortedProducts().length;
+  if (state.shown >= total) return;
+  const nearBottom =
+    window.innerHeight + window.scrollY >= document.body.offsetHeight - 600;
+  if (nearBottom) {
+    state.shown += PAGE_SIZE;
+    renderGrid();
+  }
+}
+
+function renderGrid(): void {
   const products = state.snapshot?.products ?? [];
-  const filtered = applyFilters(products);
   if (products.length === 0) {
     setContent(
       `<div class="state"><p>El catálogo todavía no tiene productos publicados.</p>
@@ -206,7 +360,8 @@ function render(): void {
     );
     return;
   }
-  if (filtered.length === 0) {
+  const sorted = sortedProducts();
+  if (sorted.length === 0) {
     setContent(
       `<div class="state"><p>No hay productos que coincidan con los filtros.</p>
        <button class="btn btn-primary" id="clear">Limpiar filtros</button></div>`
@@ -214,7 +369,20 @@ function render(): void {
     document.getElementById("clear")?.addEventListener("click", clearFilters);
     return;
   }
-  setContent(`<div class="grid">${filtered.map(cardHtml).join("")}</div>`);
+  const visible = sorted.slice(0, state.shown);
+  const more = sorted.length > visible.length;
+  setContent(`
+    <div class="grid">${visible.map(cardHtml).join("")}</div>
+    ${more ? `<div class="loader-more"><div class="spinner"></div></div>` : ""}
+  `);
+  bindWaButtons();
 }
+
+function render(): void {
+  renderToolbar();
+  renderGrid();
+}
+
+window.addEventListener("scroll", () => requestAnimationFrame(() => maybeShowMore()), { passive: true });
 
 void init();
