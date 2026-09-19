@@ -26,6 +26,8 @@ function prettySlug(s: string): string {
 }
 
 export interface NormalizeOutcome {
+  /** Items salteados con motivo ("Encendedor X: precio inválido"). */
+  skipped: string[];
   products: Product[];
   categories: { id: string; name: string; parentId: string | null }[];
   errors: string[];
@@ -48,17 +50,18 @@ export function normalizeExternalItems(rawItems: unknown[]): NormalizeOutcome {
   const products: Product[] = [];
   const categories: { id: string; name: string; parentId: string | null }[] = [];
   const errors: string[] = [];
+  const skipped: string[] = [];
   const seenCats = new Set<string>();
 
   rawItems.forEach((item, i) => {
     if (!item || typeof item !== "object") {
-      errors.push(`Item ${i}: no es un objeto`);
+      skipped.push(`Item ${i}: no es un objeto`);
       return;
     }
     const o = item as Dict;
     const title = asString(pick(o, ["title", "name", "nombre"]), 200);
     if (title === "") {
-      errors.push(`Item ${i}: falta title/name`);
+      skipped.push(`Item ${i}: falta title/name`);
       return;
     }
     // price_cents/priceCents ya están en centavos (items internos o API propia):
@@ -69,7 +72,7 @@ export function normalizeExternalItems(rawItems: unknown[]): NormalizeOutcome {
         ? Math.max(0, Math.round(Number(centsRaw)))
         : parsePriceCents(pick(o, ["price", "precio"]));
     if (parsedCents === null) {
-      errors.push(`"${title}": precio inválido`);
+      skipped.push(`"${title}": precio inválido, se salta el artículo`);
       return;
     }
     // Los precios de la tienda son siempre pesos enteros: sin centavos.
@@ -125,5 +128,5 @@ export function normalizeExternalItems(rawItems: unknown[]): NormalizeOutcome {
     });
   });
 
-  return { products, categories, errors };
+  return { products, categories, skipped, errors: [] };
 }

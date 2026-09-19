@@ -64,6 +64,7 @@ function rowToSyncLog(row: Dict): SyncLogEntry {
     itemsImported: row.items_imported == null ? null : num(row.items_imported),
     itemsFailed: row.items_failed == null ? null : num(row.items_failed),
     error: row.error == null ? null : String(row.error),
+    detail: row.detail == null ? null : String(row.detail),
     startedAt: num(row.started_at),
     finishedAt: row.finished_at == null ? null : num(row.finished_at),
   };
@@ -131,12 +132,12 @@ export async function deleteProduct(db: D1Database, id: string): Promise<void> {
 export async function insertSyncLog(db: D1Database, entry: SyncLogEntry): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO sync_log (id, trigger, status, items_total, items_imported, items_failed, error, started_at, finished_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
+      `INSERT INTO sync_log (id, trigger, status, items_total, items_imported, items_failed, error, detail, started_at, finished_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`
     )
     .bind(
       entry.id, entry.trigger, entry.status, entry.itemsTotal,
-      entry.itemsImported, entry.itemsFailed, entry.error, entry.startedAt, entry.finishedAt
+      entry.itemsImported, entry.itemsFailed, entry.error, entry.detail, entry.startedAt, entry.finishedAt
     )
     .run();
 }
@@ -147,6 +148,29 @@ export async function listSyncLog(db: D1Database, limit = 10): Promise<SyncLogEn
     .bind(limit)
     .all<Dict>();
   return (results ?? []).map(rowToSyncLog);
+}
+
+export async function listSyncLogByTrigger(db: D1Database, trigger: SyncTrigger, limit = 50): Promise<SyncLogEntry[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM sync_log WHERE trigger = ?1 ORDER BY started_at DESC LIMIT ?2")
+    .bind(trigger, limit)
+    .all<Dict>();
+  return (results ?? []).map(rowToSyncLog);
+}
+
+/** Última corrida por URL (para mostrar el detalle del error en Auto-importaciones). */
+export async function lastSyncLogByDetail(db: D1Database, detail: string, limit = 200): Promise<SyncLogEntry | null> {
+  const { results } = await db
+    .prepare("SELECT * FROM sync_log WHERE detail = ?1 ORDER BY started_at DESC LIMIT 1")
+    .bind(detail)
+    .all<Dict>();
+  if (results && results.length > 0) return rowToSyncLog(results[0] as Dict);
+  // Fallback sin LIMIT (versiones viejas de D1 a veces lo exigen con LIKE).
+  const { results: all } = await db
+    .prepare("SELECT * FROM sync_log WHERE detail = ?1 ORDER BY started_at DESC")
+    .bind(detail)
+    .all<Dict>();
+  return all && all.length > 0 ? rowToSyncLog(all[0] as Dict) : null;
 }
 
 // ---- Reglas de precio ----

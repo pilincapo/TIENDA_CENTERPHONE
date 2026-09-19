@@ -163,6 +163,8 @@ function renderToolbar(): void {
         <button class="chip ${state.tags.has(t) ? "on" : ""}" data-tag="${t}">${tagLabel(t)}</button>
       `).join("")}
       ${n > 0 ? `<button class="chip chip--clear" id="clear-filters">✕ Limpiar (${n})</button>` : ""}
+      <div class="tb-spacer"></div>
+      <span class="tb-count" id="tb-count" hidden></span>
     </div>
   `;
 
@@ -340,6 +342,14 @@ function resetPager(): void {
   state.shown = PAGE_SIZE;
 }
 
+// Contador "X de Y" en la toolbar (visible cuando hay productos filtrados).
+function updateCount(total: number, shown: number): void {
+  const c = document.getElementById("tb-count");
+  if (!c) return;
+  c.textContent = `${shown} de ${total}`;
+  c.hidden = total === 0;
+}
+
 function renderGrid(): void {
   const products = state.snapshot?.products ?? [];
   if (products.length === 0) {
@@ -360,6 +370,7 @@ function renderGrid(): void {
   }
   const visible = sorted.slice(0, state.shown);
   const more = sorted.length > visible.length;
+  updateCount(sorted.length, visible.length);
   setContent(`
     <div class="grid">${visible.map(cardHtml).join("")}</div>
     ${more ? `<div class="load-more-wrap"><button class="btn load-more" id="load-more">Cargar más <span class="lm-count">(${sorted.length - visible.length} restantes)</span></button></div>` : ""}

@@ -1,3 +1,50 @@
+## 2026-09-19 — Deploy: historial completo de sincronizaciones
+
+- Deploy a Cloudflare (`09ee94cb`) con el historial de todas las corridas (cron + manuales) y la columna detail
+- Migración 003 aplicada a la base de producción (columna detail verificada en sync_log); 76 tests ✅ antes de subir; home HTTP 200
+
+## 2026-09-19 — Historial completo de sincronizaciones
+
+- Ahora TODA corrida queda registrada en sync_log: las auto-importaciones del cron (automáticas) y las manuales (botones del panel), cada una con su URL de origen (columna nueva `detail`, migración 003)
+- Dashboard del admin: tabla del historial con fecha, origen (Automática/Manual/Importación), detalle (URL), estado, importados y error; filtro por tipo y últimas 50 corridas
+- Simplificado el endpoint /auto-imports/run (reusa runAllAutoImportsNow)
+- Verificado localmente: corridas manuales con URL e importados registrados; filtro del historial funcionando
+
+## 2026-09-19 — Deploy: contador, selector de horarios y fixes visuales
+
+- Deploy a Cloudflare (`2776a439`): contador "X de Y" en la toolbar, selector de horarios como lista con máx. 3, fix del modal de auto-importaciones, fotos sin scanlines, fix de capas de los popups (centrado + cierre al clic afuera) y fix del toolbar sticky
+- 76 tests ✅ antes de subir; home HTTP 200 en producción
+
+## 2026-09-19 — Selector de horarios rediseñado (máx. 3)
+
+- El formulario de auto-importaciones reemplaza la grilla de checkboxes por una lista scrolleable de horarios (3 columnas, ✓ verde en los elegidos)
+- Límite de 3 horarios por auto-importación: al intentar un cuarto muestra aviso en rojo y bloquea; contador en vivo "N de 3 seleccionados"
+- Guardado verificado end-to-end en el preview; pendiente de deploy
+
+## 2026-09-19 — Fix: popups tapados por las fotos (capas del tema terminal)
+
+- Causa: al dejar las fotos sin scanlines (z-index 1000), quedaron POR ENCIMA de los modales (z-index 100) — el popup se veía roto, desplazado y con un recuadro gigante "transparente", y el clic afuera pegaba en la foto
+- Escala de capas reordenada: scanlines 999 < fotos 1000 < UI sticky/flotante 1001 < modales 1003 < toast 1004
+- Caja del popup con fondo más contrastado (#131b25) para que no parezca transparente
+- Verificado en preview (home y ficha): popup centrado, sólido, por encima de las fotos y cierre al clic afuera; pendiente de deploy
+
+## 2026-09-19 — Fotos de producto sin scanlines
+
+- Las scanlines CRT cubrían también las fotos de producto (se veían "rayadas"); ahora las imágenes del grid, la ficha y las miniaturas del admin quedan por encima de la capa de efecto
+- El efecto terminal se mantiene en toda la interfaz (fondos, textos, bordes); verificado en preview; pendiente de deploy
+
+## 2026-09-19 — Fix: modal de auto-importaciones roto en el admin
+
+- El modal de Nueva/Editar auto-importación se veía roto y sin scroll: la clase `.modal` del admin quedaba pisada por la del modal público (position:fixed a pantalla completa) agregada con el tema terminal
+- Renombrada la caja del admin a `.modal-card` con sus propios estilos (max-height 90vh, overflow auto, sombra dura)
+- Verificado en preview: Nueva y Editar se abren centradas, con scroll interno y datos precargados correctos; pendiente de deploy
+
+## 2026-09-19 — Contador de productos en la toolbar
+
+- Caja "X de Y" a la derecha de la fila de etiquetas: muestra los productos visibles sobre el total del filtro actual (ej: "20 de 143")
+- Se actualiza al usar "Cargar más", cambiar filtros/orden/búsqueda y se oculta cuando no hay resultados
+- Verificado en preview: 20 de 143 → 40 de 143 tras cargar más; pendiente de deploy
+
 ## 2026-09-19 — Deploy: paginador "Cargar más" en producción
 
 - Deploy a Cloudflare (`c311525d`) con el botón "Cargar más" (20 por página) y el fix del hueco del toolbar sticky
@@ -45,6 +92,27 @@
 - Commit y push de todo el rediseño claro + branding configurable a `pilincapo/TIENDA_CENTERPHONE` (`30d1e9c`)
 
 # Changelog
+
+## 2026-09-19 (7)
+- **Los items con precio inválido ya no fallan la sincronización**: se saltan individualmente (con aviso "X: precio inválido, se salta el artículo") y la corrida continúa con el resto. La corrida queda `ok` si al menos un producto se importó; los avisos se muestran con ⓘ en el historial y en Auto-importaciones (los errores reales de red/extracción siguen en rojo ⚠). Solo es error si ningún producto pudo importarse. Test actualizado al nuevo comportamiento.
+
+## 2026-09-19 (6)
+- **Detalle de error en Auto-importaciones**: cada job de la tabla muestra ahora la causa del último error bajo el estado (⚠ en rojo, tooltip con el texto completo), vía nuevo endpoint `/auto-imports/last-run?url=` que lee la última corrida de esa URL en `sync_log`.
+
+## 2026-09-19 (5)
+- **README.md arreglado**: se resolvió el conflicto de merge sin resolver (quedaba con marcadores `<<<<<<< HEAD` / `>>>>>>> origin/main` desde un merge anterior). Se conservó la documentación completa actualizándola al estado real: auto-importaciones con grupos de reglas, historial con causas de error, borrar por categoría, precios enteros, correo del botón "Consultar" sin link del producto, corrección del puerto del dev server (8787) y contador de tests (76).
+
+## 2026-09-19 (4)
+- **Deploy a producción** (versión `502894b2`): historial con causa de errores de sincronización, mensajes claros de fallos de red/DNS, y despliegue del grafo de conocimiento (solo local, en `.gitignore`). 76 tests OK antes de subir.
+
+## 2026-09-19 (3)
+- **Grafo de conocimiento del proyecto (graphify)**: se generó `graphify-out/` con `graph.json` (362 nodos, 809 relaciones, 30 comunidades etiquetadas), `GRAPH_REPORT.md` (auditoría) y `graph.html` (visualización interactiva). Ignorado en `.gitignore` como artefacto local. Detección adicional: `README.md` tiene un conflicto de merge sin resolver.
+
+## 2026-09-19 (2)
+- **Prueba de punta a punta del historial de errores**: se creó una auto-importación con dominio inexistente, se ejecutó y el historial registró la causa clara ("No se pudo conectar con el dominio…"). Mejorado `fetchText` para traducir los fallos opacos de red/DNS del runtime a mensajes comprensibles. La auto-importación de prueba fue eliminada; la entrada de error queda en el historial como registro.
+
+## 2026-09-19
+- **Errores de sincronización con causa real**: los fallbacks del extractor ya no ocultan el motivo de la descarga (timeout, DNS, estado HTTP); las corridas de auto-importación registran todos los errores, no solo el primero; el historial del panel muestra hasta 90 caracteres con tooltip del texto completo y los toasts listan todos los motivos de fallo.
 
 Formato: `- [fecha]_[hora] — descripción de la modificación`. Una entrada por cambio, la más nueva arriba.
 

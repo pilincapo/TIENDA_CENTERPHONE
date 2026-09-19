@@ -7,8 +7,8 @@ import { TAGS } from "../shared/types";
 import type { Env } from "./db";
 import {
   deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct, getAutoImportByUrl,
-  getProduct, listAutoImports, listCategories, listPriceRules, listProducts, listSyncLog,
-  upsertAutoImport, upsertCategory, upsertPriceRule, upsertProduct,
+  getProduct, lastSyncLogByDetail, listAutoImports, listCategories, listPriceRules, listProducts, listSyncLog,
+  listSyncLogByTrigger, upsertAutoImport, upsertCategory, upsertPriceRule, upsertProduct,
 } from "./db";
 import { markAutoImportRun, nowArgentina, runAllAutoImportsNow, runAutoImports } from "./autoimport";
 import { getSyncState, importItems, regenerateSnapshot, runSync } from "./sync";
@@ -223,7 +223,14 @@ adminApp.post("/sync", async (c) => {
 
 adminApp.get("/sync/log", async (c) => {
   const state = await getSyncState(c.env.KV);
-  const log = await listSyncLog(c.env.DB, 10);
+  const limit = Math.min(Math.max(Number(c.req.query("limit") ?? 50), 1), 200);
+  const trigger = c.req.query("trigger");
+  let log: SyncLogEntry[];
+  if (trigger === "cron" || trigger === "manual" || trigger === "import") {
+    log = await listSyncLogByTrigger(c.env.DB, trigger, limit);
+  } else {
+    log = await listSyncLog(c.env.DB, limit);
+  }
   return c.json({ state, log });
 });
 
@@ -366,26 +373,22 @@ adminApp.delete("/auto-imports/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+// Última corrida por URL: para mostrar el detalle del error junto a cada job.
+adminApp.get("/auto-imports/last-run", async (c) => {
+  const url = c.req.query("url") ?? "";
+  if (!url) return c.json({ entry: null });
+  const entry = await lastSyncLogByDetail(c.env.DB, url);
+  return c.json({ entry });
+});
+
 // Ejecutar ahora (manual): corre solo los activos cuyo horario incluya "ahora",
 // o todos los activos si body.all = true.
 adminApp.post("/auto-imports/run", async (c) => {
   const body = await c.req.json<{ all?: boolean }>().catch(() => ({}) as { all?: boolean });
   if (body?.all) {
     // Fuerza la ejecución de todos los activos ignorando horarios.
-    const jobs = (await listAutoImports(c.env.DB)).filter((j) => j.active);
-    const results = [];
-    for (const job of jobs) {
-      try {
-        const r = await extractFromUrl(job.url);
-        const outcome = await importItems(c.env, r.items, { forceRuleId: job.priceRuleId ?? null });
-        await markAutoImportRun(c.env.DB, job.id, outcome.ok ? "ok" : "error", nowMs());
-        results.push({ id: job.id, url: job.url, ok: outcome.ok, imported: outcome.imported, error: outcome.errors[0] ?? null });
-      } catch (e) {
-        await markAutoImportRun(c.env.DB, job.id, "error", nowMs());
-        results.push({ id: job.id, url: job.url, ok: false, imported: 0, error: e instanceof Error ? e.message : "Error" });
-      }
-    }
-    return c.json({ ok: results.every((r) => r.ok), results, ranAt: nowMs() });
+    const outcome = await runAllAutoImportsNow(c.env);
+    return c.json({ ...outcome, ranAt: nowMs() });
   }
   const outcome = await runAutoImports(c.env);
   return c.json({ ...outcome, ranAt: nowMs(), nowAR: nowArgentina() });

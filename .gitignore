@@ -6,3 +6,4 @@ public/
 .dev.vars
 .DS_Store
 .freebuff/
+graphify-out/

@@ -59,7 +59,7 @@ describe("normalizeExternalItems", () => {
     expect(r.products[0]!.id).toBe("redmi-note-13");
   });
 
-  it("reporta errores sin cortar el lote", () => {
+  it("salta los items inválidos sin cortar el lote (quedan como avisos)", () => {
     const r = normalizeExternalItems([
       { title: "Sin precio" },
       null,
@@ -67,7 +67,9 @@ describe("normalizeExternalItems", () => {
       { title: "Precio raro", price: "abc" },
     ]);
     expect(r.products).toHaveLength(1);
-    expect(r.errors).toHaveLength(3);
+    expect(r.skipped).toHaveLength(3);
+    expect(r.skipped.some((s) => s.includes("precio inválido"))).toBe(true);
+    expect(r.errors).toHaveLength(0);
   });
 
   it("no duplica categorías", () => {

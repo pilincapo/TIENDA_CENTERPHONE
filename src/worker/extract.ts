@@ -46,7 +46,15 @@ function looksLikeHtml(text: string): boolean {
 }
 
 async function fetchText(url: string): Promise<string> {
-  const res = await fetch(url, { headers: fetchHeaders(), redirect: "follow" });
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: fetchHeaders(), redirect: "follow" });
+  } catch (e) {
+    // Fallo de red/DNS: el runtime puede dar mensajes opacos (ej: "internal error;
+    // reference = ..."). Traducimos a una causa clara para el historial.
+    const raw = e instanceof Error ? e.message : String(e);
+    throw new Error(`No se pudo conectar con el dominio (verificá la URL, el DNS o que el sitio esté online) — ${raw}`);
+  }
   if (!res.ok) throw new Error(`La URL respondió con estado ${res.status}`);
   const text = await res.text();
   if (text.trim() === "") throw new Error("La URL devolvió una respuesta vacía");
@@ -132,8 +140,8 @@ export async function extractFromUrl(url: string): Promise<ExtractResult> {
         return { items: detailItems, source: "ldjson-detail", errors };
       }
       errors.push("El HTML era una categoría sin fichas extraíbles");
-    } catch {
-      errors.push("Falló la descarga de las fichas de la categoría");
+    } catch (e) {
+      errors.push(`Falló la descarga de las fichas de la categoría: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -142,8 +150,8 @@ export async function extractFromUrl(url: string): Promise<ExtractResult> {
     const items = await shopifyItems(url);
     if (items.length > 0) return { items, source: "shopify", errors };
     errors.push("Shopify no devolvió productos");
-  } catch {
-    errors.push("No parece una tienda Shopify accesible");
+  } catch (e) {
+    errors.push(`No parece una tienda Shopify accesible: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   return { items: [], source: "json", errors };

@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS sync_log (
   items_imported INTEGER,
   items_failed   INTEGER,
   error          TEXT,
+  detail         TEXT,
   started_at     INTEGER NOT NULL,
   finished_at    INTEGER
 );

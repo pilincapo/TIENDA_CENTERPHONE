@@ -40,6 +40,7 @@ export interface SyncLogEntry {
   itemsImported: number | null;
   itemsFailed: number | null;
   error: string | null;
+  detail: string | null;
   startedAt: number;
   finishedAt: number | null;
 }

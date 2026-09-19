@@ -72,12 +72,15 @@ async function render(): Promise<void> {
   }
 }
 
-async function viewDashboard(): Promise<void> {
-  const { state, log } = await api<{ state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }; log: SyncLogEntry[] }>("/sync/log");
+async function viewDashboard(syncFilter = ""): Promise<void> {
+  const { state, log } = await api<{ state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }; log: SyncLogEntry[] }>(
+    `/sync/log?limit=50${syncFilter ? `&trigger=${encodeURIComponent(syncFilter)}` : ""}`
+  );
   const last = state.lastSyncAt ? new Date(state.lastSyncAt).toLocaleString("es-AR") : "nunca";
   const lastRow = state.lastStatus
     ? `<span class="${state.lastStatus === "ok" ? "ok" : "err"}">${esc(state.lastStatus)}</span>`
     : '<span class="muted">—</span>';
+  const triggerLabel = (t: string): string => (t === "cron" ? "⟳ Automática" : t === "manual" ? "✋ Manual" : "⤓ Importación");
   el.view.innerHTML = `
     <div class="panel">
       <h2>Estado del catálogo</h2>
@@ -92,19 +95,30 @@ async function viewDashboard(): Promise<void> {
       </div>
     </div>
     <div class="panel">
-      <h2>Historial de sincronización</h2>
+      <div class="row">
+        <h2 style="margin:0">Historial de sincronización</h2>
+        <select id="sync-filter" style="margin-left:auto">
+          <option value="" ${syncFilter === "" ? "selected" : ""}>Todas</option>
+          <option value="cron" ${syncFilter === "cron" ? "selected" : ""}>Automáticas (cron)</option>
+          <option value="manual" ${syncFilter === "manual" ? "selected" : ""}>Manuales</option>
+        </select>
+      </div>
+      <p class="muted" style="margin-top:4px">Últimas 50 corridas, incluyendo las automáticas del cron y los botones del panel.</p>
       ${log.length === 0 ? '<p class="muted">Todavía no hubo sincronizaciones.</p>' : `
       <div class="table-scroll">
       <table class="table">
-        <thead><tr><th>Fecha</th><th>Origen</th><th>Estado</th><th>Importados</th><th>Fallidos</th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Origen</th><th>Detalle</th><th>Estado</th><th>Importados</th><th>Error</th></tr></thead>
         <tbody>
           ${log.map((l) => `
             <tr>
               <td>${esc(new Date(l.startedAt).toLocaleString("es-AR"))}</td>
-              <td>${esc(l.trigger)}</td>
+              <td>${triggerLabel(l.trigger)}</td>
+              <td class="muted">${l.detail ? esc(l.detail.replace(/^https?:\/\//, "").slice(0, 40)) : "—"}</td>
               <td class="${l.status === "ok" ? "ok" : "err"}">${esc(l.status)}</td>
               <td>${l.itemsImported ?? "—"}</td>
-              <td>${l.itemsFailed ?? "—"}</td>
+              <td class="muted">${l.error ? (l.status === "ok"
+                ? `<span class="muted" title="Avisos de la corrida (los artículos inválidos se saltaron): ${esc(l.error)}">ⓘ ${esc(l.error.slice(0, 90))}${l.error.length > 90 ? "…" : ""}</span>`
+                : `<span class="err-detail" title="${esc(l.error)}">⚠ ${esc(l.error.slice(0, 90))}${l.error.length > 90 ? "…" : ""}</span>`) : "—"}</td>
             </tr>`).join("")}
         </tbody>
       </table>`}
@@ -112,6 +126,9 @@ async function viewDashboard(): Promise<void> {
     </div>`;
   el.view.querySelector("#sync-now")?.addEventListener("click", () => void doSync());
   el.view.querySelector("#rebuild")?.addEventListener("click", () => void rebuildSnapshot());
+  el.view.querySelector("#sync-filter")?.addEventListener("change", (ev) => {
+    void viewDashboard((ev.target as HTMLSelectElement).value);
+  });
 }
 
 async function doSync(): Promise<void> {
@@ -127,7 +144,7 @@ async function doSync(): Promise<void> {
       toast(
         r.ok
           ? `Listo: ${j} auto-importación${j === 1 ? "" : "es"} corrida${j === 1 ? "" : "s"} (${n} productos importados)`
-          : `Falló en ${r.failed} de ${j} links. ${r.errors?.[0] ?? ""}`.trim(),
+          : `Falló en ${r.failed} de ${j} links. ${r.errors?.join(" · ") ?? ""}`.trim(),
         r.ok
       );
     } else {
@@ -356,7 +373,7 @@ function formatPriceAdmin(cents: number): string {
 function openModal(html: string): HTMLElement {
   const back = document.createElement("div");
   back.className = "modal-back";
-  back.innerHTML = `<div class="modal">${html}</div>`;
+  back.innerHTML = `<div class="modal-card">${html}</div>`;
   back.addEventListener("click", (e) => {
     if (e.target === back) back.remove();
   });
@@ -963,6 +980,29 @@ function ruleOrAutoLabel(priceRuleId: string | null, rules: PriceRule[]): string
 async function viewAutoImports(): Promise<void> {
   const [jobs, rules] = await Promise.all([fetchAutoImports(), fetchRules().catch(() => [] as PriceRule[])]);
   const groups = groupNames(rules);
+  // Última corrida por URL: trae el error completo (causa) de cada job.
+  const lastRuns = await Promise.all(
+    jobs.map(async (j) => {
+      try {
+        const r = await api<{ entry: SyncLogEntry | null }>(`/auto-imports/last-run?url=${encodeURIComponent(j.url)}`);
+        return r.entry;
+      } catch {
+        return null;
+      }
+    })
+  );
+  const lastByUrl: Record<string, SyncLogEntry | null> = {};
+  jobs.forEach((j, i) => { lastByUrl[j.url] = lastRuns[i] ?? null; });
+  // Detalle del último error de cada job (causa completa en el tooltip).
+  const lastErrHtml = (url: string): string => {
+    const entry = lastByUrl[url];
+    const err = entry?.error;
+    if (!err) return "";
+    if (entry.status === "ok") {
+      return `<br/><span class="muted" style="font-size:12px;display:inline-block;max-width:280px;white-space:normal" title="Avisos de la corrida (los artículos inválidos se saltaron): ${esc(err)}">ⓘ ${esc(err.slice(0, 90))}${err.length > 90 ? "…" : ""}</span>`;
+    }
+    return `<br/><span class="err-detail" style="font-size:12px;display:inline-block;max-width:280px;white-space:normal" title="${esc(err)}">⚠ ${esc(err.slice(0, 90))}${err.length > 90 ? "…" : ""}</span>`;
+  };
   const rows = jobs
     .map((j) => `
       <tr>
@@ -972,7 +1012,7 @@ async function viewAutoImports(): Promise<void> {
         <td><strong>${esc(j.label || j.url)}</strong><br/><span class="muted" style="font-size:12px">${esc(j.url)}</span></td>
         <td>${esc(ruleOrAutoLabel(j.priceRuleId, rules))}</td>
         <td>${j.times.length ? j.times.map((t) => `<span class="badge">${esc(t)}</span>`).join(" ") : '<span class="muted">sin horarios</span>'}</td>
-        <td>${j.lastStatus ? `<span class="${j.lastStatus === "ok" ? "ok" : "err"}">${j.lastStatus}</span><br/><span class="muted" style="font-size:12px">${new Date(j.lastRunAt ?? 0).toLocaleString("es-AR")}</span>` : '<span class="muted">nunca</span>'}</td>
+        <td>${j.lastStatus ? `<span class="${j.lastStatus === "ok" ? "ok" : "err"}">${j.lastStatus}</span><br/><span class="muted" style="font-size:12px">${new Date(j.lastRunAt ?? 0).toLocaleString("es-AR")}</span>${lastErrHtml(j.url)}` : '<span class="muted">nunca</span>'}</td>
         <td style="white-space:nowrap">
           <button class="btn btn-auto-edit" data-id="${esc(j.id)}">Editar</button>
           <button class="btn btn-danger btn-auto-del" data-id="${esc(j.id)}">Borrar</button>
@@ -1064,15 +1104,15 @@ function openAutoForm(job: AutoImport | null, rules: PriceRule[], groups: string
           ${groups.map((g) => `<option value="group:${esc(g)}" ${job?.priceRuleId === `group:${g}` ? "selected" : ""}>🗂️ Grupo: ${esc(g)} (escala completa)</option>`).join("")}
           ${rules.map((r) => `<option value="${esc(r.id)}" ${job?.priceRuleId === r.id ? "selected" : ""}>${esc(r.name)} (${r.percent >= 0 ? "+" : ""}${r.percent}%)</option>`).join("")}
         </select></div>
-      <div class="field"><label>Horarios de actualización (hora Argentina — clic para marcar/desmarcar)</label>
-        <div class="hour-grid" id="a-hours">
+      <div class="field"><label>Horarios de actualización (hora Argentina — máximo 3)</label>
+        <div class="hour-list" id="a-hours">
           ${Array.from({ length: 24 }, (_, h) => {
             const hh = String(h).padStart(2, "0");
             const on = (job?.times ?? []).some((t) => /^\d\d:(00|15|30|45)$/.test(t) && parseInt(t, 10) === h);
-            return `<label class="hour-cell"><input type="checkbox" value="${hh}:00" ${on ? "checked" : ""}/><span>${hh}h</span></label>`;
+            return `<button type="button" class="hour-item ${on ? "on" : ""}" data-h="${hh}:00">${hh}:00</button>`;
           }).join("")}
         </div>
-        <p class="muted" style="margin-top:6px">Elegí las horas enteras en que querés actualizar (ej: 8h y 20h). El cron corre cada 1 hora.</p>
+        <p class="muted" id="a-hours-hint" style="margin-top:6px">Elegí hasta 3 horarios de actualización (ej: 08:00 y 20:00).</p>
       </div>
       <div class="field"><label class="checks"><input type="checkbox" name="active" ${job?.active !== false ? "checked" : ""}/> Activa</label></div>
       <p class="error" id="a-error" hidden></p>
@@ -1083,10 +1123,31 @@ function openAutoForm(job: AutoImport | null, rules: PriceRule[], groups: string
     </form>`);
   const form = back.querySelector("#a-form") as HTMLFormElement;
   back.querySelector(".btn-cancel")?.addEventListener("click", () => back.remove());
+  // Límite de 3 horarios seleccionados, con contador en vivo.
+  const hint = back.querySelector("#a-hours-hint") as HTMLElement;
+  const refreshHint = (): void => {
+    const n = back.querySelectorAll(".hour-item.on").length;
+    hint.textContent = n === 0
+      ? "Elegí hasta 3 horarios de actualización (ej: 08:00 y 20:00)."
+      : `${n} de 3 horarios seleccionados.`;
+    hint.style.color = n >= 3 ? "var(--brand)" : "";
+  };
+  refreshHint();
+  back.querySelectorAll<HTMLButtonElement>(".hour-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!btn.classList.contains("on") && back.querySelectorAll(".hour-item.on").length >= 3) {
+        hint.textContent = "Máximo 3 horarios — deseleccioná uno para cambiarlo.";
+        hint.style.color = "var(--danger)";
+        return;
+      }
+      btn.classList.toggle("on");
+      refreshHint();
+    });
+  });
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const fd = new FormData(form);
-    const times = [...form.querySelectorAll<HTMLInputElement>("#a-hours input:checked")].map((cb) => cb.value).sort();
+    const times = [...back.querySelectorAll<HTMLButtonElement>("#a-hours .hour-item.on")].map((b) => b.dataset.h ?? "").sort();
     const body = {
       url: String(fd.get("url") ?? "").trim(),
       label: String(fd.get("label") ?? "").trim(),

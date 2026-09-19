@@ -10,6 +10,8 @@ import { getSettings, newId, nowMs } from "./settings";
 
 export interface SyncOutcome {
   ok: boolean;
+  /** Corrida exitosa pero con items salteados (precio inválido, etc.). */
+  warnings: string[];
   total: number;
   imported: number;
   failed: number;
@@ -51,7 +53,8 @@ export async function importItems(
   rawItems: unknown[],
   importOptions: { forceRuleId?: string | null; skipRules?: boolean } = {}
 ): Promise<SyncOutcome> {
-  const { products, categories, errors } = normalizeExternalItems(rawItems);
+  const { products, categories, skipped } = normalizeExternalItems(rawItems);
+  const errors: string[] = [];
   // Reglas de precio automáticas (rangos activos); se puede forzar una con forceRuleId.
   // skipRules: los items ya vienen con el precio final (selección del preview).
   if (!importOptions.skipRules) {
@@ -69,12 +72,16 @@ export async function importItems(
     await upsertProduct(env.DB, p, now);
   }
   await regenerateSnapshot(env);
+  // Los items con precio inválido o sin título se SALTAN (no abortan la sync):
+  // la corrida es ok si al menos un producto se importó. Quedan como avisos.
+  const ok = products.length > 0 || (rawItems.length === 0 && errors.length === 0);
   return {
-    ok: errors.length === 0,
+    ok,
+    warnings: skipped.slice(0, 20),
     total: rawItems.length,
     imported: products.length,
     failed: rawItems.length - products.length,
-    errors: errors.slice(0, 20),
+    errors,
   };
 }
 
@@ -91,12 +98,14 @@ export async function runSync(env: Env, trigger: SyncTrigger): Promise<SyncOutco
     const payload: unknown = await res.json();
     const outcome = await importItems(env, extractItems(payload));
     await insertSyncLog(env.DB, {
-      id: logId, trigger, status: "ok",
+      id: logId, trigger, status: outcome.ok ? "ok" : "error",
       itemsTotal: outcome.total, itemsImported: outcome.imported, itemsFailed: outcome.failed,
-      error: outcome.errors.length > 0 ? outcome.errors.join("; ") : null,
+      error: outcome.ok
+        ? (outcome.warnings.length > 0 ? outcome.warnings.join("; ") : null)
+        : (outcome.errors.join("; ") || "Error de sincronización"),
       startedAt, finishedAt: nowMs(),
     });
-    await env.KV.put(KV_SYNC_STATE_KEY, JSON.stringify({ lastSyncAt: startedAt, lastStatus: "ok", lastError: null }));
+    await env.KV.put(KV_SYNC_STATE_KEY, JSON.stringify({ lastSyncAt: startedAt, lastStatus: outcome.ok ? "ok" : "error", lastError: outcome.ok ? null : outcome.errors.join("; ") }));
     return outcome;
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
