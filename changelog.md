@@ -93,6 +93,9 @@
 
 # Changelog
 
+## 2026-09-19 (13)
+- **Fix: el dashboard mostraba siempre "error"**: el estado del catálogo solo lo actualizaba la sync clásica por URL (no usada), quedando clavado en el viejo error "No hay URL de sincronización configurada". Ahora las corridas de auto-importaciones (cron y manuales) también actualizan el estado en KV.
+
 ## 2026-09-19 (12)
 - **Conteo de productos por categoría en el panel**: nueva columna "Productos" en Categorías con badge de cantidad (las categorías padre suman sus subcategorías) y desglose "X pub." cuando hay ocultos. Endpoint `/categories` devuelve `counts` vía `countProductsByCategory` (GROUP BY, una query).
 

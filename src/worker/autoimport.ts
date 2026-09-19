@@ -5,10 +5,16 @@ import { extractFromUrl } from "./extract";
 import { importItems } from "./sync";
 import { insertSyncLog, listAutoImports, upsertAutoImport, type Env } from "./db";
 import { newId, nowMs } from "./settings";
+import { KV_SYNC_STATE_KEY } from "../shared/types";
 import type { AutoImport } from "../shared/autoimport";
 import type { D1Database } from "@cloudflare/workers-types";
 
 export type { AutoImport };
+
+/** Refleja el resultado de una corrida en el estado del dashboard (KV). */
+function updateSyncState(env: Env, ok: boolean, startedAt: number, error: string | null): void {
+  void env.KV.put(KV_SYNC_STATE_KEY, JSON.stringify({ lastSyncAt: startedAt, lastStatus: ok ? "ok" : "error", lastError: error }), {}).catch(() => { /* el dashboard no debe romper la corrida */ });
+}
 
 export interface AutoImportOutcome {
   ok: boolean;
@@ -95,11 +101,13 @@ export async function runAutoImports(env: Env): Promise<AutoImportOutcome> {
       logRun(env, "cron", job.url, outcome.ok, outcome.imported, outcome.ok
         ? (outcome.warnings.length > 0 ? outcome.warnings.join("; ") : null)
         : (outcome.errors.join("; ") || null), startedAt);
+      updateSyncState(env, outcome.ok, startedAt, outcome.ok ? null : (outcome.errors[0] ?? null));
       results.push({ id: job.id, url: job.url, ok: outcome.ok, imported: outcome.imported, warnings: outcome.warnings, error: outcome.ok ? null : (outcome.errors[0] ?? "Error") });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error desconocido";
       await markAutoImportRun(env.DB, job.id, "error", nowMs());
       logRun(env, "cron", job.url, false, 0, msg, startedAt);
+      updateSyncState(env, false, startedAt, msg);
       results.push({ id: job.id, url: job.url, ok: false, imported: 0, warnings: [], error: msg });
     }
   }
@@ -122,11 +130,13 @@ export async function runAllAutoImportsNow(env: Env): Promise<AutoImportOutcome>
       logRun(env, "manual", job.url, outcome.ok, outcome.imported, outcome.ok
         ? (outcome.warnings.length > 0 ? outcome.warnings.join("; ") : null)
         : (outcome.errors.join("; ") || null), startedAt);
+      updateSyncState(env, outcome.ok, startedAt, outcome.ok ? null : (outcome.errors[0] ?? null));
       results.push({ id: job.id, url: job.url, ok: outcome.ok, imported: outcome.imported, warnings: outcome.warnings, error: outcome.ok ? null : (outcome.errors[0] ?? "Error") });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error desconocido";
       await markAutoImportRun(env.DB, job.id, "error", nowMs());
       logRun(env, "manual", job.url, false, 0, msg, startedAt);
+      updateSyncState(env, false, startedAt, msg);
       results.push({ id: job.id, url: job.url, ok: false, imported: 0, warnings: [], error: msg });
     }
   }
