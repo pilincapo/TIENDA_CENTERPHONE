@@ -102,6 +102,18 @@ export async function listProducts(db: D1Database, all = false): Promise<Product
   return (results ?? []).map(rowToProduct);
 }
 
+/** Cantidad de productos por categoría (publicados y totales) para el panel. */
+export async function countProductsByCategory(db: D1Database): Promise<Map<string, { total: number; published: number }>> {
+  const { results } = await db
+    .prepare("SELECT category_id AS cat, COUNT(*) AS total, SUM(CASE WHEN status = 'published' THEN 1 ELSE 0 END) AS pub FROM products WHERE category_id IS NOT NULL GROUP BY category_id")
+    .all<Dict>();
+  const map = new Map<string, { total: number; published: number }>();
+  for (const r of results ?? []) {
+    map.set(String(r.cat), { total: Number(r.total ?? 0), published: Number(r.pub ?? 0) });
+  }
+  return map;
+}
+
 export async function getProduct(db: D1Database, id: string): Promise<Product | null> {
   const row = await db.prepare("SELECT * FROM products WHERE id = ?1").bind(id).first<Dict>();
   return row ? rowToProduct(row) : null;

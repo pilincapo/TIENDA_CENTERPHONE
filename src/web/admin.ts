@@ -544,10 +544,23 @@ async function openProductForm(p: Product | null, categories: Category[]): Promi
 // ---- Categorías ----
 
 async function viewCategories(): Promise<void> {
-  const { categories } = await api<{ categories: Category[] }>("/categories");
+  const { categories, counts } = await api<{ categories: Category[]; counts: Record<string, { total: number; published: number }> }>("/categories");
   const roots = categories.filter((c) => c.parentId === null);
   const nameOf = (id: string | null): string =>
     id ? (categories.find((c) => c.id === id)?.name ?? id) : "—";
+  // Conteo por categoría; las categorías padre suman también sus subcategorías.
+  const countOf = (id: string): { total: number; published: number } => {
+    const own = counts[id] ?? { total: 0, published: 0 };
+    const children = categories.filter((c) => c.parentId === id);
+    const sub = children.reduce(
+      (acc, ch) => {
+        const s = counts[ch.id] ?? { total: 0, published: 0 };
+        return { total: acc.total + s.total, published: acc.published + s.published };
+      },
+      { total: 0, published: 0 }
+    );
+    return { total: own.total + sub.total, published: own.published + sub.published };
+  };
   el.view.innerHTML = `
     <div class="panel">
       <div class="row">
@@ -557,18 +570,22 @@ async function viewCategories(): Promise<void> {
       ${categories.length === 0 ? '<p class="muted">No hay categorías.</p>' : `
       <div class="table-scroll">
       <table class="table" style="margin-top:14px">
-        <thead><tr><th>Nombre</th><th>Padre</th><th>Activa</th><th></th></tr></thead>
+        <thead><tr><th>Nombre</th><th>Productos</th><th>Padre</th><th>Activa</th><th></th></tr></thead>
         <tbody>
-          ${categories.map((c) => `
+          ${categories.map((c) => {
+            const n = countOf(c.id);
+            return `
             <tr>
               <td><strong>${esc(c.name)}</strong> <span class="muted">(${esc(c.id)})</span></td>
+              <td><span class="badge">${n.total}</span>${n.published !== n.total ? ` <span class="muted" style="font-size:12px" title="Publicados de ${n.total}">${n.published} pub.</span>` : ""}</td>
               <td>${esc(nameOf(c.parentId))}</td>
               <td class="${c.active ? "ok" : "muted"}">${c.active ? "Sí" : "No"}</td>
               <td style="white-space:nowrap">
                 <button class="btn btn-cat-edit" data-id="${esc(c.id)}">Editar</button>
                 <button class="btn btn-danger btn-cat-del" data-id="${esc(c.id)}">Borrar</button>
               </td>
-            </tr>`).join("")}
+            </tr>`;
+          }).join("")}
         </tbody>
       </table>`}
       </div>

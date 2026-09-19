@@ -93,6 +93,9 @@
 
 # Changelog
 
+## 2026-09-19 (12)
+- **Conteo de productos por categoría en el panel**: nueva columna "Productos" en Categorías con badge de cantidad (las categorías padre suman sus subcategorías) y desglose "X pub." cuando hay ocultos. Endpoint `/categories` devuelve `counts` vía `countProductsByCategory` (GROUP BY, una query).
+
 ## 2026-09-19 (11)
 - **Panel dinámico sin recargas**: sincronizar y ejecutar auto-importaciones ya no re-renderizan la vista (sin scroll ni perdida de estado); historial y estado del catálogo se actualizan in-place al terminar, más auto-refresh cada 15 s con polling; la barra de progreso muestra resumen real (fuentes, importados, salteados/errores, resumen por URL); botones deshabilitados durante la corrida. Deploy `9c1456de`.
 

@@ -6,7 +6,7 @@ import type { AutoImport } from "../shared/autoimport";
 import { TAGS } from "../shared/types";
 import type { Env } from "./db";
 import {
-  deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct, getAutoImportByUrl,
+  countProductsByCategory, deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct, getAutoImportByUrl,
   getProduct, lastSyncLogByDetail, listAutoImports, listCategories, listPriceRules, listProducts, listSyncLog,
   listSyncLogByTrigger, upsertAutoImport, upsertCategory, upsertPriceRule, upsertProduct,
 } from "./db";
@@ -161,7 +161,11 @@ function sanitizeProduct(p: Partial<Product>, id: string): Product {
 // ---- Categorías ----
 
 adminApp.get("/categories", async (c) => {
-  return c.json({ categories: await listCategories(c.env.DB) });
+  const [categories, counts] = await Promise.all([listCategories(c.env.DB), countProductsByCategory(c.env.DB)]);
+  return c.json({
+    categories,
+    counts: Object.fromEntries([...counts.entries()].map(([k, v]) => [k, v])),
+  });
 });
 
 adminApp.post("/categories", async (c) => {
