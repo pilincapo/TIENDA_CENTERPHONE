@@ -1,3 +1,27 @@
+## 2026-09-19 — Íconos de redes en el popup de Contacto
+
+- La fila REDES del modal de Contacto ahora muestra los logos SVG de Instagram y Facebook junto a cada link (igual que en el footer)
+- Nuevo estilo `.social-link` con alineación ícono-texto y hover verde
+- Verificado por DOM en el preview; pendiente de deploy
+
+## 2026-09-19 — Íconos oficiales de WhatsApp, Facebook e Instagram
+
+- Botón flotante: logo oficial de WhatsApp (SVG inline) en vez del emoji 💬, en home y ficha
+- Footer: íconos SVG identificatorios de Facebook e Instagram junto a cada link
+- Modal de Contacto: ítem de WhatsApp con su logo
+- Verificado en preview (SVGs presentes y coloreados); pendiente de deploy
+
+## 2026-09-19 — Vuelta al tema terminal/CRT
+
+- Restaurado el estilo terminal/CRT a pedido del usuario (el claro minimalista queda en el historial de git): fondo `#0b0f14`, verde terminal `#3fb950`, tipografía JetBrains Mono, esquinas rectas, sombras duras y scanlines sutiles
+- Hero con prompt `visitante@centerphone:~$ ls productos/` y cursor parpadeante; footer con `step_01` y encabezados `##`
+- Verificado en preview por DOM: home, ficha, modales y tienda; pendiente de deploy
+
+## 2026-09-19 — Subida a GitHub
+
+- Agregado `.freebuff/` al `.gitignore` (logs locales fuera del repo)
+- Commit y push de todo el rediseño claro + branding configurable a `pilincapo/TIENDA_CENTERPHONE` (`30d1e9c`)
+
 # Changelog
 
 Formato: `- [fecha]_[hora] — descripción de la modificación`. Una entrada por cambio, la más nueva arriba.
