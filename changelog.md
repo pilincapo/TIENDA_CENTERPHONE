@@ -93,6 +93,9 @@
 
 # Changelog
 
+## 2026-09-19 (16)
+- **Orden por defecto aleatorio en el catálogo**: la página principal carga con "Aleatorio" seleccionado y un seed nuevo en cada visita, así el orden cambia entre recargas y todos los productos se promocionan. "Limpiar filtros" vuelve al aleatorio. Verificado: dos recargas consecutivas muestran órdenes distintos.
+
 ## 2026-09-19 (15)
 - **Importar solo por links**: eliminados el textarea de JSON y la zona de arrastre de archivos de la pestaña Importar. Queda URL + regla de precio + Analizar.
 

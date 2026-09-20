@@ -16,8 +16,10 @@ const state = {
   search: "",
   category: "",
   tags: new Set<Tag>(),
-  sort: "default" as SortMode,
-  seed: 1,
+  // Orden por defecto: aleatorio, para que todos los productos se promocionen.
+  // El seed cambia en cada visita: cada carga muestra el catálogo en otro orden.
+  sort: "random" as SortMode,
+  seed: Math.floor(Math.random() * 1e9),
   shown: PAGE_SIZE,
 };
 
@@ -226,7 +228,9 @@ function setupToolbarMaskScroll(): void {
 function clearFilters(): void {
   state.category = "";
   state.tags.clear();
-  state.sort = "default";
+  // Volver al orden por defecto: aleatorio, con seed nuevo.
+  state.sort = "random";
+  state.seed = Math.floor(Math.random() * 1e9);
   state.search = "";
   el.search.value = "";
   resetPager();
