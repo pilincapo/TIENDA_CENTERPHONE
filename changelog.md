@@ -1,3 +1,7 @@
+## 2026-09-20 — Deploy: lote de panel editable y desactivación automática
+
+- Deploy a Cloudflare (`79f38dc6`): desactivación automática de productos fuera de fuente (migración 004 ya aplicada remote), badge Nuevo configurable, modal Cómo comprar editable, cambio de contraseña en panel, logout por inactividad. Commit `48644bf` pusheado; 76 tests ✅; home HTTP 200 y settings nuevas verificadas en producción
+
 ## 2026-09-20 — Ventana del badge "Nuevo" configurable
 
 - Nuevo campo en Configuración: **badge "Nuevo" automático** con opciones **24 horas / 48 horas / 7 días / Desactivado** (antes fijo en 48h)
