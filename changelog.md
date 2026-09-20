@@ -1,3 +1,7 @@
+## 2026-09-20 — Deploy: botón Seguimiento
+
+- Deploy a Cloudflare (`4f502c04`) con el botón Seguimiento configurable, su URL verificada en producción y el cambio de envío del modal. Commit `1715d33` pusheado a GitHub; 76 tests ✅ antes de subir; home HTTP 200
+
 ## 2026-09-20 — Modal "Cómo comprar": envío
 
 - Paso 5 cambiado en el modal (home y ficha): ~~"Envíos a todo el país"~~ → **"Envío gratis en la ciudad de Santa Fe"** o retiro en el local
