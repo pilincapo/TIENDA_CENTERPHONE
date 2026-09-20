@@ -125,6 +125,8 @@ export function normalizeExternalItems(rawItems: unknown[]): NormalizeOutcome {
       status: String(o.status ?? "published") === "hidden" ? "hidden" : "published",
       availability: parseAvailability(o.availability ?? o.stock),
       sortOrder: i,
+      createdAt: 0, // el worker lo completa con el timestamp real al hacer upsert
+      sourceUrl: null, // importItems lo completa con la URL de la importación
     });
   });
 

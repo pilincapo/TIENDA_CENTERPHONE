@@ -1,3 +1,55 @@
+## 2026-09-20 — Ventana del badge "Nuevo" configurable
+
+- Nuevo campo en Configuración: **badge "Nuevo" automático** con opciones **24 horas / 48 horas / 7 días / Desactivado** (antes fijo en 48h)
+- `settings.freshHours` (horas, 0 = off) viaja en `PublicSettings`; el grid y la ficha leen la config al vuelo — cambiar el valor en el panel surte efecto con solo recargar el catálogo
+- El tooltip del badge se adapta: "Cargado en las últimas 24/48 horas", "Cargado en los últimos 7 días"
+- Probado en local: 48h→2 badges, 7 días→20 badges (tooltip correcto), desactivado→0 badges; restaurado a 48h. 76 tests ✅
+
+## 2026-09-20 — Cierre de sesión automático por inactividad (1 hora)
+
+- La sesión del panel ahora dura **1 hora** (antes 12h): cookie con Max-Age 3600 y token con TTL 1h (`SESSION_TTL_MS`)
+- **Sliding renewal**: con uso activo la sesión se renueva sola — cada request que llega con menos de 30 min de vida restante extiende la cookie 1h más. Nunca te corta mientras trabajás
+- **Aviso previo**: el frontend chequea cada 30s; a los 55 min sin actividad muestra "Tu sesión se va a cerrar en ~5 min…" y a los 60 min hace logout con mensaje claro en el login
+- Actividad = clic, tecla, mouse, scroll o touch en el panel. 76 tests ✅, typecheck ✅
+
+## 2026-09-20 — Título y nota de retiro del modal "Cómo comprar" configurables
+
+- Dos campos nuevos en Configuración: **"Título del modal Cómo comprar"** y **"Nota de retiro del modal"**
+- La nota custom soporta `**negrita**` y acepta dirección/horarios propios; si queda vacía se usa el default con la dirección del panel (`📍 Retiro en el local: …`)
+- El título vacío también vuelve al default "Cómo comprar". Aplica a home y ficha (modal compartido)
+- Verificado de punta a punta: título custom + nota con negrita renderizada correctamente; restaurado el default. 76 tests ✅
+
+## 2026-09-20 — Desactivación automática de productos que ya no vienen en la importación
+
+- Cada producto importado de una URL queda asociado a esa fuente (nueva columna `source_url`, migración 004 aplicada en local y producción). Los de alta manual (source_url NULL) nunca se tocan
+- En cada corrida (cron, "Sincronizar ahora", importar por URL): si un producto de esa misma fuente ya NO aparece en el listado actual, se **oculta** (status hidden, no se borra) — desaparece del catálogo público automáticamente; si vuelve a aparecer, se **reactiva** solo
+- Funciones nuevas `hideProductsNotIn`/`unhideProductsIn` en db.ts; `importItems` acepta `sourceUrl` y devuelve `deactivated`; placeholder SQL con numeración explícita (los `?` anónimos mezclados con `?N` rompen D1)
+- UI: barra de progreso y toasts muestran "X ocultado(s)"; resumen por fuente con `+importados/-ocultados`
+- Probado de punta a punta en local: import A+B → ambos published; import solo A → B hidden y fuera del catálogo ✅; reimport A+B → B reactivado ✅. 76 tests ✅
+
+## 2026-09-20 — Contraseña de producción robusta + cambio desde el panel
+
+- **Contraseña de producción cambiada**: la débil "admin" fue reemplazada por una generada al azar (16+ caracteres). Verificado en producción: login con "admin" → 401 ❌, con la nueva → 200 ✅
+- **Nueva opción "Cambiar contraseña del panel"** en Configuración del admin: pide contraseña actual + nueva (mínimo 8, distinta de la actual) + repetición, con validación de coincidencia en el cliente y en el servidor
+- Endpoint `POST /api/admin/password`: verifica la actual (timing-safe), persiste el secret en Cloudflare vía wrangler y lo aplica en caliente para la sesión. En local devuelve `persisted: false` (avisa que .dev.vars es manual)
+- Nuevo script `tools/change-password.mjs` para cambiarla por CLI (actualiza .dev.vars y/o el secret)
+- Verificado en local: contraseña incorrecta rechazada ✅, mínimos validados ✅, login con la nueva OK ✅. 76 tests ✅
+- **Importante**: el usuario debe guardar la nueva contraseña de producción en un lugar seguro — no se puede recuperar, solo reemplazar
+
+## 2026-09-20 — Pasos del modal "Cómo comprar" configurables
+
+- Nuevo campo **"Pasos de Cómo comprar"** en Configuración: un paso por línea, con soporte de `**negrita**` para resaltar (ej: `**Mandanos un WhatsApp** con el modelo`)
+- Si el campo queda vacío se usan los pasos por defecto del HTML de la página (nunca se rompe)
+- Cadena completa: `StoreSettings.howSteps` → `PublicSettings` → textarea en el panel → `fillHowSteps()` renderiza con escape de HTML (anti-inyección) y negritas
+- Verificado de punta a punta en local: guardo 3 pasos custom con negrita → modal muestra exactamente eso; restaurado el texto por defecto. 76 tests ✅, typecheck ✅
+
+## 2026-09-20 — Badge "Nuevo" para productos frescos
+
+- Los productos cargados en las **últimas 48 horas** muestran un badge azul **"Nuevo"** al inicio de los badges, tanto en la tarjeta del grid como en la ficha (con tooltip "Cargado en las últimas 48 horas")
+- Distinto del tag manual "Nuevo" (verde): este es automático por fecha de alta (`created_at`), estilo `badge--fresh` azul para diferenciarlos visualmente
+- Nuevo campo `createdAt` en el tipo `Product`, mapeado desde `created_at` en `rowToProduct` (los productos importados lo reciben gratis: el upsert ya guarda `created_at`)
+- Verificado en local: producto de prueba con `created_at` reciente muestra el badge; los productos reales importados por el cron hace menos de 48h también lo muestran. 76 tests ✅, typecheck ✅
+
 ## 2026-09-20 — Deploy: botón Seguimiento
 
 - Deploy a Cloudflare (`4f502c04`) con el botón Seguimiento configurable, su URL verificada en producción y el cambio de envío del modal. Commit `1715d33` pusheado a GitHub; 76 tests ✅ antes de subir; home HTTP 200

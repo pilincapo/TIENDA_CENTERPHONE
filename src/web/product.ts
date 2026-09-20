@@ -6,6 +6,7 @@ import type { PublicSettings } from "./types-web";
 import { formatPrice, availabilityLabel } from "../shared/format";
 import { waLink } from "../shared/whatsapp";
 import { setupModals, fillStoreInfo } from "./store-modals";
+import { isFresh } from "./catalog";
 
 interface DetailResponse {
   product: Product;
@@ -81,6 +82,8 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
       : product.availability === "preorder"
         ? `<span class="badge badge--stock-pre">Bajo pedido</span>`
         : `<span class="badge badge--stock-pre ok">En stock</span>`;
+  const freshHours = settings.freshHours ?? 48;
+  const freshBadge = isFresh(product, freshHours) ? `<span class="badge badge--fresh" title="Cargado recientemente">Nuevo</span>` : "";
   const tags = product.tags
     .map((t) => `<span class="badge badge--${t}">${t === "new" ? "Nuevo" : t === "featured" ? "Destacado" : "Oferta"}</span>`)
     .join("");
@@ -93,7 +96,7 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
     <div class="product-detail">
       <div class="img">${img}</div>
       <div>
-        <div class="badges">${tags} ${stockBadge}</div>
+        <div class="badges">${freshBadge} ${tags} ${stockBadge}</div>
         <h1>${esc(product.title)}</h1>
         <div class="price">${formatPrice(product.priceCents, symbol)}</div>
         <p class="desc">${esc(product.description || "Sin descripción.")}</p>

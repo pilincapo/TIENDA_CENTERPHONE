@@ -22,7 +22,10 @@ export function randomToken(): string {
 }
 
 // value = expiryMs + "." + firma(expiryMs)
-export async function createSessionToken(secret: string, ttlMs = 1000 * 60 * 60 * 12): Promise<string> {
+// TTL base de la sesión; con sliding renewal se extiende en cada uso (ver admin.ts).
+export const SESSION_TTL_MS = 1000 * 60 * 60; // 1 hora
+
+export async function createSessionToken(secret: string, ttlMs = SESSION_TTL_MS): Promise<string> {
   const expiry = String(Date.now() + ttlMs);
   return `${expiry}.${await hmac(secret, expiry)}`;
 }
@@ -50,7 +53,7 @@ export function readSessionCookie(request: Request): string | undefined {
 }
 
 export function sessionCookieHeader(token: string): string {
-  return `celu_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=43200; Secure`;
+  return `celu_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=3600; Secure`;
 }
 
 export function clearSessionCookieHeader(): string {

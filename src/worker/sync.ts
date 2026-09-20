@@ -5,7 +5,7 @@ import { KV_SNAPSHOT_KEY, KV_SYNC_STATE_KEY } from "../shared/types";
 import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { applyRuleSet } from "../shared/pricing";
 import type { Env } from "./db";
-import { insertSyncLog, listCategories, listPriceRules, listProducts, upsertCategory, upsertProduct } from "./db";
+import { hideProductsNotIn, insertSyncLog, listCategories, listPriceRules, listProducts, unhideProductsIn, upsertCategory, upsertProduct } from "./db";
 import { getSettings, newId, nowMs } from "./settings";
 
 export interface SyncOutcome {
@@ -15,6 +15,8 @@ export interface SyncOutcome {
   total: number;
   imported: number;
   failed: number;
+  /** Productos de esta fuente que ya no vienen en el listado y fueron ocultados. */
+  deactivated: number;
   errors: string[];
 }
 
@@ -51,7 +53,7 @@ export async function getSnapshot(env: Env): Promise<CatalogSnapshot | null> {
 export async function importItems(
   env: Env,
   rawItems: unknown[],
-  importOptions: { forceRuleId?: string | null; skipRules?: boolean } = {}
+  importOptions: { forceRuleId?: string | null; skipRules?: boolean; sourceUrl?: string | null } = {}
 ): Promise<SyncOutcome> {
   const { products, categories, skipped } = normalizeExternalItems(rawItems);
   const errors: string[] = [];
@@ -69,7 +71,17 @@ export async function importItems(
     await upsertCategory(env.DB, { id: c.id, name: c.name, parentId: c.parentId, active: true }, now);
   }
   for (const p of products) {
+    p.sourceUrl = importOptions.sourceUrl ?? p.sourceUrl ?? null;
     await upsertProduct(env.DB, p, now);
+  }
+  // Desactivación automática: si la importación viene de una URL, los productos
+  // anteriores de esa misma fuente que NO aparezcan ahora se ocultan (status hidden).
+  // Los que vuelven a aparecer se reactivan. Solo afecta a productos de esa URL;
+  // los de alta manual (source_url NULL) nunca se tocan.
+  let deactivated = 0;
+  if (importOptions.sourceUrl) {
+    deactivated = await hideProductsNotIn(env.DB, importOptions.sourceUrl, products.map((p) => p.id), now);
+    await unhideProductsIn(env.DB, importOptions.sourceUrl, products.map((p) => p.id), now);
   }
   await regenerateSnapshot(env);
   // Los items con precio inválido o sin título se SALTAN (no abortan la sync):
@@ -81,6 +93,7 @@ export async function importItems(
     total: rawItems.length,
     imported: products.length,
     failed: rawItems.length - products.length,
+    deactivated,
     errors,
   };
 }

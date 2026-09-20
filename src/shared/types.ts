@@ -24,6 +24,10 @@ export interface Product {
   status: ProductStatus;
   availability: Availability;
   sortOrder: number;
+  /** Fecha de alta del producto (epoch ms). Con <48h el frontend le pone badge "Nuevo". */
+  createdAt: number;
+  /** URL de origen si fue importado (NULL = alta manual). Si la fuente deja de traerlo, se oculta. */
+  sourceUrl: string | null;
 }
 
 export interface CatalogSnapshot {
@@ -60,6 +64,13 @@ export interface StoreSettings {
   facebookUrl: string;
   // Link al sistema de seguimiento (botón "Seguimiento" del header).
   trackUrl: string;
+  // Pasos del modal "Cómo comprar", un paso por línea. Línea vacía = usar el texto por defecto.
+  howSteps: string;
+  // Título del modal y nota de retiro. Vacíos = usar los valores por defecto de la página.
+  howTitle: string;
+  howPickupNote: string;
+  // Ventana del badge "Nuevo" automático, en horas (0 = badge desactivado).
+  freshHours: number;
 }
 
 export const TAGS: Tag[] = ["new", "featured", "offer"];
@@ -89,6 +100,16 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   instagramUrl: "https://www.instagram.com/centerphonesantafe",
   facebookUrl: "https://www.facebook.com/centerphonesantafe",
   trackUrl: "https://repairpro.centerphone.com.ar/track-lite",
+  howSteps: [
+    "Explorá el catálogo. Buscá por nombre o filtrá por categoría y etiquetas (Nuevo, Destacado, Oferta).",
+    "Tocá \"Consultar\". En cada producto tenés el botón para preguntarnos por WhatsApp sin entrar a la ficha.",
+    "Confirmamos stock y precio. Te respondemos con la disponibilidad real, colores/memoria y el precio final.",
+    "Coordinamos el pago. Efectivo, transferencia o tarjeta — lo que prefieras.",
+    "Recibilo o pasá a buscarlo. Envío gratis en la ciudad de Santa Fe o retiro en el local.",
+  ].join("\n"),
+  howTitle: "Cómo comprar",
+  howPickupNote: "",
+  freshHours: 48,
 };
 
 export const KV_SNAPSHOT_KEY = "catalog:snapshot:v1";

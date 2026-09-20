@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS products (
   availability   TEXT NOT NULL DEFAULT 'in_stock',
   sort_order     INTEGER NOT NULL DEFAULT 0,
   created_at     INTEGER NOT NULL,
-  updated_at     INTEGER NOT NULL
+  updated_at     INTEGER NOT NULL,
+  source_url     TEXT
 );
 
 CREATE TABLE IF NOT EXISTS sync_log (

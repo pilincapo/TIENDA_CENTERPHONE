@@ -15,6 +15,18 @@ export function waHref(settings: PublicSettings, text: string): string | null {
   return `https://wa.me/${settings.whatsappPhone.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
 }
 
+// Renderiza los pasos del modal "Cómo comprar": uno por línea, con **negrita** opcional.
+// Si el texto configurado está vacío, no toca el HTML (queda el default de la página).
+function fillHowSteps(stepsText: string): void {
+  const ol = document.querySelector("#modal-how .modal-steps");
+  if (!ol) return;
+  const lines = stepsText.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return;
+  ol.innerHTML = lines
+    .map((l) => `<li>${esc(l).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")}</li>`)
+    .join("");
+}
+
 // Rellena footer y modales con los datos configurados en el panel.
 // root: document para el home; en la ficha también aplica (mismos ids).
 // Aplica el storeName al header: primera palabra blanca (brand-name),
@@ -76,11 +88,23 @@ export function fillStoreInfo(s: PublicSettings): void {
     ].join("");
   }
 
-  // Modal Cómo comprar: nota de retiro con la dirección.
+  // Modal Cómo comprar: título, pasos y nota de retiro configurables.
+  if (s.howTitle && s.howTitle.trim()) {
+    const t = document.getElementById("modal-how-title");
+    if (t) t.textContent = s.howTitle;
+  }
+  if (s.howSteps) fillHowSteps(s.howSteps);
   const howNote = document.getElementById("modal-how-note");
-  if (howNote && s.storeAddress) {
-    howNote.hidden = false;
-    howNote.innerHTML = `📍 Retiro en el local: <strong>${esc(s.storeAddress)}</strong>`;
+  if (howNote) {
+    if (s.howPickupNote && s.howPickupNote.trim()) {
+      // Nota custom del panel; soporta **negrita**.
+      howNote.hidden = false;
+      howNote.innerHTML = esc(s.howPickupNote).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    } else if (s.storeAddress) {
+      // Default: retiro con la dirección configurada.
+      howNote.hidden = false;
+      howNote.innerHTML = `📍 Retiro en el local: <strong>${esc(s.storeAddress)}</strong>`;
+    }
   }
 
   // Modal Contacto: ítems según lo que haya configurado.

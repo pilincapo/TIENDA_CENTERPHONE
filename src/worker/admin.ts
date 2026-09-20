@@ -18,7 +18,7 @@ import { extractFromUrl } from "./extract";
 import { getSettings, newId, nowMs, saveSettings } from "./settings";
 import {
   clearSessionCookieHeader, createSessionToken, readSessionCookie,
-  sessionCookieHeader, timingSafeEqualStr, verifySessionToken,
+  SESSION_TTL_MS, sessionCookieHeader, timingSafeEqualStr, verifySessionToken,
 } from "./auth";
 
 export const adminApp = new Hono<{ Bindings: Env }>();
@@ -69,10 +69,47 @@ adminApp.use("*", async (c, next) => {
   const token = readSessionCookie(c.req.raw);
   const ok = await verifySessionToken(c.env.ADMIN_SESSION_SECRET ?? c.env.ADMIN_PASSWORD, token);
   if (!ok) return c.json({ error: "No autorizado" }, 401);
+  // Sliding session: si la sesión ya corre más de la mitad de su TTL, se renueva
+  // (nueva cookie con 1h fresca). Así, mientras haya uso activo no se corta;
+  // con más de 1h SIN actividad, el token vence y hay que volver a entrar.
+  const expiry = Number((token ?? "").split(".")[0]);
+  const remaining = expiry - nowMs();
+  if (Number.isFinite(remaining) && remaining < SESSION_TTL_MS / 2) {
+    const renewed = await createSessionToken(c.env.ADMIN_SESSION_SECRET ?? c.env.ADMIN_PASSWORD);
+    c.header("Set-Cookie", sessionCookieHeader(renewed));
+  }
   await next();
 });
 
 adminApp.get("/session", (c) => c.json({ ok: true }));
+
+// Cambio de contraseña: pide la actual y la nueva (mínimo 8 caracteres).
+// Actualiza el secret ADMIN_PASSWORD en caliente para el resto de la vida del isolate
+// (la próxima re-deploy/reinicio usa el secret persistido en Cloudflare).
+adminApp.post("/password", async (c) => {
+  const body = await c.req.json<{ current?: string; next?: string }>().catch(() => null);
+  const current = body?.current ?? "";
+  const next = body?.next ?? "";
+  if (!timingSafeEqualStr(current, c.env.ADMIN_PASSWORD ?? "")) {
+    return c.json({ error: "La contraseña actual no coincide" }, 401);
+  }
+  if (next.length < 8) {
+    return c.json({ error: "La nueva contraseña debe tener al menos 8 caracteres" }, 400);
+  }
+  if (next === current) {
+    return c.json({ error: "La nueva contraseña debe ser distinta de la actual" }, 400);
+  }
+  // Persistir en Cloudflare (secret). En dev local falla sin configurar, se avisa igual.
+  let persisted = true;
+  try {
+    const { execSync } = await import("node:child_process");
+    execSync(`npx wrangler secret put ADMIN_PASSWORD`, { input: next + "\n", stdio: "pipe" });
+  } catch {
+    persisted = false; // entorno local sin wrangler remoto: sigue igual para la sesión
+  }
+  c.env.ADMIN_PASSWORD = next;
+  return c.json({ ok: true, persisted });
+});
 
 // ---- Productos ----
 
@@ -272,6 +309,10 @@ adminApp.put("/settings", async (c) => {
     instagramUrl: normalizeUrl(body.instagramUrl, 300),
     facebookUrl: normalizeUrl(body.facebookUrl, 300),
     trackUrl: normalizeUrl(body.trackUrl, 300),
+    howSteps: String(body.howSteps ?? "").slice(0, 2000),
+    howTitle: String(body.howTitle ?? "").slice(0, 80),
+    howPickupNote: String(body.howPickupNote ?? "").slice(0, 300),
+    freshHours: Math.min(24 * 30, Math.max(0, Math.round(Number(body.freshHours ?? 48)))) ,
   });
   return c.json({ settings });
 });
@@ -443,6 +484,7 @@ adminApp.post("/import", async (c) => {
   const outcome = await importItems(c.env, r.items, {
     forceRuleId: skipRules ? null : body?.priceRuleId ?? null,
     skipRules,
+    sourceUrl: body?.url?.trim().startsWith("http") ? body.url.trim() : null,
   });
   // Recordar la URL importada (para la pestaña Auto-importaciones).
   if (outcome.ok && body?.url && body.url.trim().startsWith("http")) {

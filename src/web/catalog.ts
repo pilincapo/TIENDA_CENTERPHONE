@@ -288,12 +288,30 @@ function sortedProducts(): Product[] {
   }
 }
 
+/** Ventana del badge "Nuevo" automático (fresco, no confundir con el tag).
+ * Configurable desde el panel vía settings.freshHours (horas; 0 = desactivado).
+ * hours=undefined usa el default de 48h para el title del tooltip. */
+export function isFresh(p: Product, hours?: number): boolean {
+  const h = hours ?? 48;
+  if (h <= 0) return false;
+  return p.createdAt > 0 && Date.now() - p.createdAt < h * 60 * 60 * 1000;
+}
+
+function freshTitle(hours: number): string {
+  if (hours === 24) return "Cargado en las últimas 24 horas";
+  if (hours === 48) return "Cargado en las últimas 48 horas";
+  if (hours === 168) return "Cargado en los últimos 7 días";
+  return `Cargado hace menos de ${hours} horas`;
+}
+
 function cardHtml(p: Product): string {
   const symbol = state.settings?.currencySymbol ?? "$";
   const img = p.imageUrl
     ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.title)}" loading="lazy" />`
     : "📱";
+  const freshHours = state.settings?.freshHours ?? 48;
   const badges = [
+    isFresh(p, freshHours) ? `<span class="badge badge--fresh" title="${esc(freshTitle(freshHours))}">Nuevo</span>` : "",
     ...p.tags.map((t) => `<span class="badge badge--${t}">${tagLabel(t)}</span>`),
     p.availability === "out_of_stock" ? `<span class="badge badge--stock-out">Sin stock</span>` : "",
     p.availability === "preorder" ? `<span class="badge badge--stock-pre">Bajo pedido</span>` : "",

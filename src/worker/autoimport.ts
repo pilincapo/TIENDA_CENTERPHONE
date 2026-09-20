@@ -19,7 +19,7 @@ function updateSyncState(env: Env, ok: boolean, startedAt: number, error: string
 export interface AutoImportOutcome {
   ok: boolean;
   warnings: string[];
-  results: { id: string; url: string; ok: boolean; imported: number; warnings: string[]; error: string | null }[];
+  results: { id: string; url: string; ok: boolean; imported: number; deactivated: number; warnings: string[]; error: string | null }[];
 }
 
 /** Registra una corrida de auto-importación en el historial (sync_log). */
@@ -96,13 +96,13 @@ export async function runAutoImports(env: Env): Promise<AutoImportOutcome> {
     const startedAt = nowMs();
     try {
       const r = await extractFromUrl(job.url);
-      const outcome = await importItems(env, r.items, { forceRuleId: job.priceRuleId ?? null });
+      const outcome = await importItems(env, r.items, { forceRuleId: job.priceRuleId ?? null, sourceUrl: job.url });
       await markAutoImportRun(env.DB, job.id, outcome.ok ? "ok" : "error", nowMs());
       logRun(env, "cron", job.url, outcome.ok, outcome.imported, outcome.ok
         ? (outcome.warnings.length > 0 ? outcome.warnings.join("; ") : null)
         : (outcome.errors.join("; ") || null), startedAt);
       updateSyncState(env, outcome.ok, startedAt, outcome.ok ? null : (outcome.errors[0] ?? null));
-      results.push({ id: job.id, url: job.url, ok: outcome.ok, imported: outcome.imported, warnings: outcome.warnings, error: outcome.ok ? null : (outcome.errors[0] ?? "Error") });
+      results.push({ id: job.id, url: job.url, ok: outcome.ok, imported: outcome.imported, deactivated: outcome.deactivated, warnings: outcome.warnings, error: outcome.ok ? null : (outcome.errors[0] ?? "Error") });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error desconocido";
       await markAutoImportRun(env.DB, job.id, "error", nowMs());
@@ -125,13 +125,13 @@ export async function runAllAutoImportsNow(env: Env): Promise<AutoImportOutcome>
     const startedAt = nowMs();
     try {
       const r = await extractFromUrl(job.url);
-      const outcome = await importItems(env, r.items, { forceRuleId: job.priceRuleId ?? null });
+      const outcome = await importItems(env, r.items, { forceRuleId: job.priceRuleId ?? null, sourceUrl: job.url });
       await markAutoImportRun(env.DB, job.id, outcome.ok ? "ok" : "error", nowMs());
       logRun(env, "manual", job.url, outcome.ok, outcome.imported, outcome.ok
         ? (outcome.warnings.length > 0 ? outcome.warnings.join("; ") : null)
         : (outcome.errors.join("; ") || null), startedAt);
       updateSyncState(env, outcome.ok, startedAt, outcome.ok ? null : (outcome.errors[0] ?? null));
-      results.push({ id: job.id, url: job.url, ok: outcome.ok, imported: outcome.imported, warnings: outcome.warnings, error: outcome.ok ? null : (outcome.errors[0] ?? "Error") });
+      results.push({ id: job.id, url: job.url, ok: outcome.ok, imported: outcome.imported, deactivated: outcome.deactivated, warnings: outcome.warnings, error: outcome.ok ? null : (outcome.errors[0] ?? "Error") });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error desconocido";
       await markAutoImportRun(env.DB, job.id, "error", nowMs());

@@ -10,4 +10,8 @@ export interface PublicSettings {
   instagramUrl: string;
   facebookUrl: string;
   trackUrl: string;
+  howSteps: string;
+  howTitle: string;
+  howPickupNote: string;
+  freshHours: number;
 }

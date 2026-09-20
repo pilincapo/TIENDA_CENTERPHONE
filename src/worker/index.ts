@@ -48,6 +48,10 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     instagramUrl: s.instagramUrl,
     facebookUrl: s.facebookUrl,
     trackUrl: s.trackUrl,
+    howSteps: s.howSteps,
+    howTitle: s.howTitle,
+    howPickupNote: s.howPickupNote,
+    freshHours: s.freshHours,
   };
 }
 

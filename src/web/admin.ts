@@ -190,7 +190,7 @@ async function doSync(): Promise<void> {
   const btn = el.view.querySelector("#sync-now") as HTMLButtonElement | null;
   if (btn) btn.disabled = true;
   try {
-    const r = await api<{ ok: boolean; imported: number; failed: number; total?: number; mode?: string; errors?: string[]; warnings?: string[] }>(
+    const r = await api<{ ok: boolean; imported: number; failed: number; total?: number; mode?: string; errors?: string[]; warnings?: string[]; deactivated?: number }>(
       "/sync",
       { method: "POST" }
     );
@@ -198,16 +198,18 @@ async function doSync(): Promise<void> {
     if (r.mode === "auto-imports") {
       const j = r.total ?? 0;
       const fails = r.errors ?? [];
+      const deact = r.deactivated ?? 0;
       const resumen = fails.length > 0
         ? fails.slice(0, 3).map((e) => esc(e.replace(/^https?:\/\//, "").slice(0, 50))).join(" · ")
         : (r.warnings && r.warnings.length > 0
           ? `${r.warnings.length} artículo(s) salteado(s) por precio inválido`
           : "sin errores");
-      prog.set(100, `${j} fuente(s) · ${r.imported} importados · ${resumen}`, 3, !r.ok);
+      prog.set(100, `${j} fuente(s) · ${r.imported} importados${deact ? ` · ${deact} ocultado(s)` : ""} · ${resumen}`, 3, !r.ok);
       const warn = r.warnings && r.warnings.length > 0 ? ` Avisos: ${r.warnings.length} salteado(s).` : "";
+      const deactMsg = deact ? ` ${deact} producto(s) ya no están en las fuentes y se ocultaron.` : "";
       toast(
         r.ok
-          ? `Listo: ${j} fuente(s), ${r.imported} productos importados.${warn}`
+          ? `Listo: ${j} fuente(s), ${r.imported} productos importados.${deactMsg}${warn}`
           : `Falló en ${r.failed} de ${j} links. ${r.errors?.join(" · ") ?? ""}`.trim(),
         r.ok
       );
@@ -239,6 +241,8 @@ async function rebuildSnapshot(): Promise<void> {
 async function showLogin(): Promise<void> {
   el.login.hidden = false;
   el.app.hidden = true;
+  idleLoggedOut = false; // nueva sesión, reinicio el contador de inactividad
+  lastActivity = Date.now();
   await applyStoreName();
 }
 
@@ -300,6 +304,32 @@ el.logout.addEventListener("click", async () => {
   await api("/logout", { method: "POST" }).catch(() => null);
   await showLogin();
 });
+
+// ---- Cierre de sesión por inactividad (1 hora) ----
+// Con actividad (clic/tecla/scroll en el panel) el servidor renueva la sesión
+// sola (sliding); el aviso aparece solo si de verdad pasaste 55 min sin tocar nada.
+const IDLE_LIMIT_MS = 60 * 60 * 1000;      // logout a la hora de inactividad
+const IDLE_WARN_MS = 55 * 60 * 1000;       // aviso 5 min antes
+let lastActivity = Date.now();
+let idleLoggedOut = false;
+for (const ev of ["click", "keydown", "mousemove", "scroll", "touchstart"] as const) {
+  document.addEventListener(ev, () => { lastActivity = Date.now(); }, { passive: true });
+}
+setInterval(async () => {
+  if (idleLoggedOut || el.app.hidden) return;
+  const idle = Date.now() - lastActivity;
+  if (idle >= IDLE_LIMIT_MS) {
+    idleLoggedOut = true;
+    await api("/logout", { method: "POST" }).catch(() => null);
+    await showLogin();
+    el.loginError.textContent = "Cerramos tu sesión por inactividad (1 hora). Volvé a ingresar.";
+    el.loginError.hidden = false;
+  } else if (idle >= IDLE_WARN_MS) {
+    const mins = Math.max(1, Math.round((IDLE_LIMIT_MS - idle) / 60000));
+    el.loginError.textContent = `Tu sesión se va a cerrar en ~${mins} min por inactividad. Mové el mouse o tocá algo para seguir.`;
+    el.loginError.hidden = false;
+  }
+}, 30_000);
 
 window.addEventListener("hashchange", () => {
   if (!el.app.hidden) void render();
@@ -1132,19 +1162,20 @@ async function viewAutoImports(): Promise<void> {
     const btn = el.view.querySelector("#run-auto") as HTMLButtonElement | null;
     if (btn) btn.disabled = true;
     try {
-      const r = await api<{ ok: boolean; results: { url: string; ok: boolean; imported: number; error: string | null }[] }>("/auto-imports/run", {
+      const r = await api<{ ok: boolean; results: { url: string; ok: boolean; imported: number; deactivated?: number; error: string | null }[] }>("/auto-imports/run", {
         method: "POST",
         body: JSON.stringify({ all: true }),
       });
       clearTimeout(ph2); clearTimeout(ph3);
       const imported = r.results.reduce((n, x) => n + x.imported, 0);
+      const deact = r.results.reduce((n, x) => n + (x.deactivated ?? 0), 0);
       const failed = r.results.filter((x) => !x.ok).length;
       // Resumen por fuente en la barra (más información, no solo %).
       const porFuente = r.results
-        .map((x) => `${esc(x.url.replace(/^https?:\/\//, "").replace("www.", "").slice(0, 24))}: ${x.ok ? `+${x.imported}` : "error"}`)
+        .map((x) => `${esc(x.url.replace(/^https?:\/\//, "").replace("www.", "").slice(0, 24))}: ${x.ok ? `+${x.imported}${x.deactivated ? `/-${x.deactivated}` : ""}` : "error"}`)
         .join(" · ");
-      prog.set(100, `${r.results.length} fuente(s) · ${imported} importados · ${porFuente}`, 3, failed > 0);
-      toast(`Listo: ${imported} productos, ${failed} con error`, r.ok);
+      prog.set(100, `${r.results.length} fuente(s) · ${imported} importados${deact ? ` · ${deact} ocultado(s)` : ""} · ${porFuente}`, 3, failed > 0);
+      toast(`Listo: ${imported} productos, ${failed} con error${deact ? `. ${deact} ya no están en las fuentes y se ocultaron` : ""}`, r.ok);
       // Refrescar los lastRun de las filas sin re-render completo.
       await refreshAutoLastRuns();
     } catch (e) {
@@ -1299,9 +1330,32 @@ async function viewSettings(): Promise<void> {
           <input name="facebookUrl" value="${esc(settings.facebookUrl)}" placeholder="https://www.facebook.com/…"/></div>
         <div class="field"><label>Link de Seguimiento (botón del header)</label>
           <input name="trackUrl" value="${esc(settings.trackUrl)}" placeholder="https://repairpro.centerphone.com.ar/track-lite"/></div>
+        <div class="field"><label>Título del modal "Cómo comprar"</label>
+          <input name="howTitle" value="${esc(settings.howTitle)}" placeholder="Cómo comprar"/></div>
+        <div class="field"><label>Pasos de "Cómo comprar" (un paso por línea, con formato **negrita**)</label>
+          <textarea name="howSteps" rows="6" placeholder="Explorá el catálogo…\nTocá Consultar…">${esc(settings.howSteps)}</textarea></div>
+        <div class="field"><label>Nota de retiro del modal (vacía = "Retiro en el local: {dirección}")</label>
+          <input name="howPickupNote" value="${esc(settings.howPickupNote)}" placeholder="📍 Retiro en el local: Mendoza 2974"/></div>
+        <div class="field"><label>Badge "Nuevo" automático (productos cargados hace menos de…)</label>
+          <select name="freshHours">
+            <option value="24" ${settings.freshHours === 24 ? "selected" : ""}>24 horas</option>
+            <option value="48" ${settings.freshHours === 48 || settings.freshHours === 0 ? "selected" : ""}>48 horas</option>
+            <option value="168" ${settings.freshHours === 168 ? "selected" : ""}>7 días</option>
+            <option value="0" ${settings.freshHours !== 24 && settings.freshHours !== 48 && settings.freshHours !== 168 ? "selected" : ""}>Desactivado</option>
+          </select></div>
         <h2 style="margin-top:24px">Sincronización</h2>
         <p class="muted">La sincronización se gestiona desde la pestaña <strong>Auto-importaciones</strong>: cargás los links, les asignás horarios (hora Argentina) y el cron los actualiza solo. El historial de cada corrida queda en el Dashboard.</p>
         <button type="submit" class="btn btn-primary">Guardar configuración</button>
+      </form>
+      <h2 style="margin-top:32px">Cambiar contraseña del panel</h2>
+      <form id="pw-form">
+        <div class="field"><label>Contraseña actual</label>
+          <input name="current" type="password" autocomplete="current-password"/></div>
+        <div class="field"><label>Nueva contraseña (mínimo 8 caracteres)</label>
+          <input name="next" type="password" autocomplete="new-password" minlength="8"/></div>
+        <div class="field"><label>Repetir nueva contraseña</label>
+          <input name="next2" type="password" autocomplete="new-password" minlength="8"/></div>
+        <button type="submit" class="btn">Cambiar contraseña</button>
       </form>
     </div>`;
   const form = el.view.querySelector("#s-form") as HTMLFormElement;
@@ -1321,9 +1375,37 @@ async function viewSettings(): Promise<void> {
           instagramUrl: fd.get("instagramUrl"),
           facebookUrl: fd.get("facebookUrl"),
           trackUrl: fd.get("trackUrl"),
+          howSteps: fd.get("howSteps"),
+          howTitle: fd.get("howTitle"),
+          howPickupNote: fd.get("howPickupNote"),
+          freshHours: Number(fd.get("freshHours")),
         }),
       });
       toast("Configuración guardada");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Error", false);
+    }
+  });
+
+  // Cambio de contraseña del panel.
+  const pwForm = el.view.querySelector("#pw-form") as HTMLFormElement;
+  pwForm.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const fd = new FormData(pwForm);
+    const next = String(fd.get("next") ?? "");
+    if (next !== String(fd.get("next2") ?? "")) {
+      toast("Las nuevas contraseñas no coinciden", false);
+      return;
+    }
+    try {
+      const res = await api<{ ok: boolean; persisted: boolean }>("/password", {
+        method: "POST",
+        body: JSON.stringify({ current: fd.get("current"), next }),
+      });
+      toast(res.persisted
+        ? "Contraseña cambiada y guardada en Cloudflare. Usala la próxima vez que entres."
+        : "Contraseña cambiada en esta sesión (en local no se persiste automáticamente; actualizá .dev.vars)");
+      pwForm.reset();
     } catch (e) {
       toast(e instanceof Error ? e.message : "Error", false);
     }

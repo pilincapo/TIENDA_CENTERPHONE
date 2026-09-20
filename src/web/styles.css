@@ -189,6 +189,7 @@ img { max-width: 100%; display: block; }
   text-transform: lowercase; letter-spacing: .05em; font-family: var(--font-sans);
 }
 .badge--new { background: var(--term-green-soft); color: var(--brand); border: 1px solid var(--brand); }
+.badge--fresh { background: rgb(88 166 255 / .12); color: #58a6ff; border: 1px solid #58a6ff; font-weight: 700; }
 .badge--featured { background: var(--term-amber-soft); color: var(--term-amber); border: 1px solid var(--term-amber); }
 .badge--offer { background: rgb(248 81 73 / .12); color: var(--danger); border: 1px solid var(--danger); }
 .badge--stock-out { background: rgb(125 143 159 / .15); color: var(--muted); border: 1px solid var(--border-bright); }

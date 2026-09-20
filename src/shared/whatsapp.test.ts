@@ -22,6 +22,8 @@ const product: Product = {
   status: "published",
   availability: "in_stock",
   sortOrder: 0,
+  createdAt: 0,
+  sourceUrl: null,
 };
 
 describe("normalizePhone", () => {

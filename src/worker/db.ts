@@ -43,6 +43,8 @@ export function rowToProduct(row: Dict): Product {
       ? String(row.availability)
       : "in_stock") as Product["availability"],
     sortOrder: num(row.sort_order),
+    createdAt: num(row.created_at),
+    sourceUrl: row.source_url == null ? null : String(row.source_url),
   };
 }
 
@@ -122,21 +124,56 @@ export async function getProduct(db: D1Database, id: string): Promise<Product | 
 export async function upsertProduct(db: D1Database, p: Product, now: number): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO products (id, title, description, price_cents, category_id, subcategory_id, tags, image_url, status, availability, sort_order, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)
+      `INSERT INTO products (id, title, description, price_cents, category_id, subcategory_id, tags, image_url, status, availability, sort_order, created_at, updated_at, source_url)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, ?13)
        ON CONFLICT(id) DO UPDATE SET
          title = ?2, description = ?3, price_cents = ?4, category_id = ?5, subcategory_id = ?6,
-         tags = ?7, image_url = ?8, status = ?9, availability = ?10, sort_order = ?11, updated_at = ?12`
+         tags = ?7, image_url = ?8, status = ?9, availability = ?10, sort_order = ?11, updated_at = ?12,
+         source_url = COALESCE(?13, source_url)`
     )
     .bind(
       p.id, p.title, p.description, p.priceCents, p.categoryId, p.subcategoryId,
-      JSON.stringify(p.tags), p.imageUrl, p.status, p.availability, p.sortOrder, now
+      JSON.stringify(p.tags), p.imageUrl, p.status, p.availability, p.sortOrder, now,
+      p.sourceUrl ?? null
     )
     .run();
 }
 
 export async function deleteProduct(db: D1Database, id: string): Promise<void> {
   await db.prepare("DELETE FROM products WHERE id = ?1").bind(id).run();
+}
+
+/** Oculta (status=hidden) los productos de una fuente cuyo id NO esté en keepIds. Devuelve cuántos. */
+export async function hideProductsNotIn(db: D1Database, sourceUrl: string, keepIds: string[], now: number): Promise<number> {
+  if (keepIds.length === 0) {
+    // Fuente vacía: se ocultan TODOS los productos de esa URL.
+    const r = await db
+      .prepare("UPDATE products SET status = 'hidden', updated_at = ?2 WHERE source_url = ?1 AND status = 'published'")
+      .bind(sourceUrl, now)
+      .run();
+    return r.meta.changes ?? 0;
+  }
+  // Numeración explícita: source_url=?1, ids=?2..?(N+1), updated_at=?(N+2).
+  // (Mezclar ?NNN con ? anónimos falla: el anónimo toma el índice por orden de
+  // aparición en el texto SQL, no de bind.)
+  const marks = keepIds.map((_, i) => `?${i + 2}`).join(",");
+  const r = await db
+    .prepare(`UPDATE products SET status = 'hidden', updated_at = ?${keepIds.length + 2} WHERE source_url = ?1 AND status = 'published' AND id NOT IN (${marks})`)
+    .bind(sourceUrl, ...keepIds, now)
+    .run();
+  return r.meta.changes ?? 0;
+}
+
+/** Reactiva los productos ocultos de una fuente que volvieron a aparecer (status published). */
+export async function unhideProductsIn(db: D1Database, sourceUrl: string, ids: string[], now: number): Promise<number> {
+  if (ids.length === 0) return 0;
+  // Numeración explícita (mismo motivo que hideProductsNotIn).
+  const marks = ids.map((_, i) => `?${i + 2}`).join(",");
+  const r = await db
+    .prepare(`UPDATE products SET status = 'published', updated_at = ?${ids.length + 2} WHERE source_url = ?1 AND status = 'hidden' AND id IN (${marks})`)
+    .bind(sourceUrl, ...ids, now)
+    .run();
+  return r.meta.changes ?? 0;
 }
 
 // ---- Sync log ----
