@@ -1324,13 +1324,7 @@ async function viewSettings(): Promise<void> {
         <div class="field"><label>Facebook (URL)</label>
           <input name="facebookUrl" value="${esc(settings.facebookUrl)}" placeholder="https://www.facebook.com/…"/></div>
         <h2 style="margin-top:24px">Sincronización</h2>
-        <div class="field"><label>URL del JSON a sincronizar</label>
-          <input name="syncUrl" value="${esc(settings.syncUrl)}" placeholder="https://…"/></div>
-        <div class="field"><label>Token opcional (Authorization: Bearer …)</label>
-          <input name="syncToken" value="${esc(settings.syncToken)}"/></div>
-        <div class="field"><label>Intervalo mínimo de sync automática (minutos)</label>
-          <input name="syncIntervalMinutes" type="number" min="15" value="${settings.syncIntervalMinutes}"/></div>
-        <p class="muted">El cron corre cada 15 minutos y sincroniza solo si pasó el intervalo.</p>
+        <p class="muted">La sincronización se gestiona desde la pestaña <strong>Auto-importaciones</strong>: cargás los links, les asignás horarios (hora Argentina) y el cron los actualiza solo. El historial de cada corrida queda en el Dashboard.</p>
         <button type="submit" class="btn btn-primary">Guardar configuración</button>
       </form>
     </div>`;
@@ -1344,9 +1338,6 @@ async function viewSettings(): Promise<void> {
         body: JSON.stringify({
           whatsappPhone: fd.get("whatsappPhone"),
           currencySymbol: fd.get("currencySymbol"),
-          syncUrl: fd.get("syncUrl"),
-          syncToken: fd.get("syncToken"),
-          syncIntervalMinutes: Number(fd.get("syncIntervalMinutes") ?? 60),
           storeName: fd.get("storeName"),
           storeAddress: fd.get("storeAddress"),
           storeMapUrl: fd.get("storeMapUrl"),

@@ -93,6 +93,9 @@
 
 # Changelog
 
+## 2026-09-19 (14)
+- **Eliminados los campos de sync clásica de Configuración** (URL del JSON, token Bearer e intervalo): la sincronización se gestiona íntegramente desde Auto-importaciones. El backend se mantiene por compatibilidad; los valores guardados no se tocan al guardar el formulario.
+
 ## 2026-09-19 (13)
 - **Fix: el dashboard mostraba siempre "error"**: el estado del catálogo solo lo actualizaba la sync clásica por URL (no usada), quedando clavado en el viejo error "No hay URL de sincronización configurada". Ahora las corridas de auto-importaciones (cron y manuales) también actualizan el estado en KV.
 
