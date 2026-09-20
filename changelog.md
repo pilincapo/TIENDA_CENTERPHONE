@@ -93,6 +93,9 @@
 
 # Changelog
 
+## 2026-09-19 (15)
+- **Importar solo por links**: eliminados el textarea de JSON y la zona de arrastre de archivos de la pestaña Importar. Queda URL + regla de precio + Analizar.
+
 ## 2026-09-19 (14)
 - **Eliminados los campos de sync clásica de Configuración** (URL del JSON, token Bearer e intervalo): la sincronización se gestiona íntegramente desde Auto-importaciones. El backend se mantiene por compatibilidad; los valores guardados no se tocan al guardar el formulario.
 

@@ -659,12 +659,9 @@ async function viewImport(): Promise<void> {
     <div class="panel">
       <h2>Importar productos</h2>
       <p class="muted">Pegá el link de tu catálogo o de un producto: se descarga y se extraen los productos
-      automáticamente (JSON, JSON-LD de la página o tienda Shopify). También podés pegar JSON
-      o arrastrar un archivo. De la lista, elegís qué importar.</p>
+      automáticamente. De la lista, elegís qué importar.</p>
       <div class="field"><label>URL de la tienda o catálogo</label><input id="imp-url" placeholder="https://latienda.com/productos o /products/samsung-s24"/></div>
       <div class="field"><label>Regla de precio a aplicar</label><select id="imp-rule"></select></div>
-      <div class="field"><label>…o pegá el JSON acá</label><textarea id="imp-json" placeholder='[{"title": "Galaxy S24", "price": 1299999, "tags": ["new"]}]'></textarea></div>
-      <div class="dropzone" id="imp-drop">…o arrastrá un archivo .json acá</div>
       <div class="row" style="margin-top:14px">
         <button class="btn btn-primary" id="imp-preview">Analizar</button>
       </div>
@@ -685,28 +682,6 @@ async function viewImport(): Promise<void> {
     setTimeout(() => {
       if (urlInput.value.trim().startsWith("http")) void doImportPreview();
     }, 150);
-  });
-  const drop = el.view.querySelector("#imp-drop") as HTMLElement;
-  const jsonTa = el.view.querySelector("#imp-json") as HTMLTextAreaElement;
-  ["dragover", "dragenter"].forEach((ev) =>
-    drop.addEventListener(ev, (e) => {
-      e.preventDefault();
-      drop.classList.add("over");
-    })
-  );
-  ["dragleave", "drop"].forEach((ev) =>
-    drop.addEventListener(ev, (e) => {
-      e.preventDefault();
-      drop.classList.remove("over");
-    })
-  );
-  drop.addEventListener("drop", (e) => {
-    const file = e.dataTransfer?.files?.[0];
-    if (!file) return;
-    void file.text().then((text) => {
-      jsonTa.value = text;
-      toast("Archivo cargado");
-    });
   });
   el.view.querySelector("#imp-preview")?.addEventListener("click", () => void doImportPreview());
 }
@@ -778,15 +753,14 @@ function showProgress(container: HTMLElement, title: string, steps: readonly str
 
 async function doImportPreview(): Promise<void> {
   const url = (el.view.querySelector("#imp-url") as HTMLInputElement)?.value ?? "";
-  const json = (el.view.querySelector("#imp-json") as HTMLTextAreaElement)?.value ?? "";
   const out = el.view.querySelector("#imp-result") as HTMLElement;
   const prog = showProgress(out, "Analizando la fuente…");
   prog.set(8, "Descargando la página…", 0);
-  const phase = setTimeout(() => prog.set(45, "Buscando productos en el HTML/JSON…", 1), 1200);
+  const phase = setTimeout(() => prog.set(45, "Buscando productos en la página…", 1), 1200);
   try {
     const r = await api<PreviewResponse>("/import/preview", {
       method: "POST",
-      body: JSON.stringify({ url, json, priceRuleId: currentRuleId() }),
+      body: JSON.stringify({ url, priceRuleId: currentRuleId() }),
     });
     clearTimeout(phase);
     prog.set(100, r.products.length > 0 ? `${r.products.length} productos encontrados` : "Sin productos", 3);
