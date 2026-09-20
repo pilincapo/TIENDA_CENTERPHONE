@@ -49,6 +49,17 @@ export function fillStoreInfo(s: PublicSettings): void {
   }
 
   // Footer: horarios, dirección con link a Maps y redes.
+  // Link de Seguimiento del header: lo actualiza con lo configurado en el panel;
+  // si queda vacío, se oculta el botón.
+  const track = document.getElementById("nav-track") as HTMLAnchorElement | null;
+  if (track) {
+    if (s.trackUrl) {
+      track.href = s.trackUrl;
+      track.hidden = false;
+    } else {
+      track.hidden = true;
+    }
+  }
   const hours = document.getElementById("footer-hours");
   if (hours && s.storeHours) hours.innerHTML = esc(s.storeHours).replace(/\n/g, "<br/>");
   const addr = document.getElementById("footer-address");

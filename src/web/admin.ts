@@ -1297,6 +1297,8 @@ async function viewSettings(): Promise<void> {
           <input name="instagramUrl" value="${esc(settings.instagramUrl)}" placeholder="https://www.instagram.com/…"/></div>
         <div class="field"><label>Facebook (URL)</label>
           <input name="facebookUrl" value="${esc(settings.facebookUrl)}" placeholder="https://www.facebook.com/…"/></div>
+        <div class="field"><label>Link de Seguimiento (botón del header)</label>
+          <input name="trackUrl" value="${esc(settings.trackUrl)}" placeholder="https://repairpro.centerphone.com.ar/track-lite"/></div>
         <h2 style="margin-top:24px">Sincronización</h2>
         <p class="muted">La sincronización se gestiona desde la pestaña <strong>Auto-importaciones</strong>: cargás los links, les asignás horarios (hora Argentina) y el cron los actualiza solo. El historial de cada corrida queda en el Dashboard.</p>
         <button type="submit" class="btn btn-primary">Guardar configuración</button>
@@ -1318,6 +1320,7 @@ async function viewSettings(): Promise<void> {
           storeHours: fd.get("storeHours"),
           instagramUrl: fd.get("instagramUrl"),
           facebookUrl: fd.get("facebookUrl"),
+          trackUrl: fd.get("trackUrl"),
         }),
       });
       toast("Configuración guardada");

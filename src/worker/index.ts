@@ -47,6 +47,7 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     storeHours: s.storeHours,
     instagramUrl: s.instagramUrl,
     facebookUrl: s.facebookUrl,
+    trackUrl: s.trackUrl,
   };
 }
 

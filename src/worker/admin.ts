@@ -271,6 +271,7 @@ adminApp.put("/settings", async (c) => {
     storeHours: String(body.storeHours ?? "").slice(0, 300),
     instagramUrl: normalizeUrl(body.instagramUrl, 300),
     facebookUrl: normalizeUrl(body.facebookUrl, 300),
+    trackUrl: normalizeUrl(body.trackUrl, 300),
   });
   return c.json({ settings });
 });

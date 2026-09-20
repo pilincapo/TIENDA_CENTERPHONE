@@ -9,4 +9,5 @@ export interface PublicSettings {
   storeHours: string;
   instagramUrl: string;
   facebookUrl: string;
+  trackUrl: string;
 }

@@ -58,6 +58,8 @@ export interface StoreSettings {
   storeHours: string;
   instagramUrl: string;
   facebookUrl: string;
+  // Link al sistema de seguimiento (botón "Seguimiento" del header).
+  trackUrl: string;
 }
 
 export const TAGS: Tag[] = ["new", "featured", "offer"];
@@ -86,6 +88,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   storeHours: "Lunes a viernes: 9:00 a 19:00 hs\nSábados: 10:00 a 13:00 hs",
   instagramUrl: "https://www.instagram.com/centerphonesantafe",
   facebookUrl: "https://www.facebook.com/centerphonesantafe",
+  trackUrl: "https://repairpro.centerphone.com.ar/track-lite",
 };
 
 export const KV_SNAPSHOT_KEY = "catalog:snapshot:v1";

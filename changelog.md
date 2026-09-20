@@ -1,3 +1,21 @@
+## 2026-09-20 — Modal "Cómo comprar": envío
+
+- Paso 5 cambiado en el modal (home y ficha): ~~"Envíos a todo el país"~~ → **"Envío gratis en la ciudad de Santa Fe"** o retiro en el local
+- Verificado en preview (texto actualizado en el modal abierto). Typecheck ✅, build ✅
+
+## 2026-09-20 — Link de Seguimiento configurable desde el panel
+
+- Nuevo campo **"Link de Seguimiento (botón del header)"** en Configuración → Datos del comercio (después de Facebook). El botón "Seguimiento" del header usa esa URL
+- Si el campo queda **vacío**, el botón desaparece del header (home y ficha). Por defecto viene `https://repairpro.centerphone.com.ar/track-lite`
+- Cadena completa: `StoreSettings.trackUrl` (shared) → `PublicSettings` (worker) → campo en el form del admin → `fillStoreInfo` aplica href u oculta el botón
+- Verificado de punta a punta en local: guardar vacío oculta el botón ✅, restaurar la URL lo muestra ✅. 76 tests ✅, typecheck ✅
+
+## 2026-09-20 — Botón "Seguimiento" en el header
+
+- Nuevo botón **Seguimiento** en la nav del header (junto a "Contacto"), tanto en el home como en la ficha de producto. Abre en otra pestaña `https://repairpro.centerphone.com.ar/track-lite` (el sistema de seguimiento de reparaciones)
+- Mismo estilo `.topnav-btn` que "Cómo comprar" y "Contacto" (regla nueva `a.topnav-btn` para que el link herede el look del botón sin subrayado)
+- Verificado en preview: botón visible con el link correcto, header sin overflow. Typecheck ✅, build ✅
+
 ## 2026-09-19 — Deploy: historial completo de sincronizaciones
 
 - Deploy a Cloudflare (`09ee94cb`) con el historial de todas las corridas (cron + manuales) y la columna detail
