@@ -309,7 +309,7 @@ function freshTitle(hours: number): string {
 function cardHtml(p: Product): string {
   const symbol = state.settings?.currencySymbol ?? "$";
   const img = p.imageUrl
-    ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.title)}" loading="lazy" />`
+    ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.title)}" loading="lazy" decoding="async" />`
     : "📱";
   const freshHours = state.settings?.freshHours ?? 48;
   const badges = [

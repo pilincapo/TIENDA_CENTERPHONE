@@ -15,9 +15,12 @@ const app = new Hono<{ Bindings: Env }>();
 app.route("/api/admin", adminApp);
 
 // Snapshot público (servido desde KV, con regeneración de emergencia).
+// Cache-Control: el navegador revalida 60s (stale-while-revalidate 5 min) para
+// no re-descargar los ~200KB del catálogo en cada navegación interna.
 app.get("/api/catalog", async (c) => {
   let snapshot: CatalogSnapshot | null = await getSnapshot(c.env);
   if (!snapshot) snapshot = await regenerateSnapshot(c.env);
+  c.header("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
   return c.json(snapshot);
 });
 

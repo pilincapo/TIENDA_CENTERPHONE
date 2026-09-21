@@ -126,7 +126,7 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
   el.related.innerHTML = related
     .map((p) => {
       const thumb = p.imageUrl
-        ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.title)}" loading="lazy" />`
+        ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.title)}" loading="lazy" decoding="async" />`
         : "📱";
       return `<a class="card" href="/producto/${esc(p.id)}">
         <div class="card-img">${thumb}</div>

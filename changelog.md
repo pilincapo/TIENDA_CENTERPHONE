@@ -1,3 +1,13 @@
+## 2026-09-21 — Auditoría de performance del home
+
+- **Baseline medido** (local, home con 830 productos): TTFB 15ms, FCP ~170ms, LCP 641ms (una imagen del CDN externo), CLS 0.000, JS total ~70KB comprimido. Base sólida; los cuellos de botella reales eran el peso del catálogo y las imágenes externas
+- **Snapshot liviano** (`/api/catalog`): descripción recortada a 160 chars (suficiente para la búsqueda del home) y `source_url` fuera del JSON (solo lo usa el panel, que lee de D1). Sin comprimir: 420KB → **305KB (−27%)**; comprimido en tránsito: **42KB → 35KB**
+- **Cache-Control en `/api/catalog`**: `max-age=60, stale-while-revalidate=300` — el navegador no re-descarga el catálogo en navegaciones internas durante 1 minuto
+- **Preconnect a `cdn.v2.tiendanegocio.com`** en home y ficha: las imágenes del proveedor (el LCP real del home) ahorran el handshake TLS del primer request (~100-300ms)
+- **`decoding="async"`** en las imágenes de cards y relacionados: el decode no bloquea el hilo principal
+- CLS ya era 0.000 (las cards usan `aspect-ratio: 1` en CSS) ✅; sin scripts de terceros ✅; JS < 300KB del presupuesto ✅
+- Verificado: 20 cards renderizan, bundle con los cambios, typecheck ✅, 76 tests ✅
+
 ## 2026-09-21 — Deploy: reintentos automáticos
 
 - Deploy a Cloudflare (`7c1ed976`): reintentos ante 522/5xx del origen. Commit `1bf9f62` pusheado. **Verificado en producción**: mascotas (7 importados) y hogar (135 + 1 sin stock) sincronizan OK — las 7 fuentes operativas

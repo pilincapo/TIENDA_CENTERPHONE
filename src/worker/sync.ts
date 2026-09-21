@@ -1,6 +1,6 @@
 // Sincronización, importación y snapshot público en KV.
 
-import type { CatalogSnapshot, StoreSettings, SyncTrigger } from "../shared/types";
+import type { CatalogSnapshot, Product, StoreSettings, SyncTrigger } from "../shared/types";
 import { KV_SNAPSHOT_KEY, KV_SYNC_STATE_KEY } from "../shared/types";
 import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { applyRuleSet } from "../shared/pricing";
@@ -36,10 +36,18 @@ export async function regenerateSnapshot(env: Env): Promise<CatalogSnapshot> {
     listProducts(env.DB),
     listCategories(env.DB),
   ]);
+  // Snapshot liviano: el home no usa la descripción completa (búsqueda con 160
+  // chars alcanza) ni source_url (solo lo usa el panel, que lee de D1). Con ~1000
+  // productos esto baja el JSON de ~420KB a ~200KB sin comprimir.
+  const light: Product[] = products.map((p) => ({
+    ...p,
+    description: p.description.slice(0, 160),
+    sourceUrl: null,
+  }));
   const snapshot: CatalogSnapshot = {
     generatedAt: nowMs(),
     categories: categories.filter((c) => c.active),
-    products,
+    products: light,
   };
   await env.KV.put(KV_SNAPSHOT_KEY, JSON.stringify(snapshot));
   return snapshot;
