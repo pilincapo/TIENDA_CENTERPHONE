@@ -1,3 +1,9 @@
+## 2026-09-21 — Reintentos automáticos: mascotas y hogar fallaban con 522 del sitio de origen
+
+- **Diagnóstico**: mascotas y hogar no se actualizaban porque el sitio de origen (hacetupedido.com, también detrás de Cloudflare) responde a veces con **522 intermitente** — hogar importó 136 productos a las 15:24 y a las 15:46 dio 522 con la misma URL
+- **Fix**: `fetchText` ahora reintenta **3 veces con espera creciente** (3s, 4.5s) ante 522/524/otros 5xx, 429 y fallos de red; los 4xx permanentes (404, 403) no se reintentan
+- Verificado en local: mascotas (7 productos) y hogar (135 + 1 sin stock) importan OK. Typecheck ✅, 76 tests ✅
+
 ## 2026-09-21 — Deploy: pausas automáticas contra el error 522
 
 - Deploy a Cloudflare (`d53e9e81`): importación por lotes de 50 con pausa, pausas entre fuentes y presupuesto de tiempo en el cron. Commit `162d321` pusheado; 76 tests ✅; home HTTP 200 verificado en producción

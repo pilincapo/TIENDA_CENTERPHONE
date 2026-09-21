@@ -46,19 +46,38 @@ function looksLikeHtml(text: string): boolean {
 }
 
 async function fetchText(url: string): Promise<string> {
-  let res: Response;
-  try {
-    res = await fetch(url, { headers: fetchHeaders(), redirect: "follow" });
-  } catch (e) {
-    // Fallo de red/DNS: el runtime puede dar mensajes opacos (ej: "internal error;
-    // reference = ..."). Traducimos a una causa clara para el historial.
-    const raw = e instanceof Error ? e.message : String(e);
-    throw new Error(`No se pudo conectar con el dominio (verificá la URL, el DNS o que el sitio esté online) — ${raw}`);
+  // Reintentos automáticos ante errores temporales del sitio de origen: 522/524
+  // (Cloudflare del origen saturado), 429 (rate limit) y otros 5xx. En la práctica
+  // hacetupedido.com a veces da 522 y a los pocos segundos responde bien, lo que
+  // dejaba fuentes enteras (mascotas, hogar) sin sincronizar. 3 intentos con
+  // espera creciente; el último error es el que se reporta.
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    if (attempt > 1) await new Promise((r) => setTimeout(r, attempt * 1500)); // 3s y 4.5s
+    let res: Response;
+    try {
+      res = await fetch(url, { headers: fetchHeaders(), redirect: "follow" });
+    } catch (e) {
+      // Fallo de red/DNS: el runtime puede dar mensajes opacos (ej: "internal error;
+      // reference = ..."). Traducimos a una causa clara para el historial.
+      // Un fallo de red también se reintenta: puede ser un timeout puntual.
+      lastError = new Error(`No se pudo conectar con el dominio (verificá la URL, el DNS o que el sitio esté online) — ${e instanceof Error ? e.message : String(e)}`);
+      continue;
+    }
+    if (res.ok) {
+      const text = await res.text();
+      if (text.trim() === "") {
+        lastError = new Error("La URL devolvió una respuesta vacía");
+        continue;
+      }
+      return text;
+    }
+    const err = new Error(`La URL respondió con estado ${res.status}`);
+    // 4xx (salvo 429) son permanentes (404, 403…): no tiene sentido reintentar.
+    if (res.status < 500 && res.status !== 429) throw err;
+    lastError = err;
   }
-  if (!res.ok) throw new Error(`La URL respondió con estado ${res.status}`);
-  const text = await res.text();
-  if (text.trim() === "") throw new Error("La URL devolvió una respuesta vacía");
-  return text;
+  throw lastError ?? new Error("No se pudo descargar la URL");
 }
 
 /** Tiendas Shopify: /products.json expone el catálogo completo paginado. */
