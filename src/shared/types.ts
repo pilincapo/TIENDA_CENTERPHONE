@@ -43,6 +43,8 @@ export interface SyncLogEntry {
   itemsTotal: number | null;
   itemsImported: number | null;
   itemsFailed: number | null;
+  /** Productos de la fuente que ya no vinieron en el listado y fueron ocultados. */
+  itemsDeactivated: number | null;
   error: string | null;
   detail: string | null;
   startedAt: number;

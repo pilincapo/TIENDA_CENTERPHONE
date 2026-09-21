@@ -60,6 +60,7 @@ async function render(): Promise<void> {
   el.view.innerHTML = `<div class="state"><div class="spinner"></div></div>`;
   try {
     if (tab === "products") await viewProducts();
+    else if (tab === "hidden") await viewHidden();
     else if (tab === "categories") await viewCategories();
     else if (tab === "import") await viewImport();
     else if (tab === "rules") await viewRules();
@@ -81,13 +82,19 @@ function triggerLabel(t: string): string {
 
 /** Fila del historial (compartida entre render inicial y actualización dinámica). */
 function syncLogRow(l: SyncLogEntry): string {
+  // Celda de cantidades: "161/175" con fallidos y sin-stock destacados si los hay.
+  const cant = l.itemsImported != null
+    ? `${l.itemsImported}${l.itemsTotal != null && l.itemsTotal !== l.itemsImported ? `/${l.itemsTotal}` : ""}${(l.itemsFailed ?? 0) > 0 ? ` <span class="err-detail">(${l.itemsFailed} fall.)</span>` : ""}${(l.itemsDeactivated ?? 0) > 0 ? ` <span class="warn-detail" title="Productos de la fuente que ya no vinieron en el listado: quedaron sin stock">· ${l.itemsDeactivated} sin stock</span>` : ""}`
+    : "—";
+  // Duración de la corrida (finished - started).
+  const dur = l.finishedAt != null ? Math.max(1, Math.round((l.finishedAt - l.startedAt) / 100) / 10) : null;
   return `
     <tr>
       <td>${esc(new Date(l.startedAt).toLocaleString("es-AR"))}</td>
       <td>${triggerLabel(l.trigger)}</td>
       <td class="muted">${l.detail ? esc(l.detail.replace(/^https?:\/\//, "").slice(0, 40)) : "—"}</td>
       <td class="${l.status === "ok" ? "ok" : "err"}">${esc(l.status)}</td>
-      <td>${l.itemsImported ?? "—"}</td>
+      <td>${cant}${dur != null ? ` <span class="muted" style="font-size:11px">· ${dur}s</span>` : ""}</td>
       <td class="muted">${l.error ? (l.status === "ok"
         ? `<span class="muted" title="Avisos de la corrida (los artículos inválidos se saltaron): ${esc(l.error)}">ⓘ ${esc(l.error.slice(0, 90))}${l.error.length > 90 ? "…" : ""}</span>`
         : `<span class="err-detail" title="${esc(l.error)}">⚠ ${esc(l.error.slice(0, 90))}${l.error.length > 90 ? "…" : ""}</span>`) : "—"}</td>
@@ -163,7 +170,7 @@ async function viewDashboard(syncFilter = ""): Promise<void> {
       <p class="muted" style="margin-top:4px">Últimas 50 corridas — se actualiza solo cada 15 segundos.</p>
       <div class="table-scroll">
       <table class="table">
-        <thead><tr><th>Fecha</th><th>Origen</th><th>Detalle</th><th>Estado</th><th>Importados</th><th>Error</th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Origen</th><th>Detalle</th><th>Estado</th><th>Importados / Total</th><th>Error</th></tr></thead>
         <tbody id="dash-log-body">
           ${log.length === 0 ? '<tr><td colspan="6" class="muted">Todavía no hubo sincronizaciones.</td></tr>' : log.map(syncLogRow).join("")}
         </tbody>
@@ -204,9 +211,9 @@ async function doSync(): Promise<void> {
         : (r.warnings && r.warnings.length > 0
           ? `${r.warnings.length} artículo(s) salteado(s) por precio inválido`
           : "sin errores");
-      prog.set(100, `${j} fuente(s) · ${r.imported} importados${deact ? ` · ${deact} ocultado(s)` : ""} · ${resumen}`, 3, !r.ok);
+      prog.set(100, `${j} fuente(s) · ${r.imported} importados${deact ? ` · ${deact} sin stock` : ""} · ${resumen}`, 3, !r.ok);
       const warn = r.warnings && r.warnings.length > 0 ? ` Avisos: ${r.warnings.length} salteado(s).` : "";
-      const deactMsg = deact ? ` ${deact} producto(s) ya no están en las fuentes y se ocultaron.` : "";
+      const deactMsg = deact ? ` ${deact} producto(s) ya no están en las fuentes (sin stock).` : "";
       toast(
         r.ok
           ? `Listo: ${j} fuente(s), ${r.imported} productos importados.${deactMsg}${warn}`
@@ -371,7 +378,7 @@ async function viewProducts(): Promise<void> {
               <td>${p.imageUrl ? `<img class="thumb" src="${esc(p.imageUrl)}" alt=""/>` : '<div class="thumb"></div>'}${esc(p.title)}<br/><span class="muted">${esc(p.id)}</span></td>
               <td>${formatPriceAdmin(p.priceCents)}</td>
               <td>${esc(catName(p.categoryId))}</td>
-              <td class="${p.status === "published" ? "ok" : "muted"}">${p.status === "published" ? "Publicado" : "Oculto"}</td>
+              <td class="${p.status === "published" ? "ok" : "muted"}">${p.status === "published" ? "Publicado" : "Sin stock"}</td>
               <td>${p.tags.map((t) => `<span class="badge badge--${t}">${t === "new" ? "Nuevo" : t === "featured" ? "Destacado" : "Oferta"}</span>`).join(" ") || "—"}</td>
               <td style="white-space:nowrap">
                 <button class="btn btn-edit" data-id="${esc(p.id)}">Editar</button>
@@ -501,7 +508,7 @@ async function openProductForm(p: Product | null, categories: Category[]): Promi
       <div class="field"><label>Estado</label>
         <select name="status">
           <option value="published" ${p?.status !== "hidden" ? "selected" : ""}>Publicado</option>
-          <option value="hidden" ${p?.status === "hidden" ? "selected" : ""}>Oculto</option>
+          <option value="hidden" ${p?.status === "hidden" ? "selected" : ""}>Sin stock</option>
         </select></div>
       <div class="field"><label>Disponibilidad</label>
         <select name="availability">
@@ -572,6 +579,76 @@ async function openProductForm(p: Product | null, categories: Category[]): Promi
 }
 
 // ---- Categorías ----
+
+/** Vista de productos sin stock: los que las fuentes dejaron de traer o se ocultaron a mano.
+ *  Permite re-publicarlos de a uno o todos, y borrarlos. */
+async function viewHidden(): Promise<void> {
+  const [{ products }, { categories }] = await Promise.all([
+    api<{ products: Product[] }>("/products"),
+    api<{ categories: Category[] }>("/categories"),
+  ]);
+  const hidden = products.filter((p) => p.status === "hidden");
+  const catName = (id: string | null): string =>
+    id ? (categories.find((c) => c.id === id)?.name ?? id) : "—";
+  const republish = async (ids: string[]): Promise<void> => {
+    try {
+      for (const id of ids) {
+        await api("/products/unhide", { method: "POST", body: JSON.stringify({ id }) });
+      }
+      toast(`Re-publicado(s): ${ids.length}`);
+      await viewHidden();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Error al re-publicar", false);
+    }
+  };
+  el.view.innerHTML = `
+    <div class="panel">
+      <div class="row">
+        <h2 style="margin:0">Sin stock (${hidden.length})</h2>
+        <button class="btn btn-primary" id="unhide-all" style="margin-left:auto" ${hidden.length === 0 ? "disabled" : ""}>▶ Re-publicar todos</button>
+      </div>
+      <p class="muted" style="margin:8px 0 0">Estos productos no aparecen en el catálogo público porque la fuente de importación ya no los trae (sin stock), o porque los ocultaste a mano. Si la fuente vuelve a traerlos, se re-publican solos.</p>
+      ${hidden.length === 0 ? '<p class="muted" style="margin-top:14px">No hay productos sin stock. 🎉</p>' : `
+      <div class="table-scroll">
+      <table class="table" style="margin-top:14px">
+        <thead><tr><th>Título</th><th>Precio</th><th>Categoría</th><th>Fuente</th><th></th></tr></thead>
+        <tbody>
+          ${hidden.map((p) => `
+            <tr data-id="${esc(p.id)}">
+              <td>${p.imageUrl ? `<img class="thumb" src="${esc(p.imageUrl)}" alt=""/>` : '<div class="thumb"></div>'}${esc(p.title)}<br/><span class="muted">${esc(p.id)}</span></td>
+              <td>${formatPriceAdmin(p.priceCents)}</td>
+              <td>${esc(catName(p.categoryId))}</td>
+              <td class="muted">${p.sourceUrl ? esc(p.sourceUrl.replace(/^https?:\/\//, "").slice(0, 40)) : "alta manual"}</td>
+              <td style="white-space:nowrap">
+                <button class="btn btn-primary btn-unhide" data-id="${esc(p.id)}">Re-publicar</button>
+                <button class="btn btn-danger btn-hidden-del" data-id="${esc(p.id)}">Borrar</button>
+              </td>
+            </tr>`).join("")}
+        </tbody>
+      </table>`}
+      </div>
+    </div>`;
+  el.view.querySelector("#unhide-all")?.addEventListener("click", () => {
+    if (!confirm(`¿Re-publicar los ${hidden.length} productos sin stock?`)) return;
+    void republish(hidden.map((p) => p.id));
+  });
+  el.view.querySelectorAll(".btn-unhide").forEach((b) => {
+    b.addEventListener("click", () => void republish([(b as HTMLElement).dataset.id ?? ""]));
+  });
+  el.view.querySelectorAll(".btn-hidden-del").forEach((b) => {
+    b.addEventListener("click", async () => {
+      const id = (b as HTMLElement).dataset.id;
+      if (!id || !confirm("¿Borrar definitivamente este producto?")) return;
+      try {
+        await api(`/products/${encodeURIComponent(id)}`, { method: "DELETE" });
+        toast("Producto borrado");
+        await viewHidden();
+      } catch (e) {
+        toast(e instanceof Error ? e.message : "Error al borrar", false);
+      }
+    });
+  });
+}
 
 async function viewCategories(): Promise<void> {
   const { categories, counts } = await api<{ categories: Category[]; counts: Record<string, { total: number; published: number }> }>("/categories");
@@ -1174,8 +1251,8 @@ async function viewAutoImports(): Promise<void> {
       const porFuente = r.results
         .map((x) => `${esc(x.url.replace(/^https?:\/\//, "").replace("www.", "").slice(0, 24))}: ${x.ok ? `+${x.imported}${x.deactivated ? `/-${x.deactivated}` : ""}` : "error"}`)
         .join(" · ");
-      prog.set(100, `${r.results.length} fuente(s) · ${imported} importados${deact ? ` · ${deact} ocultado(s)` : ""} · ${porFuente}`, 3, failed > 0);
-      toast(`Listo: ${imported} productos, ${failed} con error${deact ? `. ${deact} ya no están en las fuentes y se ocultaron` : ""}`, r.ok);
+      prog.set(100, `${r.results.length} fuente(s) · ${imported} importados${deact ? ` · ${deact} sin stock` : ""} · ${porFuente}`, 3, failed > 0);
+      toast(`Listo: ${imported} productos, ${failed} con error${deact ? `. ${deact} ya no están en las fuentes (sin stock)` : ""}`, r.ok);
       // Refrescar los lastRun de las filas sin re-render completo.
       await refreshAutoLastRuns();
     } catch (e) {

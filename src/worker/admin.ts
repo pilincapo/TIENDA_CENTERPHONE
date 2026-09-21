@@ -7,7 +7,7 @@ import { TAGS } from "../shared/types";
 import type { Env } from "./db";
 import {
   countProductsByCategory, deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct, getAutoImportByUrl,
-  getProduct, lastSyncLogByDetail, listAutoImports, listCategories, listPriceRules, listProducts, listSyncLog,
+  getProduct, insertSyncLog, lastSyncLogByDetail, listAutoImports, listCategories, listPriceRules, listProducts, listSyncLog,
   listSyncLogByTrigger, upsertAutoImport, upsertCategory, upsertPriceRule, upsertProduct,
 } from "./db";
 import { markAutoImportRun, nowArgentina, runAllAutoImportsNow, runAutoImports } from "./autoimport";
@@ -146,6 +146,30 @@ adminApp.delete("/products/:id", async (c) => {
   await deleteProduct(c.env.DB, c.req.param("id"));
   await regenerateSnapshot(c.env);
   return c.json({ ok: true });
+});
+
+// Re-publicación de productos ocultos: { id: "..." } para uno, { all: true } para todos.
+adminApp.post("/products/unhide", async (c) => {
+  const body = await c.req.json<{ id?: unknown; all?: unknown }>().catch(() => null);
+  const now = nowMs();
+  let n = 0;
+  if (typeof body?.id === "string" && body.id.trim() !== "") {
+    const r = await c.env.DB
+      .prepare("UPDATE products SET status = 'published', updated_at = ?2 WHERE id = ?1 AND status = 'hidden'")
+      .bind(body.id.trim(), now)
+      .run();
+    n = r.meta.changes ?? 0;
+  } else if (body?.all === true) {
+    const r = await c.env.DB
+      .prepare("UPDATE products SET status = 'published', updated_at = ?1 WHERE status = 'hidden'")
+      .bind(now)
+      .run();
+    n = r.meta.changes ?? 0;
+  } else {
+    return c.json({ error: "Pasá un id de producto o all: true" }, 400);
+  }
+  if (n > 0) await regenerateSnapshot(c.env);
+  return c.json({ ok: true, republished: n });
 });
 
 // Borrado múltiple: { ids: [...] } o { categoryId: "..." } (borra la categoría entera,
@@ -475,8 +499,19 @@ async function resolveImportBody(
 
 adminApp.post("/import", async (c) => {
   const body = await c.req.json<ImportBody>().catch(() => null);
+  const startedAt = nowMs();
+  try {
   const r = await resolveImportBody(body);
-  if ("error" in r) return c.json({ error: r.error }, 400);
+  if ("error" in r) {
+    // Registrar también los rechazos (URL malformada, JSON inválido): antes no
+    // quedaba rastro en el historial.
+    void insertSyncLog(c.env.DB, {
+      id: newId(), trigger: "import", status: "error",
+      itemsTotal: null, itemsImported: null, itemsFailed: null, itemsDeactivated: null,
+      error: r.error, detail: body?.url ?? null, startedAt, finishedAt: nowMs(),
+    }).catch(() => { /* el historial no debe romper la respuesta */ });
+    return c.json({ error: r.error }, 400);
+  }
   // Cuando la UI manda la selección del preview, los precios YA vienen con la
   // regla aplicada: no volver a aplicar (doble recargo). El resto de fuentes
   // (URL, JSON) aplican las reglas activas o la forzada dentro de importItems.
@@ -486,11 +521,37 @@ adminApp.post("/import", async (c) => {
     skipRules,
     sourceUrl: body?.url?.trim().startsWith("http") ? body.url.trim() : null,
   });
+  // Registrar la corrida en el historial (sync_log) para trazabilidad completa.
+  const motivos = [...outcome.errors, ...outcome.warnings].slice(0, 40).join("; ");
+  void insertSyncLog(c.env.DB, {
+    id: newId(),
+    trigger: "import",
+    status: outcome.ok ? "ok" : "error",
+    itemsTotal: outcome.total,
+    itemsImported: outcome.imported,
+    itemsFailed: outcome.failed,
+    itemsDeactivated: outcome.deactivated,
+    error: motivos !== "" ? motivos.slice(0, 900) : null,
+    detail: body?.url?.trim().startsWith("http") ? body.url.trim() : (r.source ?? null),
+    startedAt,
+    finishedAt: nowMs(),
+  }).catch(() => { /* el historial no debe romper la importación */ });
   // Recordar la URL importada (para la pestaña Auto-importaciones).
   if (outcome.ok && body?.url && body.url.trim().startsWith("http")) {
     await rememberImportUrl(c.env.DB, body.url.trim(), body.priceRuleId ?? null);
   }
   return c.json({ ...outcome, source: r.source }, outcome.ok ? 200 : 422);
+  } catch (e) {
+    // Excepción no controlada (fetch roto, D1 caído, etc.): registrar en el
+    // historial con el motivo completo, en vez de perder el rastro en un 500.
+    const msg = e instanceof Error ? `${e.message}${e.stack ? ` | ${e.stack.split("\n")[1]?.trim() ?? ""}` : ""}` : String(e);
+    void insertSyncLog(c.env.DB, {
+      id: newId(), trigger: "import", status: "error",
+      itemsTotal: null, itemsImported: null, itemsFailed: null, itemsDeactivated: null,
+      error: msg.slice(0, 900), detail: body?.url ?? null, startedAt, finishedAt: nowMs(),
+    }).catch(() => { /* ya en falla, no agravar */ });
+    return c.json({ error: `Error interno: ${msg.slice(0, 300)}` }, 500);
+  }
 });
 
 /** Registra (o actualiza) la URL usada en una importación manual. */

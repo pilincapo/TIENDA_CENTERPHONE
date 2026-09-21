@@ -65,6 +65,7 @@ function rowToSyncLog(row: Dict): SyncLogEntry {
     itemsTotal: row.items_total == null ? null : num(row.items_total),
     itemsImported: row.items_imported == null ? null : num(row.items_imported),
     itemsFailed: row.items_failed == null ? null : num(row.items_failed),
+    itemsDeactivated: row.items_deactivated == null ? null : num(row.items_deactivated),
     error: row.error == null ? null : String(row.error),
     detail: row.detail == null ? null : String(row.detail),
     startedAt: num(row.started_at),
@@ -143,37 +144,116 @@ export async function deleteProduct(db: D1Database, id: string): Promise<void> {
   await db.prepare("DELETE FROM products WHERE id = ?1").bind(id).run();
 }
 
+/** Tamaño de chunk para batches: respetan el límite de 50 queries por invocación (D1 free)
+ *  y el de 100 parámetros por statement. */
+const BATCH_SIZE = 30;
+
+export async function upsertCategoriesBatch(db: D1Database, cats: Category[], now: number): Promise<void> {
+  if (cats.length === 0) return;
+  for (let i = 0; i < cats.length; i += BATCH_SIZE) {
+    const chunk = cats.slice(i, i + BATCH_SIZE);
+    const stmt = db.prepare(
+      `INSERT INTO categories (id, name, parent_id, active, created_at, updated_at)
+       VALUES ${chunk.map((_, j) => `(?${j * 4 + 1}, ?${j * 4 + 2}, ?${j * 4 + 3}, ?${j * 4 + 4}, ?${chunk.length * 4 + 1}, ?${chunk.length * 4 + 1})`).join(",")}
+       ON CONFLICT(id) DO UPDATE SET name = excluded.name, parent_id = excluded.parent_id, active = excluded.active, updated_at = excluded.updated_at`
+    );
+    const binds: unknown[] = [];
+    for (const c of chunk) binds.push(c.id, c.name, c.parentId, c.active ? 1 : 0);
+    binds.push(now);
+    await stmt.bind(...binds).run();
+  }
+}
+
+/** Inserta/actualiza productos de a chunks (un solo statement por chunk).
+ *  created_at solo se setea en el INSERT (nuevo producto); en el UPDATE se
+ *  preserva el original para que el badge "Nuevo" no se reinicie en cada sync.
+ *  Devuelve los productos cuyo upsert falló con el MOTIVO real (para el historial). */
+export async function upsertProductsBatch(db: D1Database, prods: Product[], now: number): Promise<{ title: string; reason: string }[]> {
+  const failed: { title: string; reason: string }[] = [];
+  if (prods.length === 0) return failed;
+  for (let i = 0; i < prods.length; i += BATCH_SIZE) {
+    const chunk = prods.slice(i, i + BATCH_SIZE);
+    // 12 binds por producto (sin created_at propio) + 1 de now = 12n + 1 (≤ 361, dentro del límite).
+    const stmt = db.prepare(
+      `INSERT INTO products (id, title, description, price_cents, category_id, subcategory_id, tags, image_url, status, availability, sort_order, created_at, updated_at, source_url)
+       VALUES ${chunk.map((_, j) => `(?${j * 12 + 1}, ?${j * 12 + 2}, ?${j * 12 + 3}, ?${j * 12 + 4}, ?${j * 12 + 5}, ?${j * 12 + 6}, ?${j * 12 + 7}, ?${j * 12 + 8}, ?${j * 12 + 9}, ?${j * 12 + 10}, ?${j * 12 + 11}, ?${chunk.length * 12 + 1}, ?${chunk.length * 12 + 1}, ?${j * 12 + 12})`).join(",")}
+       ON CONFLICT(id) DO UPDATE SET
+         title = excluded.title, description = excluded.description, price_cents = excluded.price_cents,
+         category_id = excluded.category_id, subcategory_id = excluded.subcategory_id, tags = excluded.tags,
+         image_url = excluded.image_url, status = excluded.status, availability = excluded.availability,
+         sort_order = excluded.sort_order, updated_at = excluded.updated_at,
+         source_url = COALESCE(excluded.source_url, products.source_url)`
+    );
+    const binds: unknown[] = [];
+    for (const p of chunk) {
+      binds.push(p.id, p.title, p.description, p.priceCents, p.categoryId, p.subcategoryId,
+        JSON.stringify(p.tags), p.imageUrl, p.status, p.availability, p.sortOrder, p.sourceUrl ?? null);
+    }
+    binds.push(now);
+    try {
+      await stmt.bind(...binds).run();
+    } catch (e) {
+      // Un chunk completo falló (dato inválido en algún producto): reintentar producto por producto
+      // para aislar el culpable y poder continuar con el resto. Se registra el
+      // motivo real del error de la base, no solo el título.
+      const chunkError = e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200);
+      for (const p of chunk) {
+        try {
+          await upsertProduct(db, p, now);
+        } catch (pe) {
+          const reason = pe instanceof Error ? pe.message.slice(0, 200) : String(pe).slice(0, 200);
+          failed.push({ title: p.title, reason: `${reason} (chunk: ${chunkError})` });
+        }
+      }
+    }
+  }
+  return failed;
+}
+
+/** Ids de productos de una fuente (para detectar desaparecidos sin IN gigante). */
+export async function listProductIdsBySource(db: D1Database, sourceUrl: string): Promise<string[]> {
+  const { results } = await db
+    .prepare("SELECT id FROM products WHERE source_url = ?1")
+    .bind(sourceUrl)
+    .all<Dict>();
+  return (results ?? []).map((r) => String(r.id));
+}
+
 /** Oculta (status=hidden) los productos de una fuente cuyo id NO esté en keepIds. Devuelve cuántos. */
 export async function hideProductsNotIn(db: D1Database, sourceUrl: string, keepIds: string[], now: number): Promise<number> {
-  if (keepIds.length === 0) {
-    // Fuente vacía: se ocultan TODOS los productos de esa URL.
+  // Por chunks: D1 admite máximo 100 parámetros por query; con más de ~99 ids la
+  // query del IN explotaba y abortaba TODA la importación de fuentes grandes.
+  const prev = await listProductIdsBySource(db, sourceUrl);
+  const keep = new Set(keepIds);
+  const toHide = prev.filter((id) => !keep.has(id));
+  let hidden = 0;
+  for (let i = 0; i < toHide.length; i += BATCH_SIZE) {
+    const chunk = toHide.slice(i, i + BATCH_SIZE);
+    const marks = chunk.map((_, j) => `?${j + 2}`).join(",");
     const r = await db
-      .prepare("UPDATE products SET status = 'hidden', updated_at = ?2 WHERE source_url = ?1 AND status = 'published'")
-      .bind(sourceUrl, now)
+      .prepare(`UPDATE products SET status = 'hidden', updated_at = ?${chunk.length + 2} WHERE source_url = ?1 AND id IN (${marks})`)
+      .bind(sourceUrl, ...chunk, now)
       .run();
-    return r.meta.changes ?? 0;
+    hidden += r.meta.changes ?? 0;
   }
-  // Numeración explícita: source_url=?1, ids=?2..?(N+1), updated_at=?(N+2).
-  // (Mezclar ?NNN con ? anónimos falla: el anónimo toma el índice por orden de
-  // aparición en el texto SQL, no de bind.)
-  const marks = keepIds.map((_, i) => `?${i + 2}`).join(",");
-  const r = await db
-    .prepare(`UPDATE products SET status = 'hidden', updated_at = ?${keepIds.length + 2} WHERE source_url = ?1 AND status = 'published' AND id NOT IN (${marks})`)
-    .bind(sourceUrl, ...keepIds, now)
-    .run();
-  return r.meta.changes ?? 0;
+  return hidden;
 }
 
 /** Reactiva los productos ocultos de una fuente que volvieron a aparecer (status published). */
 export async function unhideProductsIn(db: D1Database, sourceUrl: string, ids: string[], now: number): Promise<number> {
+  // Chunks por el límite de 100 parámetros de D1 (antes explotaba con >99 ids).
   if (ids.length === 0) return 0;
-  // Numeración explícita (mismo motivo que hideProductsNotIn).
-  const marks = ids.map((_, i) => `?${i + 2}`).join(",");
-  const r = await db
-    .prepare(`UPDATE products SET status = 'published', updated_at = ?${ids.length + 2} WHERE source_url = ?1 AND status = 'hidden' AND id IN (${marks})`)
-    .bind(sourceUrl, ...ids, now)
-    .run();
-  return r.meta.changes ?? 0;
+  let unhid = 0;
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    const chunk = ids.slice(i, i + BATCH_SIZE);
+    const marks = chunk.map((_, j) => `?${j + 2}`).join(",");
+    const r = await db
+      .prepare(`UPDATE products SET status = 'published', updated_at = ?${chunk.length + 2} WHERE source_url = ?1 AND status = 'hidden' AND id IN (${marks})`)
+      .bind(sourceUrl, ...chunk, now)
+      .run();
+    unhid += r.meta.changes ?? 0;
+  }
+  return unhid;
 }
 
 // ---- Sync log ----
@@ -181,12 +261,12 @@ export async function unhideProductsIn(db: D1Database, sourceUrl: string, ids: s
 export async function insertSyncLog(db: D1Database, entry: SyncLogEntry): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO sync_log (id, trigger, status, items_total, items_imported, items_failed, error, detail, started_at, finished_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`
+      `INSERT INTO sync_log (id, trigger, status, items_total, items_imported, items_failed, items_deactivated, error, detail, started_at, finished_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`
     )
     .bind(
       entry.id, entry.trigger, entry.status, entry.itemsTotal,
-      entry.itemsImported, entry.itemsFailed, entry.error, entry.detail, entry.startedAt, entry.finishedAt
+      entry.itemsImported, entry.itemsFailed, entry.itemsDeactivated, entry.error, entry.detail, entry.startedAt, entry.finishedAt
     )
     .run();
 }

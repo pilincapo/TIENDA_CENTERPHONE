@@ -5,7 +5,7 @@ import { KV_SNAPSHOT_KEY, KV_SYNC_STATE_KEY } from "../shared/types";
 import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { applyRuleSet } from "../shared/pricing";
 import type { Env } from "./db";
-import { hideProductsNotIn, insertSyncLog, listCategories, listPriceRules, listProducts, unhideProductsIn, upsertCategory, upsertProduct } from "./db";
+import { hideProductsNotIn, insertSyncLog, listCategories, listPriceRules, listProducts, unhideProductsIn, upsertCategoriesBatch, upsertProductsBatch } from "./db";
 import { getSettings, newId, nowMs } from "./settings";
 
 export interface SyncOutcome {
@@ -17,7 +17,12 @@ export interface SyncOutcome {
   failed: number;
   /** Productos de esta fuente que ya no vienen en el listado y fueron ocultados. */
   deactivated: number;
+  /** Motivos de los productos que fallaron al guardarse (título + causa). */
   errors: string[];
+  /** Tiempo de ejecución en ms (para el historial). */
+  durationMs: number;
+  /** Estrategia de extracción detectada (json, ldjson, tiendanegocio, shopify…). */
+  source?: string;
 }
 
 export interface SyncState {
@@ -55,6 +60,7 @@ export async function importItems(
   rawItems: unknown[],
   importOptions: { forceRuleId?: string | null; skipRules?: boolean; sourceUrl?: string | null } = {}
 ): Promise<SyncOutcome> {
+  const startedAt = nowMs();
   const { products, categories, skipped } = normalizeExternalItems(rawItems);
   const errors: string[] = [];
   // Reglas de precio automáticas (rangos activos); se puede forzar una con forceRuleId.
@@ -67,34 +73,47 @@ export async function importItems(
     }
   }
   const now = nowMs();
-  for (const c of categories) {
-    await upsertCategory(env.DB, { id: c.id, name: c.name, parentId: c.parentId, active: true }, now);
+  // Asociar los productos con la URL de la fuente (source_url) para que el
+  // ocultado automático pueda comparar contra la importación anterior.
+  if (importOptions.sourceUrl) {
+    for (const p of products) p.sourceUrl = importOptions.sourceUrl;
   }
-  for (const p of products) {
-    p.sourceUrl = importOptions.sourceUrl ?? p.sourceUrl ?? null;
-    await upsertProduct(env.DB, p, now);
-  }
+  // Escrituras en chunks (un statement por chunk): sin esto una fuente de 160
+  // productos dispara ~330 queries y revienta el límite de 50 por invocación
+  // de D1 free — la causa de los errores recurrentes con listas grandes.
+  await upsertCategoriesBatch(env.DB, categories.map((c) => ({ id: c.id, name: c.name, parentId: c.parentId, active: true })), now);
+  const failedItems = await upsertProductsBatch(env.DB, products, now);
+  for (const f of failedItems) errors.push(`"${f.title}": falló al guardar — ${f.reason}`);
+  const saved = products.length - failedItems.length;
   // Desactivación automática: si la importación viene de una URL, los productos
   // anteriores de esa misma fuente que NO aparezcan ahora se ocultan (status hidden).
   // Los que vuelven a aparecer se reactivan. Solo afecta a productos de esa URL;
   // los de alta manual (source_url NULL) nunca se tocan.
+  // Si la fuente vino vacía (extracción fallida) NO se oculta nada: así un error
+  // temporal de la web de origen no borra medio catálogo.
   let deactivated = 0;
-  if (importOptions.sourceUrl) {
+  if (importOptions.sourceUrl && saved > 0) {
     deactivated = await hideProductsNotIn(env.DB, importOptions.sourceUrl, products.map((p) => p.id), now);
     await unhideProductsIn(env.DB, importOptions.sourceUrl, products.map((p) => p.id), now);
   }
   await regenerateSnapshot(env);
-  // Los items con precio inválido o sin título se SALTAN (no abortan la sync):
-  // la corrida es ok si al menos un producto se importó. Quedan como avisos.
-  const ok = products.length > 0 || (rawItems.length === 0 && errors.length === 0);
+  // Corrida sin productos guardados: NO es una corrida "ok" (confunde en el
+  // historial). Se marca con aviso explícito del motivo probable.
+  if (saved === 0 && rawItems.length === 0) {
+    errors.unshift("La fuente no devolvió productos (posible cambio en el sitio de origen o extracción fallida)");
+  }
+  const ok = saved > 0;
   return {
     ok,
-    warnings: skipped.slice(0, 20),
+    // Hasta 40 avisos en el historial (antes 20): con fuentes grandes el recorte
+    // escondía la mayoría de los motivos.
+    warnings: skipped.slice(0, 40),
     total: rawItems.length,
-    imported: products.length,
-    failed: rawItems.length - products.length,
+    imported: saved,
+    failed: rawItems.length - saved,
     deactivated,
     errors,
+    durationMs: nowMs() - startedAt,
   };
 }
 
@@ -113,22 +132,23 @@ export async function runSync(env: Env, trigger: SyncTrigger): Promise<SyncOutco
     await insertSyncLog(env.DB, {
       id: logId, trigger, status: outcome.ok ? "ok" : "error",
       itemsTotal: outcome.total, itemsImported: outcome.imported, itemsFailed: outcome.failed,
+      itemsDeactivated: outcome.deactivated,
       error: outcome.ok
         ? (outcome.warnings.length > 0 ? outcome.warnings.join("; ") : null)
         : (outcome.errors.join("; ") || "Error de sincronización"),
       startedAt, finishedAt: nowMs(),
     });
     await env.KV.put(KV_SYNC_STATE_KEY, JSON.stringify({ lastSyncAt: startedAt, lastStatus: outcome.ok ? "ok" : "error", lastError: outcome.ok ? null : outcome.errors.join("; ") }));
-    return outcome;
+    return { ...outcome, durationMs: nowMs() - startedAt };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     await insertSyncLog(env.DB, {
       id: logId, trigger, status: "error",
-      itemsTotal: null, itemsImported: null, itemsFailed: null,
+      itemsTotal: null, itemsImported: null, itemsFailed: null, itemsDeactivated: null,
       error: message, startedAt, finishedAt: nowMs(),
     });
     await env.KV.put(KV_SYNC_STATE_KEY, JSON.stringify({ lastSyncAt: startedAt, lastStatus: "error", lastError: message }));
-    return { ok: false, total: 0, imported: 0, failed: 0, errors: [message] };
+    return { ok: false, warnings: [], total: 0, imported: 0, failed: 0, deactivated: 0, errors: [message], durationMs: nowMs() - startedAt };
   }
 }
 

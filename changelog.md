@@ -1,3 +1,28 @@
+## 2026-09-21 — "Oculto" renombrado a "Sin stock" en todo el panel
+
+- Los productos que la fuente deja de traer en realidad están **sin stock** (así lo indicaste): pestaña **"Ocultos" → "Sin stock"**, título de la vista, textos explicativos y estados en la lista de Productos
+- Historial del dashboard: "· N ocult." → **"· N sin stock"** con tooltip "Productos de la fuente que ya no vinieron en el listado: quedaron sin stock"
+- Barras de progreso y toasts de sync/auto-importaciones: "ocultado(s)" → "sin stock"
+- Formulario de producto: opción "Oculto" → "Sin stock"
+- Sin cambios en la base ni en el API (el estado interno sigue siendo `hidden`); es solo terminología de la interfaz
+
+## 2026-09-21 — Historial: cuántos productos se ocultaron en cada corrida
+
+- Nueva columna `items_deactivated` en `sync_log` (migración **005**, aplicada en local): cada fila del historial registra cuántos productos de la fuente se ocultaron por no venir en el listado
+- **Bug corregido de paso**: los productos importados nunca recibían su `source_url` (el comentario decía "importItems lo completa" pero nadie lo hacía), por lo que el ocultado automático nunca encontraba productos previos de la fuente y **no ocultaba nada**. Ahora `importItems` asigna la URL antes de guardar
+- UI: la celda de cantidades del historial muestra "· N ocult." en amarillo con tooltip explicativo (además de los fallidos en rojo)
+- Las 3 vías de sync (cron, manual, importación desde el panel) registran la cifra
+- Probado de punta a punta: import de 2 productos → reimport de 1 → historial registra `1 ocult.`; 76 tests ✅, typecheck ✅
+
+## 2026-09-21 — Más detalle y errores completos en el historial de importaciones
+
+- **Errores con motivo real de la base**: cuando un producto falla al guardarse, se registra el mensaje de error de D1 (antes solo el título). El reintento individual captura la causa por producto, con contexto del error del chunk
+- **Excepciones no controladas ahora quedan en el historial**: si la importación manual revienta (fetch roto, D1 caído), se registra en `sync_log` con mensaje + ubicación (primera línea del stack) y se responde 500 con el motivo — antes se perdía el rastro en un 500 sin log
+- **Rechazos también se registran**: body inválido (sin URL/JSON/selección) queda en el historial como error con su causa
+- **Fuente sin productos ya no figura como "ok"**: `importItems` marca la corrida como error con el aviso "La fuente no devolvió productos…" — antes quedaba `ok` con total 0 y confundía
+- Errores de extracción/corrida del cron y auto-importación incluyen la ubicación del stack para diagnóstico
+- Probado de punta a punta: URL inexistente → historial con error y detalle; body vacío → historial con rechazo; importación real de mascotas (7 productos) → ok en 936 ms. Typecheck ✅, 76 tests ✅
+
 ## 2026-09-20 — Deploy: lote de panel editable y desactivación automática
 
 - Deploy a Cloudflare (`79f38dc6`): desactivación automática de productos fuera de fuente (migración 004 ya aplicada remote), badge Nuevo configurable, modal Cómo comprar editable, cambio de contraseña en panel, logout por inactividad. Commit `48644bf` pusheado; 76 tests ✅; home HTTP 200 y settings nuevas verificadas en producción

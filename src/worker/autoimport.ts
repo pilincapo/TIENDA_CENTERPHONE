@@ -28,18 +28,21 @@ function logRun(
   trigger: "cron" | "manual",
   url: string,
   ok: boolean,
-  imported: number,
-  error: string | null,
+  stats: { imported: number; total: number | null; failed: number | null; deactivated: number; warnings: string[]; errors: string[] },
   startedAt: number
 ): void {
+  const motivos: string[] = [...stats.errors, ...stats.warnings];
   void insertSyncLog(env.DB, {
     id: newId(),
     trigger,
     status: ok ? "ok" : "error",
-    itemsTotal: null,
-    itemsImported: imported,
-    itemsFailed: null,
-    error,
+    itemsTotal: stats.total,
+    itemsImported: stats.imported,
+    itemsFailed: stats.failed,
+    itemsDeactivated: stats.deactivated,
+    error: ok
+      ? (motivos.length > 0 ? motivos.join("; ").slice(0, 900) : null)
+      : (motivos.join("; ").slice(0, 900) || null),
     detail: url,
     startedAt,
     finishedAt: nowMs(),
@@ -96,19 +99,30 @@ export async function runAutoImports(env: Env): Promise<AutoImportOutcome> {
     const startedAt = nowMs();
     try {
       const r = await extractFromUrl(job.url);
+      if (r.items.length === 0) {
+        // Sin productos extraídos: no se toca el catálogo y el historial muestra TODAS las
+        // estrategias probadas y por qué falló cada una.
+        const motivo = r.errors.length > 0 ? r.errors.join("; ") : "La fuente no devolvió productos";
+        await markAutoImportRun(env.DB, job.id, "error", nowMs());
+        logRun(env, "cron", job.url, false, { imported: 0, total: 0, failed: 0, deactivated: 0, warnings: [], errors: [motivo] }, startedAt);
+        updateSyncState(env, false, startedAt, motivo);
+        results.push({ id: job.id, url: job.url, ok: false, imported: 0, deactivated: 0, warnings: [], error: motivo });
+        continue;
+      }
       const outcome = await importItems(env, r.items, { forceRuleId: job.priceRuleId ?? null, sourceUrl: job.url });
       await markAutoImportRun(env.DB, job.id, outcome.ok ? "ok" : "error", nowMs());
-      logRun(env, "cron", job.url, outcome.ok, outcome.imported, outcome.ok
-        ? (outcome.warnings.length > 0 ? outcome.warnings.join("; ") : null)
-        : (outcome.errors.join("; ") || null), startedAt);
+      logRun(env, "cron", job.url, outcome.ok, { imported: outcome.imported, total: outcome.total, failed: outcome.failed, deactivated: outcome.deactivated, warnings: outcome.warnings, errors: outcome.errors }, startedAt);
       updateSyncState(env, outcome.ok, startedAt, outcome.ok ? null : (outcome.errors[0] ?? null));
       results.push({ id: job.id, url: job.url, ok: outcome.ok, imported: outcome.imported, deactivated: outcome.deactivated, warnings: outcome.warnings, error: outcome.ok ? null : (outcome.errors[0] ?? "Error") });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Error desconocido";
+      // Registrar el motivo completo (con ubicación en el código si hay stack).
+      const raw = e instanceof Error ? e.message : String(e);
+      const where = e instanceof Error && e.stack ? e.stack.split("\n")[1]?.trim() ?? "" : "";
+      const msg = where !== "" ? `${raw} | ${where}` : raw;
       await markAutoImportRun(env.DB, job.id, "error", nowMs());
-      logRun(env, "cron", job.url, false, 0, msg, startedAt);
+      logRun(env, "cron", job.url, false, { imported: 0, total: null, failed: null, deactivated: 0, warnings: [], errors: [msg] }, startedAt);
       updateSyncState(env, false, startedAt, msg);
-      results.push({ id: job.id, url: job.url, ok: false, imported: 0, warnings: [], error: msg });
+      results.push({ id: job.id, url: job.url, ok: false, imported: 0, deactivated: 0, warnings: [], error: msg });
     }
   }
   return { ok: results.every((r) => r.ok), results };
@@ -125,19 +139,28 @@ export async function runAllAutoImportsNow(env: Env): Promise<AutoImportOutcome>
     const startedAt = nowMs();
     try {
       const r = await extractFromUrl(job.url);
+      if (r.items.length === 0) {
+        const motivo = r.errors.length > 0 ? r.errors.join("; ") : "La fuente no devolvió productos";
+        await markAutoImportRun(env.DB, job.id, "error", nowMs());
+        logRun(env, "manual", job.url, false, { imported: 0, total: 0, failed: 0, deactivated: 0, warnings: [], errors: [motivo] }, startedAt);
+        updateSyncState(env, false, startedAt, motivo);
+        results.push({ id: job.id, url: job.url, ok: false, imported: 0, deactivated: 0, warnings: [], error: motivo });
+        continue;
+      }
       const outcome = await importItems(env, r.items, { forceRuleId: job.priceRuleId ?? null, sourceUrl: job.url });
       await markAutoImportRun(env.DB, job.id, outcome.ok ? "ok" : "error", nowMs());
-      logRun(env, "manual", job.url, outcome.ok, outcome.imported, outcome.ok
-        ? (outcome.warnings.length > 0 ? outcome.warnings.join("; ") : null)
-        : (outcome.errors.join("; ") || null), startedAt);
+      logRun(env, "manual", job.url, outcome.ok, { imported: outcome.imported, total: outcome.total, failed: outcome.failed, deactivated: outcome.deactivated, warnings: outcome.warnings, errors: outcome.errors }, startedAt);
       updateSyncState(env, outcome.ok, startedAt, outcome.ok ? null : (outcome.errors[0] ?? null));
       results.push({ id: job.id, url: job.url, ok: outcome.ok, imported: outcome.imported, deactivated: outcome.deactivated, warnings: outcome.warnings, error: outcome.ok ? null : (outcome.errors[0] ?? "Error") });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Error desconocido";
+      // Registrar el motivo completo (con ubicación en el código si hay stack).
+      const raw = e instanceof Error ? e.message : String(e);
+      const where = e instanceof Error && e.stack ? e.stack.split("\n")[1]?.trim() ?? "" : "";
+      const msg = where !== "" ? `${raw} | ${where}` : raw;
       await markAutoImportRun(env.DB, job.id, "error", nowMs());
-      logRun(env, "manual", job.url, false, 0, msg, startedAt);
+      logRun(env, "manual", job.url, false, { imported: 0, total: null, failed: null, deactivated: 0, warnings: [], errors: [msg] }, startedAt);
       updateSyncState(env, false, startedAt, msg);
-      results.push({ id: job.id, url: job.url, ok: false, imported: 0, warnings: [], error: msg });
+      results.push({ id: job.id, url: job.url, ok: false, imported: 0, deactivated: 0, warnings: [], error: msg });
     }
   }
   return { ok: results.length > 0 && results.every((r) => r.ok), results };

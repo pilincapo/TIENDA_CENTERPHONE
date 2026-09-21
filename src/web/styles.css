@@ -337,6 +337,7 @@ img { max-width: 100%; display: block; }
 .table th, .table td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
 .table th { color: var(--brand); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 .err-detail { color: #ff6b6b; cursor: help; border-bottom: 1px dotted #ff6b6b; }
+.warn-detail { color: #ffd43b; cursor: help; border-bottom: 1px dotted #ffd43b; }
 .table tr:hover td { background: var(--panel-2); }
 .table img.thumb { width: 44px; height: 44px; border-radius: 0; object-fit: cover; background: var(--panel-2); border: 1px solid var(--border); }
 

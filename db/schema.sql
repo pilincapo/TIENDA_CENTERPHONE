@@ -26,16 +26,17 @@ CREATE TABLE IF NOT EXISTS products (
 );
 
 CREATE TABLE IF NOT EXISTS sync_log (
-  id             TEXT PRIMARY KEY,
-  trigger        TEXT NOT NULL,
-  status         TEXT NOT NULL,
-  items_total    INTEGER,
-  items_imported INTEGER,
-  items_failed   INTEGER,
-  error          TEXT,
-  detail         TEXT,
-  started_at     INTEGER NOT NULL,
-  finished_at    INTEGER
+  id                TEXT PRIMARY KEY,
+  trigger           TEXT NOT NULL,
+  status            TEXT NOT NULL,
+  items_total       INTEGER,
+  items_imported    INTEGER,
+  items_failed      INTEGER,
+  items_deactivated INTEGER,
+  error             TEXT,
+  detail            TEXT,
+  started_at        INTEGER NOT NULL,
+  finished_at       INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS price_rules (
