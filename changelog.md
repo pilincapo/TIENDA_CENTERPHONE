@@ -1,3 +1,7 @@
+## 2026-09-21 — Deploy: toolbar, WebP responsive y caché edge
+
+- Commit `6c67b32` pusheado (7 archivos, +98/−12) y deploy `d774a93e`. **Verificado en producción**: home HTTP 200, `/api/catalog` con `s-maxage=300`, bundle nuevo con srcset WebP activo ✅
+
 ## 2026-09-21 — LCP: imágenes responsive WebP del CDN + prioridad above-fold
 
 - **Medición baseline** (local): TTFB 29ms, FCP 171ms, **LCP 549ms** — la primera imagen del CDN (1024px PNG de hasta 373KB servida para una card de 308px)
