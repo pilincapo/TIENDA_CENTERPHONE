@@ -1,3 +1,8 @@
+## 2026-09-21 — Deploy: estadísticas en producción
+
+- Migración 006 aplicada en D1 remota (tabla `stats_events` + índices). Commit `d03c4eb` (11 archivos, +432/−2) pusheado y deploy `93e50d30`
+- **Verificado en producción**: `POST /api/track` responde 204, un `home_view` real quedó registrado con geo (AR/Santa Fe), `/api/admin/stats` protegido con login (401 sin sesión), home 200 ✅
+
 ## 2026-09-21 — Estadísticas: gráfico de líneas de visitas por día
 
 - **Gráfico SVG por día** arriba del histograma horario: línea con puntos interactivos (tooltip con fecha y cantidad), área bajo la curva, labels de fecha cada N días y escala que se adapta al período (7/30/90 puntos)
