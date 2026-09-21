@@ -1,3 +1,7 @@
+## 2026-09-21 — Deploy: detalle de errores, contador de sin stock y vista Sin stock
+
+- Deploy a Cloudflare (`95106a36`): motivo real de errores en sync_log, columna `items_deactivated` (migración 005 aplicada remote y verificada), pestaña **Sin stock** con re-publicación, fix de `source_url`. Commit `535e9a0` pusheado a GitHub; 76 tests ✅; home HTTP 200
+
 ## 2026-09-21 — "Oculto" renombrado a "Sin stock" en todo el panel
 
 - Los productos que la fuente deja de traer en realidad están **sin stock** (así lo indicaste): pestaña **"Ocultos" → "Sin stock"**, título de la vista, textos explicativos y estados en la lista de Productos
