@@ -85,83 +85,80 @@ export async function markAutoImportRun(db: D1Database, id: string, status: stri
   await upsertAutoImport(db, { ...job, lastRunAt: at, lastStatus: status }, at);
 }
 
-/**
- * Ejecuta las auto-importaciones activas cuyo horario coincide con la hora
- * actual en Argentina. La llama el cron (cada 15 min).
- */
+/** Ejecuta UN job de auto-importación y registra todo (historial, estado, lastRun).
+ *  Es el bloque compartido entre el cron, "Ejecutar ahora" y la sync manual
+ *  fuente-por-fuente (una por request para no pasarse del límite de CPU del plan gratis). */
+async function runOneJob(env: Env, job: AutoImport, trigger: "cron" | "manual"): Promise<AutoImportOutcome["results"][number]> {
+  const startedAt = nowMs();
+  try {
+    const r = await extractFromUrl(job.url);
+    if (r.items.length === 0) {
+      const motivo = r.errors.length > 0 ? r.errors.join("; ") : "La fuente no devolvió productos";
+      await markAutoImportRun(env.DB, job.id, "error", nowMs());
+      logRun(env, trigger, job.url, false, { imported: 0, total: 0, failed: 0, deactivated: 0, warnings: [], errors: [motivo] }, startedAt);
+      updateSyncState(env, false, startedAt, motivo);
+      return { id: job.id, url: job.url, ok: false, imported: 0, deactivated: 0, warnings: [], error: motivo };
+    }
+    const outcome = await importItems(env, r.items, { forceRuleId: job.priceRuleId ?? null, sourceUrl: job.url });
+    await markAutoImportRun(env.DB, job.id, outcome.ok ? "ok" : "error", nowMs());
+    logRun(env, trigger, job.url, outcome.ok, { imported: outcome.imported, total: outcome.total, failed: outcome.failed, deactivated: outcome.deactivated, warnings: outcome.warnings, errors: outcome.errors }, startedAt);
+    updateSyncState(env, outcome.ok, startedAt, outcome.ok ? null : (outcome.errors[0] ?? null));
+    return { id: job.id, url: job.url, ok: outcome.ok, imported: outcome.imported, deactivated: outcome.deactivated, warnings: outcome.warnings, error: outcome.ok ? null : (outcome.errors[0] ?? "Error") };
+  } catch (e) {
+    // Registrar el motivo completo (con ubicación en el código si hay stack).
+    const raw = e instanceof Error ? e.message : String(e);
+    const where = e instanceof Error && e.stack ? e.stack.split("\n")[1]?.trim() ?? "" : "";
+    const msg = where !== "" ? `${raw} | ${where}` : raw;
+    await markAutoImportRun(env.DB, job.id, "error", nowMs());
+    logRun(env, trigger, job.url, false, { imported: 0, total: null, failed: null, deactivated: 0, warnings: [], errors: [msg] }, startedAt);
+    updateSyncState(env, false, startedAt, msg);
+    return { id: job.id, url: job.url, ok: false, imported: 0, deactivated: 0, warnings: [], error: msg };
+  }
+}
+
+/** Ejecuta las auto-importaciones activas cuyo horario coincide con la hora
+ *  actual en Argentina. La llama el cron (cada 1 hora).
+ *  Con presupuesto de tiempo: si se acerca al límite de CPU del plan gratis,
+ *  corta limpio y registra las fuentes que quedaron pendientes. */
 export async function runAutoImports(env: Env): Promise<AutoImportOutcome> {
   const hhmm = nowArgentina();
   const jobs = await listAutoImports(env.DB);
   const due = jobs.filter((j) => isDueNow(j, hhmm));
   const results: AutoImportOutcome["results"] = [];
-
+  const t0 = Date.now();
   for (const job of due) {
-    const startedAt = nowMs();
-    try {
-      const r = await extractFromUrl(job.url);
-      if (r.items.length === 0) {
-        // Sin productos extraídos: no se toca el catálogo y el historial muestra TODAS las
-        // estrategias probadas y por qué falló cada una.
-        const motivo = r.errors.length > 0 ? r.errors.join("; ") : "La fuente no devolvió productos";
-        await markAutoImportRun(env.DB, job.id, "error", nowMs());
-        logRun(env, "cron", job.url, false, { imported: 0, total: 0, failed: 0, deactivated: 0, warnings: [], errors: [motivo] }, startedAt);
-        updateSyncState(env, false, startedAt, motivo);
-        results.push({ id: job.id, url: job.url, ok: false, imported: 0, deactivated: 0, warnings: [], error: motivo });
-        continue;
-      }
-      const outcome = await importItems(env, r.items, { forceRuleId: job.priceRuleId ?? null, sourceUrl: job.url });
-      await markAutoImportRun(env.DB, job.id, outcome.ok ? "ok" : "error", nowMs());
-      logRun(env, "cron", job.url, outcome.ok, { imported: outcome.imported, total: outcome.total, failed: outcome.failed, deactivated: outcome.deactivated, warnings: outcome.warnings, errors: outcome.errors }, startedAt);
-      updateSyncState(env, outcome.ok, startedAt, outcome.ok ? null : (outcome.errors[0] ?? null));
-      results.push({ id: job.id, url: job.url, ok: outcome.ok, imported: outcome.imported, deactivated: outcome.deactivated, warnings: outcome.warnings, error: outcome.ok ? null : (outcome.errors[0] ?? "Error") });
-    } catch (e) {
-      // Registrar el motivo completo (con ubicación en el código si hay stack).
-      const raw = e instanceof Error ? e.message : String(e);
-      const where = e instanceof Error && e.stack ? e.stack.split("\n")[1]?.trim() ?? "" : "";
-      const msg = where !== "" ? `${raw} | ${where}` : raw;
-      await markAutoImportRun(env.DB, job.id, "error", nowMs());
-      logRun(env, "cron", job.url, false, { imported: 0, total: null, failed: null, deactivated: 0, warnings: [], errors: [msg] }, startedAt);
-      updateSyncState(env, false, startedAt, msg);
-      results.push({ id: job.id, url: job.url, ok: false, imported: 0, deactivated: 0, warnings: [], error: msg });
+    // Presupuesto: ~18s por fuente de margen. El plan gratis corta a los ~30s de
+    // CPU (≈50s de wall time con I/O); mejor parar a tiempo y dejar la fuente
+    // restante para el próximo tick del cron (corre cada 1 hora) que morir a mitad.
+    if (Date.now() - t0 > 20_000 && results.length > 0) {
+      const pend = due.length - results.length;
+      const msg = `Cron interrumpido por límite de tiempo: ${pend} fuente(s) quedaron pendientes para el próximo tick`;
+      results.push({ id: "", url: "(pendientes)", ok: false, imported: 0, deactivated: 0, warnings: [], error: msg });
+      break;
     }
+    results.push(await runOneJob(env, job, "cron"));
   }
-  return { ok: results.every((r) => r.ok), results };
+  return { ok: results.length > 0 && results.every((r) => r.ok), warnings: results.flatMap((r) => r.warnings), results };
 }
 
-/**
- * Ejecuta TODAS las auto-importaciones activas ahora, ignorando horarios.
- * La usa el botón "Sincronizar ahora" del dashboard y el endpoint /auto-imports/run-all.
- */
+/** Corre UN solo job por id (para la sync manual fuente-por-fuente).
+ *  Cada request procesa una única fuente para no exceder el límite de CPU
+ *  del plan gratis de Cloudflare (varias fuentes grandes en un request mueren). */
+export async function runAutoImportById(env: Env, id: string): Promise<AutoImportOutcome["results"][number] | null> {
+  const job = (await listAutoImports(env.DB)).find((j) => j.id === id);
+  if (!job) return null;
+  return runOneJob(env, job, "manual");
+}
+
+/** Ejecuta TODOS los jobs (activos o no) en un solo request. Solo apto para
+ *  pocas fuentes chicas: en producción el límite de CPU del plan gratis corta
+ *  el Worker si hay varias fuentes grandes. La sync manual del panel usa
+ *  runAutoImportById de a una por vez por ese motivo. */
 export async function runAllAutoImportsNow(env: Env): Promise<AutoImportOutcome> {
-  const jobs = (await listAutoImports(env.DB)).filter((j) => j.active);
+  const jobs = await listAutoImports(env.DB);
   const results: AutoImportOutcome["results"] = [];
   for (const job of jobs) {
-    const startedAt = nowMs();
-    try {
-      const r = await extractFromUrl(job.url);
-      if (r.items.length === 0) {
-        const motivo = r.errors.length > 0 ? r.errors.join("; ") : "La fuente no devolvió productos";
-        await markAutoImportRun(env.DB, job.id, "error", nowMs());
-        logRun(env, "manual", job.url, false, { imported: 0, total: 0, failed: 0, deactivated: 0, warnings: [], errors: [motivo] }, startedAt);
-        updateSyncState(env, false, startedAt, motivo);
-        results.push({ id: job.id, url: job.url, ok: false, imported: 0, deactivated: 0, warnings: [], error: motivo });
-        continue;
-      }
-      const outcome = await importItems(env, r.items, { forceRuleId: job.priceRuleId ?? null, sourceUrl: job.url });
-      await markAutoImportRun(env.DB, job.id, outcome.ok ? "ok" : "error", nowMs());
-      logRun(env, "manual", job.url, outcome.ok, { imported: outcome.imported, total: outcome.total, failed: outcome.failed, deactivated: outcome.deactivated, warnings: outcome.warnings, errors: outcome.errors }, startedAt);
-      updateSyncState(env, outcome.ok, startedAt, outcome.ok ? null : (outcome.errors[0] ?? null));
-      results.push({ id: job.id, url: job.url, ok: outcome.ok, imported: outcome.imported, deactivated: outcome.deactivated, warnings: outcome.warnings, error: outcome.ok ? null : (outcome.errors[0] ?? "Error") });
-    } catch (e) {
-      // Registrar el motivo completo (con ubicación en el código si hay stack).
-      const raw = e instanceof Error ? e.message : String(e);
-      const where = e instanceof Error && e.stack ? e.stack.split("\n")[1]?.trim() ?? "" : "";
-      const msg = where !== "" ? `${raw} | ${where}` : raw;
-      await markAutoImportRun(env.DB, job.id, "error", nowMs());
-      logRun(env, "manual", job.url, false, { imported: 0, total: null, failed: null, deactivated: 0, warnings: [], errors: [msg] }, startedAt);
-      updateSyncState(env, false, startedAt, msg);
-      results.push({ id: job.id, url: job.url, ok: false, imported: 0, deactivated: 0, warnings: [], error: msg });
-    }
+    results.push(await runOneJob(env, job, "manual"));
   }
-  return { ok: results.length > 0 && results.every((r) => r.ok), results };
+  return { ok: results.length > 0 && results.every((r) => r.ok), warnings: results.flatMap((r) => r.warnings), results };
 }

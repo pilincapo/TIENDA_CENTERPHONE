@@ -60,6 +60,21 @@ export async function importItems(
   rawItems: unknown[],
   importOptions: { forceRuleId?: string | null; skipRules?: boolean; sourceUrl?: string | null } = {}
 ): Promise<SyncOutcome> {
+  const outcome = await importItemsChunk(env, rawItems, importOptions);
+  // El importador manual manda los productos en chunks (para no exceder el límite
+  // de CPU del plan gratis); solo el ÚLTIMO chunk oculta los ausentes y toca el
+  // snapshot, así un chunk intermedio nunca "esconde" lo que viene en el próximo.
+  if (importOptions.isLastChunk === false) {
+    return { ...outcome, deactivated: 0, errors: [...outcome.errors] };
+  }
+  return outcome;
+}
+
+async function importItemsChunk(
+  env: Env,
+  rawItems: unknown[],
+  importOptions: { forceRuleId?: string | null; skipRules?: boolean; sourceUrl?: string | null } = {}
+): Promise<SyncOutcome> {
   const startedAt = nowMs();
   const { products, categories, skipped } = normalizeExternalItems(rawItems);
   const errors: string[] = [];

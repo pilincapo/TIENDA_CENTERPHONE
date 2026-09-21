@@ -239,50 +239,81 @@ async function doSync(): Promise<void> {
   // Contenedor de progreso junto a los botones del dashboard.
   const box = document.createElement("div");
   el.view.querySelector(".panel .row")?.after(box);
-  const prog = showProgress(box, "Sincronizando catálogo…", SYNC_STEPS);
-  prog.set(10, "Descargando la fuente…", 0);
-  const ph2 = setTimeout(() => prog.set(55, "Importando productos…", 1), 1500);
-  const ph3 = setTimeout(() => prog.set(80, "Generando snapshot público…", 2), 6000);
   const btn = el.view.querySelector("#sync-now") as HTMLButtonElement | null;
   if (btn) btn.disabled = true;
   try {
-    const r = await api<{ ok: boolean; imported: number; failed: number; total?: number; mode?: string; errors?: string[]; warnings?: string[]; deactivated?: number }>(
-      "/sync",
-      { method: "POST" }
-    );
-    clearTimeout(ph2); clearTimeout(ph3);
-    if (r.mode === "auto-imports") {
-      const j = r.total ?? 0;
-      const fails = r.errors ?? [];
-      const deact = r.deactivated ?? 0;
-      const resumen = fails.length > 0
-        ? fails.slice(0, 3).map((e) => esc(e.replace(/^https?:\/\//, "").slice(0, 50))).join(" · ")
-        : (r.warnings && r.warnings.length > 0
-          ? `${r.warnings.length} artículo(s) salteado(s) por precio inválido`
-          : "sin errores");
-      prog.set(100, `${j} fuente(s) · ${r.imported} importados${deact ? ` · ${deact} sin stock` : ""} · ${resumen}`, 3, !r.ok);
-      const warn = r.warnings && r.warnings.length > 0 ? ` Avisos: ${r.warnings.length} salteado(s).` : "";
+    // Encolamos las fuentes y las corremos DE A UNA POR REQUEST: cada request
+    // procesa una única fuente para no exceder el límite de CPU del plan gratis
+    // (7 fuentes grandes en un solo request mueren a los ~30s y solo entran 5).
+    const { jobs } = await api<{ jobs: { id: string; url: string; active: boolean }[] }>("/sync/jobs");
+    if (jobs.length === 0) {
+      // Sin auto-importaciones cargadas: cae a la sync clásica.
+      await syncClassic(box, progFallback(box));
+    } else {
+      const prog = showProgress(box, `Sincronizando ${jobs.length} fuente(s)…`, SYNC_STEPS);
+      let imported = 0;
+      const errores: string[] = [];
+      const avisos: string[] = [];
+      let deact = 0;
+      for (let i = 0; i < jobs.length; i++) {
+        const job = jobs[i]!;
+        if (i > 0) {
+          // Pausa entre fuentes: los primeros requests liberan CPU/cuota mientras
+          // el siguiente arranca; evita los cortes por límite del plan gratis.
+          prog.set(5 + Math.round((i / jobs.length) * 90), `Pausa antes de la fuente ${i + 1}/${jobs.length}…`, 0);
+          await new Promise((r2) => setTimeout(r2, 2000));
+        }
+        const base = 5 + Math.round((i / jobs.length) * 90);
+        prog.set(base, `Fuente ${i + 1}/${jobs.length}: ${job.url.replace(/^https?:\/\//, "").slice(0, 40)}`, 0);
+        const r = await api<{ ok: boolean; result?: { imported: number; deactivated: number; warnings: string[]; error: string | null } }>(
+          "/sync",
+          { method: "POST", body: JSON.stringify({ jobId: job.id }) }
+        );
+        if (r.ok && r.result) {
+          imported += r.result.imported;
+          deact += r.result.deactivated;
+          if (r.result.warnings.length > 0) avisos.push(...r.result.warnings);
+        } else {
+          errores.push(`${job.url}: ${r.result?.error ?? "Error"}`);
+        }
+      }
+      prog.set(100, `${jobs.length} fuente(s) · ${imported} importados${deact ? ` · ${deact} sin stock` : ""}${errores.length > 0 ? ` · ${errores.length} con error` : " sin errores"}`, 3, errores.length > 0);
       const deactMsg = deact ? ` ${deact} producto(s) ya no están en las fuentes (sin stock).` : "";
       toast(
-        r.ok
-          ? `Listo: ${j} fuente(s), ${r.imported} productos importados.${deactMsg}${warn}`
-          : `Falló en ${r.failed} de ${j} links. ${r.errors?.join(" · ") ?? ""}`.trim(),
-        r.ok
+        errores.length === 0
+          ? `Listo: ${jobs.length} fuente(s), ${imported} productos importados.${deactMsg}${avisos.length > 0 ? ` Avisos: ${avisos.length} salteado(s).` : ""}`
+          : `Falló en ${errores.length} de ${jobs.length} fuentes. ${errores[0] ?? ""}`.trim(),
+        errores.length === 0
       );
-    } else {
-      prog.set(100, `${r.imported} importados, ${r.failed} fallidos`, 3, !r.ok);
-      toast(`Listo: ${r.imported} importados, ${r.failed} fallidos`, r.ok);
     }
   } catch (e) {
-    clearTimeout(ph2); clearTimeout(ph3);
-    prog.set(100, e instanceof Error ? e.message : "Error de sync", 1, true);
     toast(e instanceof Error ? e.message : "Error de sync", false);
   }
-  prog.done();
   if (btn) btn.disabled = false;
   // Historial y estado se refrescan solos, sin recargar la vista.
   await refreshDashboardDynamic();
   setTimeout(() => box.remove(), 6000);
+}
+
+function progFallback(box: HTMLElement): ProgressCtl {
+  const prog = showProgress(box, "Sincronizando catálogo…", SYNC_STEPS);
+  prog.set(10, "Descargando la fuente…", 0);
+  setTimeout(() => prog.set(55, "Importando productos…", 1), 1500);
+  setTimeout(() => prog.set(80, "Generando snapshot público…", 2), 6000);
+  return prog;
+}
+
+/** Sync clásica (cuando no hay auto-importaciones cargadas). */
+async function syncClassic(box: HTMLElement, prog: ProgressCtl): Promise<void> {
+  try {
+    const r = await api<{ ok: boolean; imported: number; failed: number; errors?: string[] }>("/sync", { method: "POST" });
+    prog.set(100, `${r.imported} importados, ${r.failed} fallidos`, 3, !r.ok);
+    toast(`Listo: ${r.imported} importados, ${r.failed} fallidos`, r.ok);
+  } catch (e) {
+    prog.set(100, e instanceof Error ? e.message : "Error de sync", 1, true);
+    toast(e instanceof Error ? e.message : "Error de sync", false);
+  }
+  void box;
 }
 
 async function rebuildSnapshot(): Promise<void> {
@@ -1015,25 +1046,48 @@ function renderImportPreview(out: HTMLElement, r: PreviewResponse, sourceUrl = "
       return;
     }
     // Manda los items normalizados con precios ya ajustados por la regla.
+    // En CHUNKS de 50 con pausa entre requests: un request chico no se acerca al
+    // límite de CPU del plan gratis, que era lo que cortaba las listas grandes (522).
     const selected = idx.map((i) => r.products[i]).filter(Boolean);
+    const CHUNK = 50;
+    const PAUSA_MS = 800;
+    const chunks: unknown[][] = [];
+    for (let i = 0; i < selected.length; i += CHUNK) chunks.push(selected.slice(i, i + CHUNK));
     const prog = showProgress(out, `Importando ${selected.length} producto${selected.length > 1 ? "s" : ""}…`);
-    prog.set(10, "Guardando productos…", 1);
-    const phase = setTimeout(() => prog.set(70, "Actualizando catálogo y snapshot…", 2), 800);
+    prog.set(5, `Preparando ${chunks.length} lote(s)…`, 0);
+    const sleep = (ms: number): Promise<void> => new Promise((r2) => setTimeout(r2, ms));
+    let imported = 0;
+    let failed = 0;
     try {
-      const res = await api<{ imported: number; failed: number; ok: boolean; source: string }>("/import", {
-        method: "POST",
-        body: JSON.stringify({ items: selected, url: sourceUrl || undefined, priceRuleId: currentRuleId() }),
-      });
-      clearTimeout(phase);
-      prog.set(100, res.ok ? `Listo: ${res.imported} importados` : "Terminó con errores", 3);
+      for (let ci = 0; ci < chunks.length; ci++) {
+        if (ci > 0) {
+          prog.set(5 + Math.round((ci / chunks.length) * 90), `Pausa antes del lote ${ci + 1}/${chunks.length}…`, 0);
+          await sleep(PAUSA_MS);
+        }
+        prog.set(5 + Math.round(((ci + 0.5) / chunks.length) * 90), `Lote ${ci + 1}/${chunks.length} · ${imported} importados hasta ahora`, 1);
+        const res = await api<{ imported: number; failed: number; ok: boolean }>("/import", {
+          method: "POST",
+          body: JSON.stringify({
+            items: chunks[ci],
+            url: sourceUrl || undefined,
+            priceRuleId: currentRuleId(),
+            chunkIndex: ci,
+            chunkTotal: chunks.length,
+          }),
+        });
+        imported += res.imported;
+        failed += res.failed;
+      }
+      prog.set(100, `Listo: ${imported} importados en ${chunks.length} lote(s)`, 3);
       await new Promise((res2) => setTimeout(res2, 450));
       prog.done();
-      toast(`Importados ${res.imported}, fallidos ${res.failed}`, res.ok);
+      toast(`Importados ${imported}, fallidos ${failed}`, failed === 0);
       void render();
     } catch (e) {
-      clearTimeout(phase);
+      prog.set(100, e instanceof Error ? e.message : "Error", 1, true);
+      await new Promise((res2) => setTimeout(res2, 800));
       prog.done();
-      toast(e instanceof Error ? e.message : "Error", false);
+      toast(`${e instanceof Error ? e.message : "Error"} (importados hasta ahora: ${imported})`, false);
     }
   };
   out.querySelector("#imp-confirm-top")?.addEventListener("click", () => void doConfirm());

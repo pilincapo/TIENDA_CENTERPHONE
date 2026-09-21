@@ -1,3 +1,21 @@
+## 2026-09-21 — Importación con pausas automáticas para evitar el error 522
+
+- **Importar** ahora manda la selección en **lotes de 50 productos con pausa de 800ms** entre requests: cada request chico queda lejos del límite de CPU del plan gratis, que era lo que cortaba las listas grandes (522/"Error interno")
+- El worker registra cada lote en el historial ("chunk 2/5") y el **ocultado por sin stock y el snapshot solo se ejecutan en el último lote** (un lote intermedio nunca esconde productos del lote siguiente)
+- La barra de progreso muestra el avance real: "Lote 2/5 · 50 importados hasta ahora"
+- **Sincronizar ahora**: pausa de 2 segundos entre fuente y fuente
+- **Cron**: presupuesto de tiempo de ~20s; si se acerca al límite, corta limpio y registra "N fuente(s) pendientes para el próximo tick" en lugar de morir a mitad de una fuente
+- Probado: 150 productos en 3 lotes → 150/150 importados, 3 filas en el historial, sin errores. Typecheck ✅, 76 tests ✅
+
+## 2026-09-21 — Sincronización manual fuente por fuente (fix: solo entraban 5 de 7)
+
+- **Causa**: "Sincronizar ahora" mandaba todas las fuentes en UN request; en producción el límite de CPU del plan gratis de Cloudflare (~30s) cortaba el Worker a mitad de camino y solo entraban ~5 de 7 fuentes grandes
+- **Fix**: el dashboard ahora encola las fuentes (`GET /api/admin/sync/jobs`) y las corre **de a una por request** (`POST /api/admin/sync {jobId}`); cada request procesa una única fuente y queda muy por debajo del límite
+- `autoimport.ts` refactorizado: `runOneJob` compartido entre cron, "Ejecutar ahora" y sync manual; `runAllAutoImportsNow` queda solo como fallback (fuentes chicas)
+- La barra de progreso muestra "Fuente i/N: url" y acumula importados/sin stock/errores de todas las corridas
+- Siguen corriendo **todos** los links (activos o no): el flag "Activa" solo controla el cron automático
+- Probado en local: fuente grande (678 importados) y fuente inválida (error con motivo) vía el nuevo modo un-por-request. Typecheck ✅, 76 tests ✅
+
 ## 2026-09-21 — Deploy: banners de error, badge Sin stock y toolbar con Ordenar fijo
 
 - Deploy a Cloudflare (`38ee5604`): banner de error en dashboard y Auto-importaciones, badge "Sin stock" en fichas por link directo, select Ordenar en fila fija. Commit `5196de2` pusheado; 76 tests ✅; home HTTP 200, login OK y catálogo con 984 productos verificados en producción

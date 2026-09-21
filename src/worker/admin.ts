@@ -10,7 +10,7 @@ import {
   getProduct, insertSyncLog, lastSyncLogByDetail, listAutoImports, listCategories, listPriceRules, listProducts, listSyncLog,
   listSyncLogByTrigger, upsertAutoImport, upsertCategory, upsertPriceRule, upsertProduct,
 } from "./db";
-import { markAutoImportRun, nowArgentina, runAllAutoImportsNow, runAutoImports } from "./autoimport";
+import { markAutoImportRun, nowArgentina, runAllAutoImportsNow, runAutoImportById, runAutoImports } from "./autoimport";
 import { getSyncState, importItems, regenerateSnapshot, runSync } from "./sync";
 import { applyRuleSet, roundToPeso, type PriceRule } from "../shared/pricing";
 import { extractItems, normalizeExternalItems } from "../shared/normalize";
@@ -264,11 +264,20 @@ adminApp.delete("/categories/:id", async (c) => {
 // ---- Sincronización y snapshot ----
 
 adminApp.post("/sync", async (c) => {
-  // Si hay auto-importaciones activas, el botón "Sincronizar ahora" corre esas
-  // (es el mecanismo real de alimentación del catálogo). Si no, cae a la sync
-  // clásica por syncUrl configurada en Configuración.
-  const active = (await listAutoImports(c.env.DB)).filter((j) => j.active);
-  if (active.length > 0) {
+  // Modo "un job por request": el frontend encola las fuentes y llama una vez
+  // por cada id. Cada request procesa UNA sola fuente para no exceder el límite
+  // de CPU del plan gratis (7 fuentes grandes en un solo request mueren a los ~30s).
+  const body = await c.req.json<{ jobId?: string }>().catch(() => ({}) as { jobId?: string });
+  if (body?.jobId) {
+    const result = await runAutoImportById(c.env, body.jobId);
+    if (!result) return c.json({ ok: false, error: "Auto-importación no encontrada" }, 404);
+    return c.json({ ok: result.ok, result });
+  }
+  // Compatibilidad: sin jobId corre todo en un solo request (solo fuentes chicas).
+  // "Sincronizar ahora" corre TODOS los links cargados (activos o no): el flag
+  // "Activa" solo controla el cron automático, no la sincronización manual.
+  const jobs = await listAutoImports(c.env.DB);
+  if (jobs.length > 0) {
     const outcome = await runAllAutoImportsNow(c.env);
     return c.json(
       {
@@ -284,6 +293,12 @@ adminApp.post("/sync", async (c) => {
   }
   const outcome = await runSync(c.env, "manual");
   return c.json(outcome, outcome.ok ? 200 : 502);
+});
+
+// Lista de jobs (ids + urls) para que el dashboard encole la sync manual.
+adminApp.get("/sync/jobs", async (c) => {
+  const jobs = await listAutoImports(c.env.DB);
+  return c.json({ jobs: jobs.map((j) => ({ id: j.id, url: j.url, name: j.name, active: j.active })) });
 });
 
 adminApp.get("/sync/log", async (c) => {
@@ -471,6 +486,10 @@ interface ImportBody {
   json?: string;
   items?: unknown[];
   priceRuleId?: string | null;
+  // Importación por chunks (listas grandes): el ocultado y el snapshot solo
+  // se ejecutan con el último chunk.
+  chunkIndex?: number;
+  chunkTotal?: number;
 }
 
 async function resolveImportBody(
@@ -515,13 +534,21 @@ adminApp.post("/import", async (c) => {
   // Cuando la UI manda la selección del preview, los precios YA vienen con la
   // regla aplicada: no volver a aplicar (doble recargo). El resto de fuentes
   // (URL, JSON) aplican las reglas activas o la forzada dentro de importItems.
+  // La UI manda la selección en CHUNKS con pausa entre requests para no exceder
+  // el límite de CPU del plan gratis (el error 522/1102 de listas grandes):
+  // chunkIndex/chunkTotal marcan la posición; el ocultado y el snapshot solo
+  // se ejecutan en el último chunk (importItems ya lo maneja).
   const skipRules = r.source === "selección";
+  const sourceUrl = body?.url?.trim().startsWith("http") ? body.url.trim() : null;
   const outcome = await importItems(c.env, r.items, {
     forceRuleId: skipRules ? null : body?.priceRuleId ?? null,
     skipRules,
-    sourceUrl: body?.url?.trim().startsWith("http") ? body.url.trim() : null,
+    sourceUrl,
+    isLastChunk: body?.chunkTotal == null ? undefined : (body?.chunkIndex ?? 0) >= (body?.chunkTotal ?? 1) - 1,
   });
   // Registrar la corrida en el historial (sync_log) para trazabilidad completa.
+  // En modo chunks, cada chunk deja su propia fila: "chunk 2/5".
+  const chunkLabel = body?.chunkTotal != null ? ` — chunk ${(body?.chunkIndex ?? 0) + 1}/${body?.chunkTotal}` : "";
   const motivos = [...outcome.errors, ...outcome.warnings].slice(0, 40).join("; ");
   void insertSyncLog(c.env.DB, {
     id: newId(),
@@ -532,13 +559,14 @@ adminApp.post("/import", async (c) => {
     itemsFailed: outcome.failed,
     itemsDeactivated: outcome.deactivated,
     error: motivos !== "" ? motivos.slice(0, 900) : null,
-    detail: body?.url?.trim().startsWith("http") ? body.url.trim() : (r.source ?? null),
+    detail: (sourceUrl ?? (r.source ?? "")) + chunkLabel,
     startedAt,
     finishedAt: nowMs(),
   }).catch(() => { /* el historial no debe romper la importación */ });
-  // Recordar la URL importada (para la pestaña Auto-importaciones).
-  if (outcome.ok && body?.url && body.url.trim().startsWith("http")) {
-    await rememberImportUrl(c.env.DB, body.url.trim(), body.priceRuleId ?? null);
+  // Recordar la URL importada (para la pestaña Auto-importaciones), solo con el
+  // primer chunk para no reintentarlo N veces.
+  if (outcome.ok && sourceUrl != null && (body?.chunkIndex ?? 0) === 0) {
+    await rememberImportUrl(c.env.DB, sourceUrl, body?.priceRuleId ?? null);
   }
   return c.json({ ...outcome, source: r.source }, outcome.ok ? 200 : 422);
   } catch (e) {
