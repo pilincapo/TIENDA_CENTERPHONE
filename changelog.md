@@ -1,3 +1,31 @@
+## 2026-09-21 — Dropdown "Ordenar" siempre visible aunque haya muchas categorías
+
+- El select **Ordenar** salió de la fila scrolleable de chips y pasó a una **fila fija propia** (junto al contador "X de Y"): con muchas categorías ya no queda fuera de pantalla ni hace falta scrollear la toolbar para encontrarlo
+- En móvil chico (≤480px) se compacta: tipografía más chica y `max-width: 46vw` para que siempre entre junto al contador
+- Verificado: con overflow de chips (846px de contenido en 634px visibles) el select sigue visible dentro del viewport, funciona el cambio de orden (probado menor precio) y la toolbar sticky lo mantiene a la vista al scrollear. Typecheck ✅, 76 tests ✅
+
+## 2026-09-21 — Badge "Sin stock" en la ficha por link directo
+
+- Los productos ocultos (sin stock en la fuente) ahora responden en su ficha `/producto/:id` en lugar de dar 404: si alguien entra por un link compartido o indexado, ve la ficha con **badge "Sin stock"** y el aviso "⚠️ Este producto ya no está disponible" (con sugerencia de ver los relacionados)
+- El API entrega el producto oculto con `availability: out_of_stock` + flag `hiddenNoStock` y `related: []` (se ignoran los relacionados de un oculto)
+- El botón flotante de WhatsApp se oculta en fichas sin stock (no tiene sentido consultar por algo que no está); el botón "Consultar por WhatsApp" de la ficha se mantiene para preguntar por reposición
+- Sigue excluido del catálogo y del snapshot público: nadie llega a él salvo por link directo
+- Probado de punta a punta: oculto un producto → su ficha muestra badge, aviso y sin botón flotante; re-publicado → todo vuelve a la normalidad. Typecheck ✅, 76 tests ✅
+
+## 2026-09-21 — Aviso destacado en el dashboard cuando la última sync falló
+
+- Banner rojo al inicio del dashboard: **"⚠ La última sincronización falló"** con fecha/hora y el detalle completo del error
+- Botón ✕ para descartar (se recuerda por sesión: no vuelve a aparecer hasta que haya un error NUEVO con otra fecha)
+- Se actualiza en vivo con el polling de 15s: si una corrida del cron falla mientras mirás el panel, el banner aparece solo; si la próxima corrida es exitosa, desaparece solo
+- Probado de punta a punta: error forzado con auto-importación inválida → banner visible con el motivo (404 + estrategias fallidas); descartar → oculto; recargar → sigue oculto; sync exitosa → banner eliminado automáticamente. Typecheck ✅, 76 tests ✅
+
+## 2026-09-21 — Prueba de stress: importación de fuente grande (679 productos)
+
+- Importada `hacetupedido.com/productos/electronica?page=all`: **679 productos, 678 importados, 1 salteado** ("Auricular vincha FORTNITE" con precio inválido) en ~70s — sin errores de D1 gracias a los batches
+- El historial muestra el detalle completo: `678/679 (1 fall.) · 69s` + el aviso con el nombre del artículo salteado y su motivo
+- Reimportación consecutiva: mismo resultado consistente, sin duplicados ni productos ocultados de más
+- El catálogo local quedó con 830 productos publicados (678 de electrónica)
+
 ## 2026-09-21 — Deploy: detalle de errores, contador de sin stock y vista Sin stock
 
 - Deploy a Cloudflare (`95106a36`): motivo real de errores en sync_log, columna `items_deactivated` (migración 005 aplicada remote y verificada), pestaña **Sin stock** con re-publicación, fix de `source_url`. Commit `535e9a0` pusheado a GitHub; 76 tests ✅; home HTTP 200
