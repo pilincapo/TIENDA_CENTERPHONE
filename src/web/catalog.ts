@@ -306,10 +306,23 @@ function freshTitle(hours: number): string {
   return `Cargado hace menos de ${hours} horas`;
 }
 
-function cardHtml(p: Product): string {
+// URL de imagen con parámetros de resize del CDN de tiendanegocio (soporta
+// ?width=&format=webp; verificado: 373KB PNG -> 32KB WebP a 640px).
+// El original suele ser 1024px; las cards se muestran a ~220-308px así que
+// 320/640px cubren 1x/2x. Si la URL no es de ese CDN, se devuelve vacío.
+export function cdnSrcset(url: string | null): string {
+  if (!url || !url.includes("tiendanegocio.com")) return "";
+  const base = url.split("?")[0];
+  return `${base}?width=320&format=webp 320w, ${base}?width=640&format=webp 640w, ${url} 1024w`;
+}
+
+function cardHtml(p: Product, eager = false): string {
   const symbol = state.settings?.currencySymbol ?? "$";
+  const srcset = p.imageUrl ? cdnSrcset(p.imageUrl) : "";
+  const loading = eager ? "eager" : "lazy";
+  const prio = eager ? ` fetchpriority="high"` : "";
   const img = p.imageUrl
-    ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.title)}" loading="lazy" decoding="async" />`
+    ? `<img src="${esc(p.imageUrl)}"${srcset ? ` srcset="${esc(srcset)}" sizes="(max-width: 800px) 46vw, 308px"` : ""} alt="${esc(p.title)}" loading="${loading}"${prio} decoding="async" />`
     : "📱";
   const freshHours = state.settings?.freshHours ?? 48;
   const badges = [
@@ -395,8 +408,11 @@ function renderGrid(): void {
   const visible = sorted.slice(0, state.shown);
   const more = sorted.length > visible.length;
   updateCount(sorted.length, visible.length);
+  // Las primeras 4 imágenes son candidatos a LCP: eager + fetchpriority high
+  // (lazy en las above-fold retrasa el LCP porque el preload scanner las ignora).
+  const card = (p: Product, i: number): string => cardHtml(p, i < 4);
   setContent(`
-    <div class="grid">${visible.map(cardHtml).join("")}</div>
+    <div class="grid">${visible.map(card).join("")}</div>
     ${more ? `<div class="load-more-wrap"><button class="btn load-more" id="load-more">Cargar más <span class="lm-count">(${sorted.length - visible.length} restantes)</span></button></div>` : ""}
   `);
   document.getElementById("load-more")?.addEventListener("click", () => {

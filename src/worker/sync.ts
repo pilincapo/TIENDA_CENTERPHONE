@@ -31,6 +31,28 @@ export interface SyncState {
   lastError: string | null;
 }
 
+// Invalida el caché edge de Cloudflare para /api/catalog. Se llama en cada
+// regeneración del snapshot: si la zona tiene una Cache Rule que cachea el API
+// en el edge, los visitantes ven el catálogo nuevo en cuanto se purga; sin zona
+// configurada la purga es un no-op (devuelve 404/400 y se ignora).
+// No bloquea la importación: los errores se registran, no se propagan.
+async function purgeCatalogEdgeCache(env: Env): Promise<void> {
+  const zoneId = env.CF_ZONE_ID;
+  const apiToken = env.CF_API_TOKEN;
+  if (!zoneId || !apiToken) return;
+  try {
+    const origin = env.CF_SITE_ORIGIN ?? "https://celu-store.pilin123.workers.dev";
+    const res = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ files: [`${origin}/api/catalog`] }),
+    });
+    if (!res.ok) console.error(`purge_catalog_cache: HTTP ${res.status} — ${await res.text()}`);
+  } catch (e) {
+    console.error("purge_catalog_cache falló:", e);
+  }
+}
+
 export async function regenerateSnapshot(env: Env): Promise<CatalogSnapshot> {
   const [products, categories] = await Promise.all([
     listProducts(env.DB),
@@ -50,6 +72,9 @@ export async function regenerateSnapshot(env: Env): Promise<CatalogSnapshot> {
     products: light,
   };
   await env.KV.put(KV_SNAPSHOT_KEY, JSON.stringify(snapshot));
+  // El snapshot cambió: purgar el caché edge si hay zona configurada (fire-and-forget
+  // conceptual, pero await para que el caller decida con waitUntil; los errores no propagan).
+  await purgeCatalogEdgeCache(env);
   return snapshot;
 }
 

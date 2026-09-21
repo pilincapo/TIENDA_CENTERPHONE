@@ -25,6 +25,11 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; padding: 0; }
+html {
+  /* Las filas scrolleables de la toolbar (overflow-x: auto) no deben
+     propagar scroll horizontal al documento en móvil. */
+  overflow-x: hidden;
+}
 body {
   background: var(--bg); color: var(--text);
   font-family: var(--font-sans);
@@ -450,9 +455,9 @@ img { max-width: 100%; display: block; }
 }
 .tb-row--sub { gap: 6px; padding-top: 2px; }
 .tb-spacer { flex: 1; }
-/* Fila fija superior: Ordenar + contador, siempre visibles (no scrollean). */
+/* Fila fija superior: Ordenar a la izquierda, contador a la derecha. */
 .tb-top {
-  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
 .tb-sort {
   flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
@@ -474,7 +479,7 @@ img { max-width: 100%; display: block; }
   border-color: var(--brand);
   color: var(--brand);
 }
-.chip--clear { color: var(--danger); border-color: rgb(248 81 73 / .45); }
+.chip--clear { color: var(--danger); border-color: rgb(248 81 73 / .45); margin-left: auto; }
 .chip--sub { font-size: 12px; padding: 6px 12px; color: var(--muted); }
 .chip--sub.on { color: var(--brand); }
 
@@ -522,7 +527,6 @@ img { max-width: 100%; display: block; }
 }
 /* Móvil chico: compactar la toolbar para que Ordenar siempre entre. */
 @media (max-width: 480px) {
-  .tb-top { justify-content: space-between; gap: 6px; }
   .tb-sort { font-size: 10.5px; gap: 4px; }
   .tb-sort select { padding: 5px 6px; font-size: 11px; max-width: 46vw; }
   .tb-count { font-size: 10.5px; padding: 4px 8px; }

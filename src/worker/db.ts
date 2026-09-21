@@ -13,6 +13,11 @@ export interface Env {
   ASSETS: Fetcher;
   ADMIN_PASSWORD: string;
   ADMIN_SESSION_SECRET: string;
+  // Opcionales: habilitan la purga del caché edge de /api/catalog al regenerar
+  // el snapshot. Sin ellos, la purga se omite silenciosamente (el sitio funciona igual).
+  CF_ZONE_ID?: string;
+  CF_API_TOKEN?: string;
+  CF_SITE_ORIGIN?: string;
 }
 
 function num(v: unknown): number {

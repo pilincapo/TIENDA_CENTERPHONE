@@ -1,3 +1,31 @@
+## 2026-09-21 — LCP: imágenes responsive WebP del CDN + prioridad above-fold
+
+- **Medición baseline** (local): TTFB 29ms, FCP 171ms, **LCP 549ms** — la primera imagen del CDN (1024px PNG de hasta 373KB servida para una card de 308px)
+- **Descubrimiento clave**: el CDN de tiendanegocio soporta resize on-the-fly: la misma imagen a 320px en WebP pesa **12-19KB vs 157-373KB del original (−90%)**
+- **`srcset` responsive**: las cards piden `?width=320&format=webp` (1x) y `?width=640&format=webp` (2x) con `sizes` según breakpoint; la ficha usa 480/960. Fallback al original en CDNs no soportados
+- **Above-fold con prioridad**: las primeras 4 cards van `loading="eager" fetchpriority="high"` (el `lazy` en el visible sin scroll retrasa el LCP); el resto sigue lazy. Imagen principal de la ficha: eager + high
+- **Ahorro real medido**: 20 cards pasan de ~2-4MB a ~300-500KB de imágenes; el navegador elige el WebP si lo soporta (97%+ de los browsers)
+- Verificado en preview: cards y ficha cargan WebP del CDN (`?width=320&format=webp`), srcset/sizes correctos, eager/lazy repartidos bien. Typecheck ✅, 76 tests ✅
+
+## 2026-09-21 — Caché edge de /api/catalog (opcional, configurable)
+
+- **`s-maxage=300` en `/api/catalog`**: con una Cache Rule de Cloudflare que cachee el API, el edge sirve el catálogo sin ejecutar el worker (0 ms de CPU por visita cacheada)
+- **Purga automática**: cada `regenerateSnapshot` (importaciones, sync, ediciones del panel) purga el edge vía API de Cloudflare (`CF_ZONE_ID` + `CF_API_TOKEN` como secrets opcionales) — el catálogo nuevo aparece al instante, no espera 5 minutos
+- Sin los secrets configurados todo funciona igual que antes (la purga se omite); el free tier de Workers no se ve afectado (la purga es 1 request por regeneración, dentro del límite)
+- Verificado: header nuevo servido en local, typecheck ✅, 76 tests ✅
+
+## 2026-09-21 — Toolbar en móvil 390px + fix de scroll horizontal
+
+- **Verificación a 390px**: la fila superior entra cómoda (268px de contenido en 370px disponibles — Ordenar a la izquierda, contador a la derecha); chips de categorías/tags scrollean con degradado "has-more"; targets de tap ≥29px
+- **Fix global**: `overflow-x: hidden` en `html` — las filas scrolleables de la toolbar propagaban scroll horizontal al documento (el body medía 2075px con viewport de 671px); verificado que el scroll de usuario queda bloqueado y el scroll interno de chips sigue funcionando
+- Typecheck ✅, 76 tests ✅
+
+## 2026-09-21 — Toolbar: alineación reordenada
+
+- **Fila superior**: "Ordenar" a la izquierda y contador "20 de 829" a la derecha (`space-between`, antes ambos amontonados a la derecha con espacio vacío a la izquierda)
+- **Chip "Limpiar (N)"**: alineado a la derecha de su fila de tags (`margin-left: auto`), separado de Nuevo/Destacado/Oferta
+- Verificado en preview: alineación correcta, filtro Oferta muestra el chip a la derecha, limpiar restaura las 20 cards. Typecheck ✅, 76 tests ✅
+
 ## 2026-09-21 — Deploy: mejoras de performance
 
 - Commit `e45a751` pusheado (7 archivos, +27/−4) y deploy `ee996ffa`. **Verificado en producción**: home HTTP 200, `/api/catalog` sirve `Cache-Control: public, max-age=60, stale-while-revalidate=300` ✅

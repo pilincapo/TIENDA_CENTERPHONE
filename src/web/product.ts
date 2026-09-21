@@ -6,7 +6,7 @@ import type { PublicSettings } from "./types-web";
 import { formatPrice, availabilityLabel } from "../shared/format";
 import { waLink } from "../shared/whatsapp";
 import { setupModals, fillStoreInfo } from "./store-modals";
-import { isFresh } from "./catalog";
+import { isFresh, cdnSrcset } from "./catalog";
 
 interface DetailResponse {
   product: Product;
@@ -73,8 +73,13 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
     (cat ? ` › <a href="/?cat=${encodeURIComponent(cat.id)}">${esc(cat.name)}</a>` : "") +
     ` › <span>${esc(product.title)}</span>`;
 
-  const img = product.imageUrl
-    ? `<img src="${esc(product.imageUrl)}" alt="${esc(product.title)}" />`
+  // Imagen principal: LCP de la ficha — eager + fetchpriority high + srcset WebP
+  // (el original suele ser 1024px; la ficha lo muestra a ~480px).
+  const purl = product.imageUrl;
+  const pbase = purl?.includes("tiendanegocio.com") ? purl.split("?")[0] : null;
+  const psrcset = pbase ? `${pbase}?width=480&format=webp 480w, ${pbase}?width=960&format=webp 960w, ${purl} 1024w` : "";
+  const img = purl
+    ? `<img src="${esc(purl)}"${psrcset ? ` srcset="${esc(psrcset)}" sizes="(max-width: 800px) 92vw, 480px"` : ""} alt="${esc(product.title)}" loading="eager" fetchpriority="high" decoding="async" />`
     : "📱";
   const stockBadge = product.hiddenNoStock
     ? `<span class="badge badge--stock-out" title="Este producto ya no está disponible (la fuente de importación ya no lo trae)">Sin stock</span>`
@@ -125,8 +130,9 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
 
   el.related.innerHTML = related
     .map((p) => {
+      const tsrcset = cdnSrcset(p.imageUrl);
       const thumb = p.imageUrl
-        ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.title)}" loading="lazy" decoding="async" />`
+        ? `<img src="${esc(p.imageUrl)}"${tsrcset ? ` srcset="${esc(tsrcset)}" sizes="160px"` : ""} alt="${esc(p.title)}" loading="lazy" decoding="async" />`
         : "📱";
       return `<a class="card" href="/producto/${esc(p.id)}">
         <div class="card-img">${thumb}</div>
