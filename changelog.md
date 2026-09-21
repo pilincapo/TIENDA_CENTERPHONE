@@ -1,3 +1,9 @@
+## 2026-09-21 — Fix: imágenes que no cargaban tras recargar (fallback del CDN)
+
+- **Diagnóstico**: las 983 URLs del CDN responden bien individualmente (verificado 1 por 1) — el fallo es por **ráfaga**: al recargar con caché fría, el navegador pide ~20 variantes WebP nuevas a la vez y el CDN del proveedor (también detrás de Cloudflare) a veces rechaza/aborta alguna, dejando la card sin imagen hasta otra recarga
+- **Fix**: fallback automático con `onerror` — si la variante WebP falla, la img cae al original (que el CDN sirve sin transformación) en cascada de un solo intento (sin bucles); aplicado en cards del home, imagen principal de la ficha y thumbnails de relacionados
+- Verificado: error simulado → fallback recupera la imagen; 20/20 cards con fallback activo y 0 rotas tras recarga limpia. Typecheck ✅, 76 tests ✅
+
 ## 2026-09-21 — Deploy: estadísticas en producción
 
 - Migración 006 aplicada en D1 remota (tabla `stats_events` + índices). Commit `d03c4eb` (11 archivos, +432/−2) pusheado y deploy `93e50d30`

@@ -81,7 +81,7 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
   const pbase = purl?.includes("tiendanegocio.com") ? purl.split("?")[0] : null;
   const psrcset = pbase ? `${pbase}?width=480&format=webp 480w, ${pbase}?width=960&format=webp 960w, ${purl} 1024w` : "";
   const img = purl
-    ? `<img src="${esc(purl)}"${psrcset ? ` srcset="${esc(psrcset)}" sizes="(max-width: 800px) 92vw, 480px"` : ""} alt="${esc(product.title)}" loading="eager" fetchpriority="high" decoding="async" />`
+    ? `<img src="${esc(purl)}"${psrcset ? ` srcset="${esc(psrcset)}" sizes="(max-width: 800px) 92vw, 480px"` : ""} alt="${esc(product.title)}" loading="eager" fetchpriority="high" decoding="async" data-fallback="${esc(purl)}" />`
     : "📱";
   const stockBadge = product.hiddenNoStock
     ? `<span class="badge badge--stock-out" title="Este producto ya no está disponible (la fuente de importación ya no lo trae)">Sin stock</span>`
@@ -136,11 +136,22 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
     a.addEventListener("click", () => track("wa_click", { productId: a.getAttribute("data-wa-track") ?? undefined }));
   });
 
+  // Fallback de imágenes: variante WebP fallida -> original (una sola vez por img).
+  document.querySelectorAll<HTMLImageElement>("img[data-fallback]").forEach((img) => {
+    img.addEventListener("error", () => {
+      const fallback = img.dataset.fallback;
+      if (!fallback || !img.src) return;
+      delete img.dataset.fallback;
+      img.srcset = "";
+      img.src = fallback;
+    }, { once: true });
+  });
+
   el.related.innerHTML = related
     .map((p) => {
       const tsrcset = cdnSrcset(p.imageUrl);
       const thumb = p.imageUrl
-        ? `<img src="${esc(p.imageUrl)}"${tsrcset ? ` srcset="${esc(tsrcset)}" sizes="160px"` : ""} alt="${esc(p.title)}" loading="lazy" decoding="async" />`
+        ? `<img src="${esc(p.imageUrl)}"${tsrcset ? ` srcset="${esc(tsrcset)}" sizes="160px"` : ""} alt="${esc(p.title)}" loading="lazy" decoding="async" data-fallback="${esc(p.imageUrl)}" />`
         : "📱";
       return `<a class="card" href="/producto/${esc(p.id)}">
         <div class="card-img">${thumb}</div>

@@ -332,8 +332,11 @@ function cardHtml(p: Product, eager = false): string {
   const srcset = p.imageUrl ? cdnSrcset(p.imageUrl) : "";
   const loading = eager ? "eager" : "lazy";
   const prio = eager ? ` fetchpriority="high"` : "";
+  // Fallback: si la variante del CDN falla (ráfaga de requests nuevas al recargar con
+  // caché fría — el CDN del proveedor a veces rechaza algunas), reintentos en cascada:
+  // webp640 -> original. Queda fijo en el src para no reintentar en bucle.
   const img = p.imageUrl
-    ? `<img src="${esc(p.imageUrl)}"${srcset ? ` srcset="${esc(srcset)}" sizes="(max-width: 800px) 46vw, 308px"` : ""} alt="${esc(p.title)}" loading="${loading}"${prio} decoding="async" />`
+    ? `<img src="${esc(p.imageUrl)}"${srcset ? ` srcset="${esc(srcset)}" sizes="(max-width: 800px) 46vw, 308px"` : ""} alt="${esc(p.title)}" loading="${loading}"${prio} decoding="async" data-fallback="${esc(p.imageUrl)}" />`
     : "📱";
   const freshHours = state.settings?.freshHours ?? 48;
   const badges = [
@@ -371,6 +374,20 @@ function waLinkForProduct(p: Product): string {
   const price = formatPrice(p.priceCents, symbol);
   const text = `Hola! Me interesa "${p.title}" (${price}). ¿Sigue disponible?`;
   return `https://wa.me/${(state.settings?.whatsappPhone ?? "").replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
+}
+
+// Fallback de imágenes: si una variante del CDN falla, reintenta el original.
+// Se ejecuta una sola vez por img (data-fallback se limpia) para no reintentar en bucle.
+function bindImgFallbacks(): void {
+  el.content.querySelectorAll<HTMLImageElement>("img[data-fallback]").forEach((img) => {
+    img.addEventListener("error", () => {
+      const fallback = img.dataset.fallback;
+      if (!fallback || !img.src) return;
+      delete img.dataset.fallback;
+      img.srcset = ""; // anula los candidatos del srcset que fallaron
+      img.src = fallback;
+    }, { once: true });
+  });
 }
 
 function bindWaButtons(): void {
@@ -434,6 +451,7 @@ function renderGrid(): void {
     renderGrid();
   });
   bindWaButtons();
+  bindImgFallbacks();
 }
 
 function render(): void {
