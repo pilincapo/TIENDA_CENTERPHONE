@@ -102,6 +102,25 @@ function syncLogRow(l: SyncLogEntry): string {
 }
 
 /** Actualiza estado + historial del dashboard in-place (sin re-render de la vista). */
+/** Aviso destacado en el dashboard cuando la última sincronización falló. */
+function dashErrorBanner(state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }): string {
+  if (state.lastStatus === "error" && state.lastError) {
+    const cuando = state.lastSyncAt ? new Date(state.lastSyncAt).toLocaleString("es-AR") : "";
+    return `
+    <div class="panel dash-error-banner" id="dash-error-banner" data-sync-at="${state.lastSyncAt ?? 0}">
+      <div class="row" style="align-items:flex-start">
+        <div style="flex:1">
+          <strong style="color:var(--danger)">⚠ La última sincronización falló</strong>
+          <span class="muted" style="margin-left:8px">${esc(cuando)}</span>
+          <p style="margin:6px 0 0; font-size:13px; word-break:break-word">${esc(state.lastError)}</p>
+        </div>
+        <button class="btn" id="dash-error-close" title="Descartar aviso">✕</button>
+      </div>
+    </div>`;
+  }
+  return "";
+}
+
 async function refreshDashboardDynamic(): Promise<void> {
   const stateEl = document.getElementById("dash-state");
   const bodyEl = document.getElementById("dash-log-body");
@@ -121,9 +140,34 @@ async function refreshDashboardDynamic(): Promise<void> {
     bodyEl.innerHTML = log.length === 0
       ? '<tr><td colspan="6" class="muted">Todavía no hubo sincronizaciones.</td></tr>'
       : log.map(syncLogRow).join("");
+    // Aviso de error dinámico: insertarlo antes del primer panel si corresponde
+    // (respetando el descarte de la sesión; un error nuevo tiene otro timestamp).
+    const descartado = sessionStorage.getItem("dashErrorDismissed");
+    const bannerHtml = descartado === String(state.lastSyncAt ?? 0) ? "" : dashErrorBanner(state);
+    const existente = document.getElementById("dash-error-banner");
+    if (bannerHtml !== "") {
+      if (existente) {
+        existente.outerHTML = bannerHtml;
+      } else {
+        document.querySelector(".admin-main")?.insertAdjacentHTML("afterbegin", bannerHtml);
+      }
+      bindBannerClose();
+    } else if (existente) {
+      existente.remove();
+    }
   } catch {
     /* silencioso: el polling no debe molestar */
   }
+}
+
+/** Conecta el botón de descartar del aviso (y recuerda el descarte por sesión).
+ *  Si aparece un error NUEVO (otra corrida), el aviso vuelve a mostrarse. */
+function bindBannerClose(): void {
+  document.getElementById("dash-error-close")?.addEventListener("click", () => {
+    const at = document.getElementById("dash-error-banner")?.getAttribute("data-sync-at") ?? "0";
+    sessionStorage.setItem("dashErrorDismissed", at);
+    document.getElementById("dash-error-banner")?.remove();
+  });
 }
 
 /** Polling del historial mientras la pestaña dashboard está visible. */
@@ -145,7 +189,11 @@ async function viewDashboard(syncFilter = ""): Promise<void> {
   const lastRow = state.lastStatus
     ? `<span class="${state.lastStatus === "ok" ? "ok" : "err"}">${esc(state.lastStatus)}</span>`
     : '<span class="muted">—</span>';
+  // Si el error mostrado es el mismo que el usuario ya descartó en esta sesión, no re-mostrar.
+  const descartado = sessionStorage.getItem("dashErrorDismissed");
+  const bannerVisible = state.lastStatus === "error" && state.lastError !== null && descartado !== String(state.lastSyncAt ?? 0);
   el.view.innerHTML = `
+    ${bannerVisible ? dashErrorBanner(state) : ""}
     <div class="panel">
       <h2>Estado del catálogo</h2>
       <div class="kv" id="dash-state">
@@ -179,6 +227,7 @@ async function viewDashboard(syncFilter = ""): Promise<void> {
     </div>`;
   el.view.querySelector("#sync-now")?.addEventListener("click", () => void doSync());
   el.view.querySelector("#rebuild")?.addEventListener("click", () => void rebuildSnapshot());
+  if (bannerVisible) bindBannerClose();
   el.view.querySelector("#sync-filter")?.addEventListener("change", (ev) => {
     dashSyncFilter = (ev.target as HTMLSelectElement).value;
     void refreshDashboardDynamic();
@@ -1136,6 +1185,23 @@ async function openRuleForm(rule: PriceRule | null): Promise<void> {
 
 // ---- Auto-importaciones programadas ----
 
+/** Banner de error en Auto-importaciones: la última corrida del cron falló. */
+function autoErrorBanner(entry: SyncLogEntry): string {
+  const cuando = new Date(entry.startedAt).toLocaleString("es-AR");
+  const url = entry.detail ? entry.detail.replace(/^https?:\/\//, "").slice(0, 60) : "";
+  return `
+  <div class="panel dash-error-banner" id="dash-error-banner" data-sync-at="${entry.startedAt}">
+    <div class="row" style="align-items:flex-start">
+      <div style="flex:1">
+        <strong style="color:var(--danger)">⚠ La última sincronización automática falló</strong>
+        <span class="muted" style="margin-left:8px">${esc(cuando)}${url ? ` · ${esc(url)}` : ""}</span>
+        <p style="margin:6px 0 0; font-size:13px; word-break:break-word">${esc(entry.error ?? "Error desconocido")}</p>
+      </div>
+      <button class="btn" id="dash-error-close" title="Descartar aviso">✕</button>
+    </div>
+  </div>`;
+}
+
 async function fetchAutoImports(): Promise<AutoImport[]> {
   const { jobs } = await api<{ jobs: AutoImport[] }>("/auto-imports");
   return jobs;
@@ -1169,7 +1235,16 @@ async function refreshAutoLastRuns(): Promise<void> {
 }
 
 async function viewAutoImports(): Promise<void> {
-  const [jobs, rules] = await Promise.all([fetchAutoImports(), fetchRules().catch(() => [] as PriceRule[])]);
+  const [jobs, rules, logReciente] = await Promise.all([
+    fetchAutoImports(),
+    fetchRules().catch(() => [] as PriceRule[]),
+    // Última corrida del cron y última manual: para el banner de error general.
+    api<{ log: SyncLogEntry[] }>("/sync/log?limit=30")
+      .then((r) => r.log)
+      .catch(() => [] as SyncLogEntry[]),
+  ]);
+  // Última corrida de auto-importación (cron o manual): es la que esta pestaña gestiona.
+  const lastCron = logReciente.find((l) => l.trigger === "cron" || l.trigger === "manual") ?? null;
   const groups = groupNames(rules);
   // Última corrida por URL: trae el error completo (causa) de cada job.
   const lastRuns = await Promise.all(
@@ -1211,6 +1286,7 @@ async function viewAutoImports(): Promise<void> {
       </tr>`)
     .join("");
   el.view.innerHTML = `
+    ${lastCron && lastCron.status === "error" ? autoErrorBanner(lastCron) : ""}
     <div class="panel">
       <div class="row">
         <h2 style="margin:0">Auto-importaciones</h2>
@@ -1228,6 +1304,7 @@ async function viewAutoImports(): Promise<void> {
       </table>`}
       </div>
     </div>`;
+  if (lastCron && lastCron.status === "error") bindBannerClose();
   el.view.querySelector("#new-auto")?.addEventListener("click", () => void openAutoForm(null, rules, groups));
   el.view.querySelector("#run-auto")?.addEventListener("click", async () => {
     const box = document.createElement("div");

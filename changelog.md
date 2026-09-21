@@ -1,3 +1,10 @@
+## 2026-09-21 — Banner de error también en Auto-importaciones
+
+- La pestaña **Auto-importaciones** ahora muestra el mismo aviso rojo del dashboard cuando la última corrida de auto-importación (cron o "Ejecutar ahora") falló: fecha, URL de la fuente y el motivo completo del error
+- Mismo comportamiento de descarte: botón ✕ que se recuerda por sesión y reaparece si hay un error nuevo; desaparece solo cuando la próxima corrida es exitosa
+- Complementa el detalle por-job que ya mostraba cada fila de la tabla
+- Probado de punta a punta: error forzado → banner con causa; descartar → oculto; corrida exitosa → banner eliminado. Typecheck ✅, 76 tests ✅
+
 ## 2026-09-21 — Dropdown "Ordenar" siempre visible aunque haya muchas categorías
 
 - El select **Ordenar** salió de la fila scrolleable de chips y pasó a una **fila fija propia** (junto al contador "X de Y"): con muchas categorías ya no queda fuera de pantalla ni hace falta scrollear la toolbar para encontrarlo

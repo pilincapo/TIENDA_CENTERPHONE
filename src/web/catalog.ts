@@ -138,13 +138,10 @@ function renderToolbar(): void {
   const cats = rootCategories();
   const subs = state.category ? subcategoriesOf(state.category) : [];
   const n = activeFilterCount();
+  // El select "Ordenar" vive en una fila fija propia (NO scrolleable): si las
+  // categorías llenan la fila de chips, antes quedaba fuera de pantalla.
   el.toolbar.innerHTML = `
-    <div class="tb-row">
-      <button class="chip ${state.category === "" ? "on" : ""}" data-cat="">Todos</button>
-      ${cats.map((c) => `
-        <button class="chip ${state.category === c.id ? "on" : ""}" data-cat="${esc(c.id)}">${esc(c.name)}</button>
-      `).join("")}
-      <div class="tb-spacer"></div>
+    <div class="tb-top">
       <label class="tb-sort">Ordenar
         <select id="sort-sel">
           <option value="default" ${state.sort === "default" ? "selected" : ""}>Más recientes</option>
@@ -153,6 +150,13 @@ function renderToolbar(): void {
           <option value="random" ${state.sort === "random" ? "selected" : ""}>Aleatorio</option>
         </select>
       </label>
+      <span class="tb-count" id="tb-count" hidden></span>
+    </div>
+    <div class="tb-row">
+      <button class="chip ${state.category === "" ? "on" : ""}" data-cat="">Todos</button>
+      ${cats.map((c) => `
+        <button class="chip ${state.category === c.id ? "on" : ""}" data-cat="${esc(c.id)}">${esc(c.name)}</button>
+      `).join("")}
     </div>
     ${subs.length ? `
     <div class="tb-row tb-row--sub">
@@ -165,8 +169,6 @@ function renderToolbar(): void {
         <button class="chip ${state.tags.has(t) ? "on" : ""}" data-tag="${t}">${tagLabel(t)}</button>
       `).join("")}
       ${n > 0 ? `<button class="chip chip--clear" id="clear-filters">✕ Limpiar (${n})</button>` : ""}
-      <div class="tb-spacer"></div>
-      <span class="tb-count" id="tb-count" hidden></span>
     </div>
   `;
 

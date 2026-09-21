@@ -76,12 +76,16 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
   const img = product.imageUrl
     ? `<img src="${esc(product.imageUrl)}" alt="${esc(product.title)}" />`
     : "📱";
-  const stockBadge =
-    product.availability === "out_of_stock"
+  const stockBadge = product.hiddenNoStock
+    ? `<span class="badge badge--stock-out" title="Este producto ya no está disponible (la fuente de importación ya no lo trae)">Sin stock</span>`
+    : product.availability === "out_of_stock"
       ? `<span class="badge badge--stock-out">Sin stock</span>`
       : product.availability === "preorder"
         ? `<span class="badge badge--stock-pre">Bajo pedido</span>`
         : `<span class="badge badge--stock-pre ok">En stock</span>`;
+  const hiddenNotice = product.hiddenNoStock
+    ? `<p class="muted" style="color:var(--danger)">⚠️ Este producto ya no está disponible. Te puede interesar alguno de los relacionados de abajo.</p>`
+    : "";
   const freshHours = settings.freshHours ?? 48;
   const freshBadge = isFresh(product, freshHours) ? `<span class="badge badge--fresh" title="Cargado recientemente">Nuevo</span>` : "";
   const tags = product.tags
@@ -100,6 +104,7 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
         <h1>${esc(product.title)}</h1>
         <div class="price">${formatPrice(product.priceCents, symbol)}</div>
         <p class="desc">${esc(product.description || "Sin descripción.")}</p>
+        ${hiddenNotice}
         <p class="muted">Disponibilidad: ${esc(availabilityLabel(product.availability))}</p>
         <div class="actions">
           ${wa ? `<a class="btn btn-wa" href="${esc(wa)}" target="_blank" rel="noopener">💬 Consultar por WhatsApp</a>` : ""}
@@ -108,7 +113,8 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
       </div>
     </div>`;
 
-  if (wa) {
+  // El botón flotante de WhatsApp no tiene sentido en un producto sin stock.
+  if (wa && !product.hiddenNoStock) {
     el.waFloat.href = wa;
     el.waFloat.hidden = false;
   }

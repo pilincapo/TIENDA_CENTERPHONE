@@ -28,6 +28,8 @@ export interface Product {
   createdAt: number;
   /** URL de origen si fue importado (NULL = alta manual). Si la fuente deja de traerlo, se oculta. */
   sourceUrl: string | null;
+  /** Solo en la ficha: el producto está oculto (sin stock en la fuente) y se accedió por link directo. */
+  hiddenNoStock?: boolean;
 }
 
 export interface CatalogSnapshot {

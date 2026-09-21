@@ -21,18 +21,23 @@ app.get("/api/catalog", async (c) => {
   return c.json(snapshot);
 });
 
-// Ficha de producto (solo publicados) + relacionadas.
+// Ficha de producto + relacionadas. Los ocultos (sin stock) se sirven con una
+// marca para que la ficha muestre el badge correspondiente si alguien entra por
+// link directo; siguen excluidos del catálogo y del snapshot público.
 app.get("/api/products/:id", async (c) => {
   const product = await getProduct(c.env.DB, c.req.param("id"));
-  if (!product || product.status !== "published") {
+  if (!product) {
     return c.json({ error: "Producto no encontrado" }, 404);
+  }
+  const settings = await getSettings(c.env.KV);
+  if (product.status === "hidden") {
+    return c.json({ product: { ...product, availability: "out_of_stock" as const, hiddenNoStock: true }, related: [], settings: publicSettings(settings) });
   }
   const related = product.categoryId
     ? (await listProducts(c.env.DB))
         .filter((p) => p.id !== product.id && p.categoryId === product.categoryId)
         .slice(0, 8)
     : [];
-  const settings = await getSettings(c.env.KV);
   return c.json({ product, related, settings: publicSettings(settings) });
 });
 

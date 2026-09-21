@@ -338,6 +338,14 @@ img { max-width: 100%; display: block; }
 .table th { color: var(--brand); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 .err-detail { color: #ff6b6b; cursor: help; border-bottom: 1px dotted #ff6b6b; }
 .warn-detail { color: #ffd43b; cursor: help; border-bottom: 1px dotted #ffd43b; }
+
+/* Aviso destacado de error de sincronización en el dashboard */
+.dash-error-banner {
+  border: 1px solid var(--danger);
+  border-left: 6px solid var(--danger);
+  background: rgba(255, 107, 107, 0.08);
+  margin-bottom: 16px;
+}
 .table tr:hover td { background: var(--panel-2); }
 .table img.thumb { width: 44px; height: 44px; border-radius: 0; object-fit: cover; background: var(--panel-2); border: 1px solid var(--border); }
 
@@ -442,6 +450,10 @@ img { max-width: 100%; display: block; }
 }
 .tb-row--sub { gap: 6px; padding-top: 2px; }
 .tb-spacer { flex: 1; }
+/* Fila fija superior: Ordenar + contador, siempre visibles (no scrollean). */
+.tb-top {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+}
 .tb-sort {
   flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
   font-size: 12px; color: var(--muted);
@@ -507,6 +519,13 @@ img { max-width: 100%; display: block; }
   .tb-sort select { padding: 6px 8px; font-size: 11.5px; }
   .tb-spacer { display: none; }
   .tb-row { scroll-padding-left: 2px; }
+}
+/* Móvil chico: compactar la toolbar para que Ordenar siempre entre. */
+@media (max-width: 480px) {
+  .tb-top { justify-content: space-between; gap: 6px; }
+  .tb-sort { font-size: 10.5px; gap: 4px; }
+  .tb-sort select { padding: 5px 6px; font-size: 11px; max-width: 46vw; }
+  .tb-count { font-size: 10.5px; padding: 4px 8px; }
 }
 
 /* ===== Header: nav ===== */
