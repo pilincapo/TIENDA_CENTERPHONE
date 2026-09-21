@@ -1,3 +1,7 @@
+## 2026-09-21 — Deploy: pausas automáticas contra el error 522
+
+- Deploy a Cloudflare (`d53e9e81`): importación por lotes de 50 con pausa, pausas entre fuentes y presupuesto de tiempo en el cron. Commit `162d321` pusheado; 76 tests ✅; home HTTP 200 verificado en producción
+
 ## 2026-09-21 — Importación con pausas automáticas para evitar el error 522
 
 - **Importar** ahora manda la selección en **lotes de 50 productos con pausa de 800ms** entre requests: cada request chico queda lejos del límite de CPU del plan gratis, que era lo que cortaba las listas grandes (522/"Error interno")
