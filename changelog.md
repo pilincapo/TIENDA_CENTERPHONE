@@ -1,3 +1,7 @@
+## 2026-09-21 — Deploy: reintentos automáticos
+
+- Deploy a Cloudflare (`7c1ed976`): reintentos ante 522/5xx del origen. Commit `1bf9f62` pusheado. **Verificado en producción**: mascotas (7 importados) y hogar (135 + 1 sin stock) sincronizan OK — las 7 fuentes operativas
+
 ## 2026-09-21 — Reintentos automáticos: mascotas y hogar fallaban con 522 del sitio de origen
 
 - **Diagnóstico**: mascotas y hogar no se actualizaban porque el sitio de origen (hacetupedido.com, también detrás de Cloudflare) responde a veces con **522 intermitente** — hogar importó 136 productos a las 15:24 y a las 15:46 dio 522 con la misma URL
