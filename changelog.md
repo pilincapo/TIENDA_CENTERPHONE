@@ -1,3 +1,8 @@
+## 2026-09-21 — Deploy: banners de error, badge Sin stock y toolbar con Ordenar fijo
+
+- Deploy a Cloudflare (`38ee5604`): banner de error en dashboard y Auto-importaciones, badge "Sin stock" en fichas por link directo, select Ordenar en fila fija. Commit `5196de2` pusheado; 76 tests ✅; home HTTP 200, login OK y catálogo con 984 productos verificados en producción
+- Contraseña de producción renovada a `8AZzU3JMyYUNTesN` (solo letras/números, sin caracteres ambiguos): la anterior con `!` daba problemas de tipeo. Secret actualizado vía `wrangler secret put` y login verificado
+
 ## 2026-09-21 — Banner de error también en Auto-importaciones
 
 - La pestaña **Auto-importaciones** ahora muestra el mismo aviso rojo del dashboard cuando la última corrida de auto-importación (cron o "Ejecutar ahora") falló: fecha, URL de la fuente y el motivo completo del error
