@@ -1,3 +1,7 @@
+## 2026-09-21 — Deploy: mejoras de performance
+
+- Commit `e45a751` pusheado (7 archivos, +27/−4) y deploy `ee996ffa`. **Verificado en producción**: home HTTP 200, `/api/catalog` sirve `Cache-Control: public, max-age=60, stale-while-revalidate=300` ✅
+
 ## 2026-09-21 — Auditoría de performance del home
 
 - **Baseline medido** (local, home con 830 productos): TTFB 15ms, FCP ~170ms, LCP 641ms (una imagen del CDN externo), CLS 0.000, JS total ~70KB comprimido. Base sólida; los cuellos de botella reales eran el peso del catálogo y las imágenes externas
