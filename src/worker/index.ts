@@ -8,6 +8,7 @@ import { getSettings } from "./settings";
 import { getProduct, listProducts } from "./db";
 import { getSnapshot, isSyncDue, regenerateSnapshot, runSync } from "./sync";
 import { runAutoImports } from "./autoimport";
+import { trackEvent, pruneStats, type StatEventType } from "./stats";
 import { isValidPhone } from "../shared/whatsapp";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -70,6 +71,30 @@ app.get("/api/public/settings", async (c) => {
   return c.json(publicSettings(await getSettings(c.env.KV)));
 });
 
+// Tracking de estadísticas (beacon del frontend). La geo viene de request.cf,
+// que Cloudflare provee gratis en cada request — no se usa ninguna API externa.
+// Respuesta vacía 204: el beacon no espera cuerpo.
+app.post("/api/track", async (c) => {
+  const cf = c.req.raw.cf as Record<string, string> | undefined;
+  const ref = c.req.header("referer");
+  const refHost = ref ? (() => { try { return new URL(ref).host; } catch { return null; } })() : null;
+  try {
+    const body = await c.req.json<{ type?: string; productId?: string; query?: string }>();
+    await trackEvent(c.env, {
+      type: body.type as StatEventType,
+      productId: body.productId ?? null,
+      query: body.query ?? null,
+      country: cf?.country ?? null,
+      city: cf?.city ?? null,
+      region: cf?.region ?? null,
+      referrer: refHost !== c.req.header("host") ? refHost : null,
+    });
+  } catch {
+    // Un beacon inválido no debe loguear error ni romper nada: se ignora.
+  }
+  return c.body(null, 204);
+});
+
 // Rutas de página: /producto/* sirve el shell de ficha; /admin sin slash redirige.
 app.get("/producto/*", (c) =>
   c.env.ASSETS.fetch(new Request(new URL("/product.html", c.req.url)))
@@ -91,6 +116,7 @@ export default {
   // Cron cada 15 min: sync por URL configurada + auto-importaciones por horario.
   async scheduled(event, env, ctx) {
     ctx.waitUntil(runAutoImports(env));
+    ctx.waitUntil(pruneStats(env));
     const settings = await getSettings(env.KV);
     if (settings.syncUrl === "") return;
     if (!(await isSyncDue(env.KV, settings))) return;

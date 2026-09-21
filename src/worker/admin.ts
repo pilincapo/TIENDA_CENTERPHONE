@@ -12,6 +12,7 @@ import {
 } from "./db";
 import { markAutoImportRun, nowArgentina, runAllAutoImportsNow, runAutoImportById, runAutoImports } from "./autoimport";
 import { getSyncState, importItems, regenerateSnapshot, runSync } from "./sync";
+import { getStatsSummary } from "./stats";
 import { applyRuleSet, roundToPeso, type PriceRule } from "../shared/pricing";
 import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { extractFromUrl } from "./extract";
@@ -459,6 +460,13 @@ adminApp.delete("/auto-imports/:id", async (c) => {
 });
 
 // Última corrida por URL: para mostrar el detalle del error junto a cada job.
+// Estadísticas: resumen agregado para la pestaña del panel (?days=7|30|90).
+adminApp.get("/stats", async (c) => {
+  const days = Number(c.req.query("days") ?? 7);
+  const summary = await getStatsSummary(c.env, Number.isFinite(days) ? days : 7);
+  return c.json({ summary });
+});
+
 adminApp.get("/auto-imports/last-run", async (c) => {
   const url = c.req.query("url") ?? "";
   if (!url) return c.json({ entry: null });

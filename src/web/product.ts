@@ -6,6 +6,7 @@ import type { PublicSettings } from "./types-web";
 import { formatPrice, availabilityLabel } from "../shared/format";
 import { waLink } from "../shared/whatsapp";
 import { setupModals, fillStoreInfo } from "./store-modals";
+import { track } from "./track";
 import { isFresh, cdnSrcset } from "./catalog";
 
 interface DetailResponse {
@@ -53,6 +54,7 @@ async function init(): Promise<void> {
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = (await res.json()) as DetailResponse;
+    track("product_view", { productId: id }, true);
     render(data, await loadSnapshot());
   } catch (e) {
     el.app.innerHTML = `<div class="state"><p>⚠️ No se pudo cargar el producto.</p>
@@ -112,7 +114,7 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
         ${hiddenNotice}
         <p class="muted">Disponibilidad: ${esc(availabilityLabel(product.availability))}</p>
         <div class="actions">
-          ${wa ? `<a class="btn btn-wa" href="${esc(wa)}" target="_blank" rel="noopener">💬 Consultar por WhatsApp</a>` : ""}
+          ${wa ? `<a class="btn btn-wa" href="${esc(wa)}" target="_blank" rel="noopener" data-wa-track="${esc(product.id)}">💬 Consultar por WhatsApp</a>` : ""}
           <a class="btn" href="/">← Seguir viendo</a>
         </div>
       </div>
@@ -122,11 +124,17 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
   if (wa && !product.hiddenNoStock) {
     el.waFloat.href = wa;
     el.waFloat.hidden = false;
+    el.waFloat.dataset.waTrack = product.id;
   }
 
   // Botón "Cómo comprar" del header: modal compartido con el home.
   setupModals(settings);
   fillStoreInfo(settings);
+
+  // Tracking de clics a WhatsApp (botón inline y flotante).
+  document.querySelectorAll("[data-wa-track]").forEach((a) => {
+    a.addEventListener("click", () => track("wa_click", { productId: a.getAttribute("data-wa-track") ?? undefined }));
+  });
 
   el.related.innerHTML = related
     .map((p) => {

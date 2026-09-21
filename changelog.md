@@ -1,3 +1,17 @@
+## 2026-09-21 — Estadísticas: gráfico de líneas de visitas por día
+
+- **Gráfico SVG por día** arriba del histograma horario: línea con puntos interactivos (tooltip con fecha y cantidad), área bajo la curva, labels de fecha cada N días y escala que se adapta al período (7/30/90 puntos)
+- Sin librerías: SVG generado a mano (path + polyline), 0KB extra de JS
+- La serie incluye días sin visitas (en cero) para que la línea sea continua; agrupa `product_view` + `home_view` en hora Argentina
+- Verificado en preview: 7 puntos en 7 días, 30 puntos en 30 días, tooltips activos. Typecheck ✅, 76 tests ✅
+
+## 2026-09-21 — Estadísticas en el panel: visitas, búsquedas, horarios y zonas
+
+- **Nueva pestaña "Estadísticas"** en el panel con selector de período (7/30/90 días) y 8 secciones: resumen de totales (fichas vistas, búsquedas, consultas WhatsApp, visitas al home), histograma de visitas por hora (hora Argentina), artículos más visitados (top 20 con categoría), más consultados por WhatsApp, búsquedas frecuentes, búsquedas **sin resultados** (para detectar stock faltante), visitas por país, principales ciudades y origen (referrer)
+- **Tracking sin servicios externos** (free tier): tabla `stats_events` en D1 (migración 006), endpoint público `POST /api/track` con beacon `sendBeacon` desde el home, la ficha y el buscador; la geo (país/ciudad/región) sale de `request.cf` que Cloudflare provee gratis en cada request — verificado: registra "Santa Fe" en local
+- **Anti-inflado**: dedupe por sesión (una ficha cuenta 1 vez por sesión vía sessionStorage); búsqueda con debounce 1.2s; beacons inválidos se ignoran sin romper nada; retención de 90 días con purga automática en el cron horario
+- Verificado de punta a punta: eventos reales desde el home y la ficha quedan en D1 con geo, pestaña renderiza las 8 secciones, selector de período funciona. Typecheck ✅, 76 tests ✅
+
 ## 2026-09-21 — Deploy: toolbar, WebP responsive y caché edge
 
 - Commit `6c67b32` pusheado (7 archivos, +98/−12) y deploy `d774a93e`. **Verificado en producción**: home HTTP 200, `/api/catalog` con `s-maxage=300`, bundle nuevo con srcset WebP activo ✅

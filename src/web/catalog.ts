@@ -5,6 +5,7 @@ import type { PublicSettings } from "./types-web";
 import { formatPrice, tagLabel } from "../shared/format";
 import { waLinkText } from "../shared/whatsapp";
 import { fillStoreInfo, setupModals } from "./store-modals";
+import { track } from "./track";
 
 type SortMode = "default" | "price-asc" | "price-desc" | "random";
 
@@ -53,6 +54,15 @@ async function init(): Promise<void> {
       resetPager();
       render();
     });
+    // Búsqueda: un evento por término estable (debounce 1.2s tras dejar de tipear).
+    let searchTimer = 0;
+    el.search.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        const q = el.search.value.trim();
+        if (q.length >= 3) track("search", { query: q });
+      }, 1200);
+    });
     setupHowObserver();
     if (state.settings) {
       setupModals(state.settings);
@@ -66,6 +76,7 @@ async function init(): Promise<void> {
     if (statCount && published > 0) statCount.textContent = String(published);
     if (statWrap && published > 0) statWrap.hidden = false;
     render();
+    track("home_view", {}, true);
   } catch (e) {
     renderError(e instanceof Error ? e : new Error(String(e)));
   }
@@ -368,7 +379,10 @@ function bindWaButtons(): void {
       ev.preventDefault();
       ev.stopPropagation();
       const p = productById(btn.dataset.wa ?? "");
-      if (p && state.settings) window.open(waLinkForProduct(p), "_blank", "noopener");
+      if (p && state.settings) {
+        track("wa_click", { productId: p.id });
+        window.open(waLinkForProduct(p), "_blank", "noopener");
+      }
     });
   });
 }

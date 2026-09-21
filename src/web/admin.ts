@@ -65,6 +65,7 @@ async function render(): Promise<void> {
     else if (tab === "import") await viewImport();
     else if (tab === "rules") await viewRules();
     else if (tab === "auto") await viewAutoImports();
+    else if (tab === "stats") await viewStats();
     else if (tab === "settings") await viewSettings();
     else await viewDashboard();
   } catch (e) {
@@ -1617,6 +1618,120 @@ async function viewSettings(): Promise<void> {
     } catch (e) {
       toast(e instanceof Error ? e.message : "Error", false);
     }
+  });
+}
+
+// Gráfico de líneas SVG por día: sin librerías, path con puntos + labels cada N días.
+function dayChart(byDay: { day: string; views: number }[]): string {
+  const W = 720, H = 160, PADL = 8, PADB = 22, PADT = 10;
+  const max = Math.max(1, ...byDay.map((d) => d.views));
+  const n = byDay.length;
+  if (n < 2) return `<p class="muted">Sin datos suficientes todavía.</p>`;
+  const x = (i: number): number => PADL + (i / (n - 1)) * (W - PADL * 2);
+  const y = (v: number): number => PADT + (1 - v / max) * (H - PADT - PADB);
+  const pts = byDay.map((d, i) => `${x(i).toFixed(1)},${y(d.views).toFixed(1)}`).join(" ");
+  const area = `${PADL},${y(0)} ${pts} ${x(n - 1).toFixed(1)},${y(0)}`;
+  const step = Math.max(1, Math.ceil(n / 8));
+  const labels = byDay.map((d, i) => (i % step === 0 || i === n - 1) ? `<text x="${x(i).toFixed(1)}" y="${H - 6}" class="st-xlabel">${d.day.slice(8)}/${d.day.slice(5, 7)}</text>` : "").join("");
+  const dots = byDay.map((d, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(d.views).toFixed(1)}" r="2.5" class="st-dot"><title>${d.day}: ${d.views} visitas</title></circle>`).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" class="st-daychart" role="img" aria-label="Visitas por día">
+    <polygon points="${area}" class="st-area" />
+    <polyline points="${pts}" class="st-line" />
+    ${dots}${labels}
+  </svg>`;
+}
+
+// ---- Estadísticas ----
+
+interface StatsSummary {
+  since: number;
+  totals: { productViews: number; searches: number; waClicks: number; homeViews: number };
+  topProducts: { id: string; title: string; category: string; views: number }[];
+  topWa: { id: string; title: string; clicks: number }[];
+  topSearches: { query: string; count: number }[];
+  emptySearches: { query: string; count: number }[];
+  byHour: { hour: number; views: number }[];
+  byDay: { day: string; views: number }[];
+  byCountry: { country: string; count: number }[];
+  byCity: { city: string; region: string; count: number }[];
+  byReferrer: { referrer: string; count: number }[];
+}
+
+const COUNTRY_NAMES: Record<string, string> = {
+  AR: "Argentina", BR: "Brasil", CL: "Chile", PY: "Paraguay", UY: "Uruguay",
+  BO: "Bolivia", PE: "Perú", US: "Estados Unidos", ES: "España", MX: "México",
+};
+
+async function viewStats(days = 7): Promise<void> {
+  const { summary } = await api<{ summary: StatsSummary }>(`/stats?days=${days}`);
+  const t = summary.totals;
+  const maxHour = Math.max(1, ...summary.byHour.map((h) => h.views));
+  const bar = (n: number): string => {
+    const w = Math.round((n / maxHour) * 100);
+    return `<span class="st-bar" style="width:${Math.max(w, n > 0 ? 4 : 0)}%"></span><span class="st-bar-n">${n > 0 ? n : ""}</span>`;
+  };
+  const rows = (arr: string[]): string => arr.join("") || `<tr><td colspan="3" class="muted">Sin datos todavía.</td></tr>`;
+  el.view.innerHTML = `
+    <div class="panel">
+      <div class="stats-head">
+        <h2>📊 Estadísticas</h2>
+        <div class="stats-range">
+          ${[7, 30, 90].map((d) => `<button class="chip ${d === days ? "on" : ""}" data-days="${d}">${d} días</button>`).join("")}
+        </div>
+      </div>
+      <p class="muted">Datos desde el ${new Date(summary.since).toLocaleDateString("es-AR")}. Una ficha cuenta 1 vez por sesión (refrescar no infla los números).</p>
+      <div class="stat-cards">
+        <div class="stat-card"><b>${t.productViews}</b><span>vistas a fichas</span></div>
+        <div class="stat-card"><b>${t.searches}</b><span>búsquedas</span></div>
+        <div class="stat-card"><b>${t.waClicks}</b><span>consultas WhatsApp</span></div>
+        <div class="stat-card"><b>${t.homeViews}</b><span>visitas al home</span></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>📈 Visitas por día</h3>
+      ${dayChart(summary.byDay)}
+    </div>
+    <div class="panel">
+      <h3>🕒 Visitas por hora (Argentina)</h3>
+      <div class="st-hours">${summary.byHour.map((h) => `<div class="st-hour" title="${h.views} visitas"><span class="st-hlabel">${String(h.hour).padStart(2, "0")}h</span>${bar(h.views)}</div>`).join("")}</div>
+    </div>
+    <div class="st-cols">
+      <div class="panel">
+        <h3>🔥 Artículos más visitados</h3>
+        <table class="table"><tbody>${rows(summary.topProducts.map((p) => `<tr><td><a href="/producto/${esc(p.id)}" target="_blank">${esc(p.title)}</a><br><small class="muted">${esc(p.category || "—")}</small></td><td class="num"><b>${p.views}</b></td></tr>`))}</tbody></table>
+      </div>
+      <div class="panel">
+        <h3>💬 Más consultados por WhatsApp</h3>
+        <table class="table"><tbody>${rows(summary.topWa.map((p) => `<tr><td><a href="/producto/${esc(p.id)}" target="_blank">${esc(p.title)}</a></td><td class="num"><b>${p.clicks}</b></td></tr>`))}</tbody></table>
+      </div>
+    </div>
+    <div class="st-cols">
+      <div class="panel">
+        <h3>🔍 Búsquedas más frecuentes</h3>
+        <table class="table"><tbody>${rows(summary.topSearches.map((s) => `<tr><td>${esc(s.query)}</td><td class="num"><b>${s.count}</b></td></tr>`))}</tbody></table>
+      </div>
+      <div class="panel">
+        <h3>❓ Búsquedas sin resultados <span class="muted">(stock faltante)</span></h3>
+        <table class="table"><tbody>${rows(summary.emptySearches.map((s) => `<tr><td>${esc(s.query)}</td><td class="num"><b>${s.count}</b></td></tr>`))}</tbody></table>
+      </div>
+    </div>
+    <div class="st-cols">
+      <div class="panel">
+        <h3>🌎 Por país</h3>
+        <table class="table"><tbody>${rows(summary.byCountry.map((c) => `<tr><td>${esc(COUNTRY_NAMES[c.country] ?? c.country)}</td><td class="num"><b>${c.count}</b></td></tr>`))}</tbody></table>
+      </div>
+      <div class="panel">
+        <h3>📍 Principales ciudades</h3>
+        <table class="table"><tbody>${rows(summary.byCity.map((c) => `<tr><td>${esc(c.city)}${c.region ? ` <small class="muted">(${esc(c.region)})</small>` : ""}</td><td class="num"><b>${c.count}</b></td></tr>`))}</tbody></table>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>🔗 Origen de las visitas</h3>
+      <table class="table"><tbody>${rows(summary.byReferrer.map((r) => `<tr><td>${esc(r.referrer)}</td><td class="num"><b>${r.count}</b></td></tr>`))}</tbody></table>
+    </div>
+  `;
+  el.view.querySelectorAll<HTMLButtonElement>("button[data-days]").forEach((b) => {
+    b.addEventListener("click", () => void viewStats(Number(b.dataset.days)));
   });
 }
 
