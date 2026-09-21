@@ -1,3 +1,7 @@
+## 2026-09-21 — Deploy: fallback de imágenes
+
+- Commit `1b8fef8` pusheado y deploy `9b751fa0`. **Verificado en producción**: home 200, bundle con el fallback activo ✅
+
 ## 2026-09-21 — Fix: imágenes que no cargaban tras recargar (fallback del CDN)
 
 - **Diagnóstico**: las 983 URLs del CDN responden bien individualmente (verificado 1 por 1) — el fallo es por **ráfaga**: al recargar con caché fría, el navegador pide ~20 variantes WebP nuevas a la vez y el CDN del proveedor (también detrás de Cloudflare) a veces rechaza/aborta alguna, dejando la card sin imagen hasta otra recarga
