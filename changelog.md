@@ -1,3 +1,9 @@
+## 2026-09-22 — Validación Rich Results Test de Google (ficha /producto/6160)
+
+- Resultado: **2 elementos válidos detectados** — "Fragmentos de productos" y "Fichas de comerciantes" — con **0 errores críticos**. El JSON-LD pasa la validación de Google a la primera
+- Problemas no críticos marcados (todos campos **opcionales**): `review`/`aggregateRating` (no hay sistema de reseñas — no se fakean), `brand`/GTIN (requeriría columna nueva con marca real del proveedor), `shippingDetails`/`hasMerchantReturnPolicy` (definir política de envíos/devoluciones si algún día se quiere el sello de comerciante verificado)
+- Sin cambios de código: solo documentación de la validación
+
 ## 2026-09-22 — Rich snippets: JSON-LD schema.org/Product en la ficha
 
 - Nuevo `src/web/schema.ts`: genera el JSON-LD con nombre, imagen, SKU, precio ARS (formato decimal que exige Google), disponibilidad (InStock/OutOfStock/PreOrder mapeada desde `availability` + `hiddenNoStock`), condición nueva y vendedor
