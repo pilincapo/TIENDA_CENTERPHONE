@@ -1,3 +1,10 @@
+## 2026-09-22 — Rich snippets: JSON-LD schema.org/Product en la ficha
+
+- Nuevo `src/web/schema.ts`: genera el JSON-LD con nombre, imagen, SKU, precio ARS (formato decimal que exige Google), disponibilidad (InStock/OutOfStock/PreOrder mapeada desde `availability` + `hiddenNoStock`), condición nueva y vendedor
+- Inyectado en el `<head>` en cada render de ficha (nodo reemplazado, no acumulado); Google ejecuta el JS de la SPA y lo lee del DOM
+- Base para que las fichas muestren precio y stock en resultados de búsqueda (rich snippets / ficha de producto de Search Console)
+- Verificado en local y producción (`/producto/6160`): JSON válido con precio y disponibilidad correctos. Typecheck ✅, 76/76 tests ✅, deploy `9eddbacb`
+
 ## 2026-09-22 — Meta tags SEO del home (title, canonical, Open Graph)
 
 - Title y description reales con la marca; `canonical` a `https://centerphone.com.ar/`; Open Graph completo (`og:title`, `og:description`, `og:image` con el logo, `og:url`, `og:site_name`) + `twitter:card` — la vista previa al compartir por WhatsApp/redes ahora muestra logo y nombre

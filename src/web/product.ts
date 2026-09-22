@@ -5,6 +5,7 @@ import type { CatalogSnapshot } from "../shared/types";
 import type { PublicSettings } from "./types-web";
 import { formatPrice, availabilityLabel } from "../shared/format";
 import { waLink } from "../shared/whatsapp";
+import { productJsonLd } from "./schema";
 import { setupModals, fillStoreInfo } from "./store-modals";
 import { track } from "./track";
 import { isFresh, cdnSrcset } from "./catalog";
@@ -119,6 +120,15 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
         </div>
       </div>
     </div>`;
+
+  // Rich snippets: JSON-LD schema.org/Product con precio y disponibilidad.
+  // Se actualiza en cada render (una ficha por carga, sin acumular nodos).
+  document.getElementById("json-ld")?.remove();
+  const ld = document.createElement("script");
+  ld.type = "application/ld+json";
+  ld.id = "json-ld";
+  ld.textContent = productJsonLd(product, settings.storeName || "CenterPhone Celulares");
+  document.head.appendChild(ld);
 
   // El botón flotante de WhatsApp no tiene sentido en un producto sin stock.
   if (wa && !product.hiddenNoStock) {
