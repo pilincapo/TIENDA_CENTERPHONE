@@ -1,3 +1,11 @@
+## 2026-09-22 — SEO: sitemap.xml dinámico + robots.txt
+
+- `sitemap.xml` generado on-the-fly desde D1: home (prioridad 1.0), categorías activas con `?cat=` (el formato que ya entiende el frontend) y todas las fichas de productos **publicados** (los ocultos/sin stock quedan excluidos de la indexación). Verificado en producción: 991 URLs
+- Cacheado 24h en el edge con la Cache API (`CF-Cache-Status: HIT` verificado) — los bots no generan consultas a D1 en cada rastreo
+- `robots.txt`: permite todo excepto `/admin`, declara el sitemap
+- Nuevo módulo `src/worker/seo.ts` montado en la raíz del worker; typecheck ✅, 76/76 tests ✅, deploy `2941cc90`
+- Alta en Google Search Console: pendiente del usuario (requiere su cuenta de Google); el sitemap ya está listo para declarar
+
 ## 2026-09-22 — Redirect 301 de www.centerphone.com.ar al dominio sin www
 
 - Middleware en el worker: si el host es `www.centerphone.com.ar`, redirige 301 conservando path y query. Consolida SEO en un solo host (evita contenido duplicado)

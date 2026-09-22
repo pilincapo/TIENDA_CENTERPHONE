@@ -8,12 +8,14 @@ import { getSettings } from "./settings";
 import { getProduct, listProducts } from "./db";
 import { getSnapshot, isSyncDue, regenerateSnapshot, runSync } from "./sync";
 import { runAutoImports } from "./autoimport";
+import { seoApp } from "./seo";
 import { trackEvent, pruneStats, type StatEventType } from "./stats";
 import { isValidPhone } from "../shared/whatsapp";
 
 const app = new Hono<{ Bindings: Env }>();
 
 app.route("/api/admin", adminApp);
+app.route("/", seoApp);
 
 // Snapshot público (servido desde KV, con regeneración de emergencia).
 // Caché edge real vía Cache API del propio worker (funciona en workers.dev y en
