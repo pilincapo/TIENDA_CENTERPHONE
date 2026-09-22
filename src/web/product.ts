@@ -5,7 +5,7 @@ import type { CatalogSnapshot } from "../shared/types";
 import type { PublicSettings } from "./types-web";
 import { formatPrice, availabilityLabel } from "../shared/format";
 import { waLink } from "../shared/whatsapp";
-import { productJsonLd } from "./schema";
+import { productJsonLd, breadcrumbJsonLd } from "./schema";
 import { setupModals, fillStoreInfo } from "./store-modals";
 import { track } from "./track";
 import { isFresh, cdnSrcset } from "./catalog";
@@ -129,6 +129,18 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
   ld.id = "json-ld";
   ld.textContent = productJsonLd(product, settings.storeName || "CenterPhone Celulares");
   document.head.appendChild(ld);
+
+  // BreadcrumbList: mismo trail que la miga visible (Inicio › Categoría › Producto).
+  const origin = "https://centerphone.com.ar";
+  const crumbs = [{ name: "Inicio", url: `${origin}/` }];
+  if (cat) crumbs.push({ name: cat.name, url: `${origin}/?cat=${encodeURIComponent(cat.id)}` });
+  crumbs.push({ name: product.title, url: `${origin}/producto/${encodeURIComponent(product.id)}` });
+  document.getElementById("json-ld-breadcrumbs")?.remove();
+  const ldb = document.createElement("script");
+  ldb.type = "application/ld+json";
+  ldb.id = "json-ld-breadcrumbs";
+  ldb.textContent = breadcrumbJsonLd(crumbs);
+  document.head.appendChild(ldb);
 
   // El botón flotante de WhatsApp no tiene sentido en un producto sin stock.
   if (wa && !product.hiddenNoStock) {

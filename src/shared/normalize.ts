@@ -3,6 +3,7 @@
 import type { Product } from "./types";
 import { parseAvailability, parsePriceCents, parseTags, slugify } from "./parse";
 import { roundToPeso } from "./pricing";
+import { detectBrand } from "./brands";
 
 type Dict = Record<string, unknown>;
 
@@ -113,6 +114,9 @@ export function normalizeExternalItems(rawItems: unknown[]): NormalizeOutcome {
     }
 
     const id = slugify(asString(pick(o, ["id", "sku", "slug"]), 80) || title).slice(0, 80);
+    // Marca: si la fuente la trae explícita se usa; si no, se detecta del título.
+    const brandRaw = asString(pick(o, ["brand", "marca"]), 60);
+    const brand = brandRaw !== "" ? brandRaw : detectBrand(title);
     products.push({
       id,
       title,
@@ -127,6 +131,7 @@ export function normalizeExternalItems(rawItems: unknown[]): NormalizeOutcome {
       sortOrder: i,
       createdAt: 0, // el worker lo completa con el timestamp real al hacer upsert
       sourceUrl: null, // importItems lo completa con la URL de la importación
+      brand: brand !== "" ? brand : null,
     });
   });
 

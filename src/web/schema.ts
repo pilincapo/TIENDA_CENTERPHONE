@@ -3,6 +3,7 @@
 // lee el JSON-LD del DOM. Precio, disponibilidad y condición en el formato
 // que Search Console espera para "Ficha de producto".
 import type { Product } from "../shared/types";
+import { detectBrand } from "../shared/brands";
 
 function availabilitySchema(p: Product): string {
   if (p.hiddenNoStock || p.availability === "out_of_stock") return "https://schema.org/OutOfStock";
@@ -18,6 +19,9 @@ export function productJsonLd(p: Product, storeName: string): string {
     image: p.imageUrl || undefined,
     description: (p.description || "Consultá por WhatsApp.").slice(0, 300),
     sku: p.id,
+    // Marca guardada en la importación; si el producto es anterior a la
+    // columna, se detecta del título en el momento (evita re-importar todo).
+    brand: { "@type": "Brand", name: p.brand ?? detectBrand(p.title) ?? undefined },
     offers: {
       "@type": "Offer",
       url: `https://centerphone.com.ar/producto/${encodeURIComponent(p.id)}`,
@@ -30,4 +34,24 @@ export function productJsonLd(p: Product, storeName: string): string {
     },
   };
   return JSON.stringify(data);
+}
+
+export interface BreadcrumbItem {
+  name: string;
+  /** URL absoluta del escalón (home, categoría, ficha). */
+  url: string;
+}
+
+/** BreadcrumbList: debe espejar la miga visible (Inicio › Categoría › Producto). */
+export function breadcrumbJsonLd(items: BreadcrumbItem[]): string {
+  return JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((it, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: it.name,
+      item: it.url,
+    })),
+  });
 }

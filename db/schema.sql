@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS products (
   sort_order     INTEGER NOT NULL DEFAULT 0,
   created_at     INTEGER NOT NULL,
   updated_at     INTEGER NOT NULL,
-  source_url     TEXT
+  source_url     TEXT,
+  brand          TEXT
 );
 
 CREATE TABLE IF NOT EXISTS sync_log (

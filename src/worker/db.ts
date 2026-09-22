@@ -5,7 +5,7 @@ import type { PriceRule } from "../shared/pricing";
 import type { AutoImport } from "../shared/autoimport";
 import { TAGS } from "../shared/types";
 
-type Dict = Record<string, unknown>;
+export type Dict = Record<string, unknown>;
 
 export interface Env {
   DB: D1Database;
@@ -50,6 +50,7 @@ export function rowToProduct(row: Dict): Product {
     sortOrder: num(row.sort_order),
     createdAt: num(row.created_at),
     sourceUrl: row.source_url == null ? null : String(row.source_url),
+    brand: row.brand == null || String(row.brand) === "" ? null : String(row.brand),
   };
 }
 
@@ -130,17 +131,18 @@ export async function getProduct(db: D1Database, id: string): Promise<Product | 
 export async function upsertProduct(db: D1Database, p: Product, now: number): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO products (id, title, description, price_cents, category_id, subcategory_id, tags, image_url, status, availability, sort_order, created_at, updated_at, source_url)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, ?13)
+      `INSERT INTO products (id, title, description, price_cents, category_id, subcategory_id, tags, image_url, status, availability, sort_order, created_at, updated_at, source_url, brand)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, ?13, ?14)
        ON CONFLICT(id) DO UPDATE SET
          title = ?2, description = ?3, price_cents = ?4, category_id = ?5, subcategory_id = ?6,
          tags = ?7, image_url = ?8, status = ?9, availability = ?10, sort_order = ?11, updated_at = ?12,
-         source_url = COALESCE(?13, source_url)`
+         source_url = COALESCE(?13, source_url),
+         brand = COALESCE(?14, brand)`
     )
     .bind(
       p.id, p.title, p.description, p.priceCents, p.categoryId, p.subcategoryId,
       JSON.stringify(p.tags), p.imageUrl, p.status, p.availability, p.sortOrder, now,
-      p.sourceUrl ?? null
+      p.sourceUrl ?? null, p.brand ?? null
     )
     .run();
 }
@@ -178,21 +180,22 @@ export async function upsertProductsBatch(db: D1Database, prods: Product[], now:
   if (prods.length === 0) return failed;
   for (let i = 0; i < prods.length; i += BATCH_SIZE) {
     const chunk = prods.slice(i, i + BATCH_SIZE);
-    // 12 binds por producto (sin created_at propio) + 1 de now = 12n + 1 (≤ 361, dentro del límite).
+    // 13 binds por producto (sin created_at propio) + 1 de now = 13n + 1 (≤ 391, dentro del límite).
     const stmt = db.prepare(
-      `INSERT INTO products (id, title, description, price_cents, category_id, subcategory_id, tags, image_url, status, availability, sort_order, created_at, updated_at, source_url)
-       VALUES ${chunk.map((_, j) => `(?${j * 12 + 1}, ?${j * 12 + 2}, ?${j * 12 + 3}, ?${j * 12 + 4}, ?${j * 12 + 5}, ?${j * 12 + 6}, ?${j * 12 + 7}, ?${j * 12 + 8}, ?${j * 12 + 9}, ?${j * 12 + 10}, ?${j * 12 + 11}, ?${chunk.length * 12 + 1}, ?${chunk.length * 12 + 1}, ?${j * 12 + 12})`).join(",")}
+      `INSERT INTO products (id, title, description, price_cents, category_id, subcategory_id, tags, image_url, status, availability, sort_order, created_at, updated_at, source_url, brand)
+       VALUES ${chunk.map((_, j) => `(?${j * 13 + 1}, ?${j * 13 + 2}, ?${j * 13 + 3}, ?${j * 13 + 4}, ?${j * 13 + 5}, ?${j * 13 + 6}, ?${j * 13 + 7}, ?${j * 13 + 8}, ?${j * 13 + 9}, ?${j * 13 + 10}, ?${j * 13 + 11}, ?${chunk.length * 13 + 1}, ?${chunk.length * 13 + 1}, ?${j * 13 + 12}, ?${j * 13 + 13})`).join(",")}
        ON CONFLICT(id) DO UPDATE SET
          title = excluded.title, description = excluded.description, price_cents = excluded.price_cents,
          category_id = excluded.category_id, subcategory_id = excluded.subcategory_id, tags = excluded.tags,
          image_url = excluded.image_url, status = excluded.status, availability = excluded.availability,
          sort_order = excluded.sort_order, updated_at = excluded.updated_at,
-         source_url = COALESCE(excluded.source_url, products.source_url)`
+         source_url = COALESCE(excluded.source_url, products.source_url),
+         brand = COALESCE(excluded.brand, products.brand)`
     );
     const binds: unknown[] = [];
     for (const p of chunk) {
       binds.push(p.id, p.title, p.description, p.priceCents, p.categoryId, p.subcategoryId,
-        JSON.stringify(p.tags), p.imageUrl, p.status, p.availability, p.sortOrder, p.sourceUrl ?? null);
+        JSON.stringify(p.tags), p.imageUrl, p.status, p.availability, p.sortOrder, p.sourceUrl ?? null, p.brand ?? null);
     }
     binds.push(now);
     try {

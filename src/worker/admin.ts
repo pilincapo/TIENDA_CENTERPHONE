@@ -1,7 +1,7 @@
 // Rutas de administración (montadas en /api/admin).
 
 import { Hono } from "hono";
-import type { Category, Product } from "../shared/types";
+import type { Category, Product, SyncLogEntry } from "../shared/types";
 import type { AutoImport } from "../shared/autoimport";
 import { TAGS } from "../shared/types";
 import type { Env } from "./db";
@@ -100,14 +100,11 @@ adminApp.post("/password", async (c) => {
   if (next === current) {
     return c.json({ error: "La nueva contraseña debe ser distinta de la actual" }, 400);
   }
-  // Persistir en Cloudflare (secret). En dev local falla sin configurar, se avisa igual.
-  let persisted = true;
-  try {
-    const { execSync } = await import("node:child_process");
-    execSync(`npx wrangler secret put ADMIN_PASSWORD`, { input: next + "\n", stdio: "pipe" });
-  } catch {
-    persisted = false; // entorno local sin wrangler remoto: sigue igual para la sesión
-  }
+  // Persistir en Cloudflare (secret): no se puede desde un Worker (sin procesos).
+  // La contraseña queda activa en caliente para este isolate; para persistirla
+  // el panel avisa (persisted=false) y se ejecuta `npx wrangler secret put ADMIN_PASSWORD`.
+  // (Antes intentaba execSync de node:child_process, que nunca corre en workerd.)
+  const persisted = false;
   c.env.ADMIN_PASSWORD = next;
   return c.json({ ok: true, persisted });
 });
@@ -217,6 +214,9 @@ function sanitizeProduct(p: Partial<Product>, id: string): Product {
       ? (p.availability as Product["availability"])
       : "in_stock",
     sortOrder: Math.round(Number(p.sortOrder ?? 0)),
+    createdAt: 0, // upsertProduct solo setea created_at en el INSERT (nuevos)
+    sourceUrl: p.sourceUrl ?? null,
+    brand: p.brand ?? null,
   };
 }
 
@@ -299,7 +299,7 @@ adminApp.post("/sync", async (c) => {
 // Lista de jobs (ids + urls) para que el dashboard encole la sync manual.
 adminApp.get("/sync/jobs", async (c) => {
   const jobs = await listAutoImports(c.env.DB);
-  return c.json({ jobs: jobs.map((j) => ({ id: j.id, url: j.url, name: j.name, active: j.active })) });
+  return c.json({ jobs: jobs.map((j) => ({ id: j.id, url: j.url, name: j.label, active: j.active })) });
 });
 
 adminApp.get("/sync/log", async (c) => {

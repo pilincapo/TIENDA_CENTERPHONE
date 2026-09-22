@@ -15,9 +15,21 @@ describe("extractItems", () => {
     expect(extractItems("nope")).toEqual([]);
     expect(extractItems({ foo: 1 })).toEqual([]);
   });
-});
+});  it("detecta la marca del título y respeta la explícita de la fuente", () => {
+    const r = normalizeExternalItems([
+      { title: "Samsung Galaxy A15 128GB", price: 300000 },
+      { title: "Cargador 20W", price: 15000, marca: "Baseus" },
+    ]);
+    expect(r.products[0]?.brand).toBe("Samsung");
+    expect(r.products[1]?.brand).toBe("Baseus");
+  });
 
-describe("normalizeExternalItems", () => {
+  it("deja brand en null cuando no puede detectar", () => {
+    const r = normalizeExternalItems([{ title: "Cable USB-C genérico", price: 5000 }]);
+    expect(r.products[0]?.brand).toBeNull();
+  });
+
+  describe("normalizeExternalItems", () => {
   it("mapea un producto completo", () => {
     const r = normalizeExternalItems([
       {

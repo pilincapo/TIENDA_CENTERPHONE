@@ -1,3 +1,29 @@
+## 2026-09-22 — Typecheck del worker restaurado (7 errores preexistentes)
+
+- `npm run typecheck` completo (web + worker) volvió a estar verde: estaba roto por drift de tipos de sesiones anteriores que esbuild no detecta (el runtime funcionaba igual)
+- `sync.ts`: `detail: null` en los dos `insertSyncLog` y `isLastChunk` agregado al tipo de `importOptions`
+- `admin.ts`: import de `SyncLogEntry`; `sanitizeProduct` completa `createdAt`/`sourceUrl`/`brand` (preserva los existentes); `jobs[].name` → `j.label` (el campo real de `AutoImport`, el frontend nunca usaba `name`)
+- `db.ts`: `Dict` ahora se exporta (lo importaba `stats.ts`)
+- `password` endpoint: eliminado el `execSync` de `node:child_process` que nunca puede correr en workerd (el cambio de contraseña sigue funcionando en caliente por isolate; para persistirlo sigue valiendo `wrangler secret put ADMIN_PASSWORD`)
+- Nuevo `PENDIENTES.md`: registro la verificación en Search Console cuando Google re-rastree las fichas
+
+## 2026-09-22 — BreadcrumbList JSON-LD en la ficha (rich snippets de migas)
+
+- Nuevo `breadcrumbJsonLd()` en `src/web/schema.ts`: genera el JSON-LD `BreadcrumbList` con posiciones 1..n y URLs absolutas
+- La ficha inyecta un segundo `<script type="application/ld+json">` (nodo `#json-ld-breadcrumbs`, reemplazado en cada render, nunca acumulado) con el trail **Inicio › Categoría › Producto** — espeja exactamente la miga visible del sitio (si el producto no tiene categoría, sale solo Inicio › Producto)
+- URLs canónicas del dominio propio: `https://centerphone.com.ar/`, `/?cat=<id>` y `/producto/<id>`
+- Google puede mostrar la ruta de categorías en el resultado de búsqueda en lugar de la URL cruda
+- Verificado en local con navegador: JSON-LD con 3 escalones idéntico a la miga visible, 2 nodos JSON-LD coexistiendo en el head. Typecheck ✅, **85/85 tests** (2 nuevos) ✅
+
+## 2026-09-22 — Detección de marca al importar + brand en el JSON-LD
+
+- Nuevo `src/shared/brands.ts`: detector de marca por título con lista de aliases (Redmi/Poco→Xiaomi, Galaxy→Samsung, iPhone→Apple, Xperia→Sony, Kindle→Amazon, etc.) que matchea palabra completa y gana la coincidencia más temprana
+- `normalizeExternalItems` ahora guarda `brand` en cada producto: usa el campo explícito de la fuente (`brand`/`marca`) si viene, si no detecta del título
+- Nueva columna `products.brand` (migración `007-product-brand.sql`, aplicada en local): se persiste en `upsertProduct` y `upsertProductsBatch` con `COALESCE` para no pisar la marca ya guardada cuando una fuente no la trae
+- El JSON-LD de la ficha incluye `brand { @type: Brand, name }` — **con fallback**: para los ~990 productos importados antes de la columna, se detecta del título en el momento del render (sin re-importar nada)
+- Cierre del único pendiente no crítico del Rich Results Test (marca/GTIN). Los tests detectan el caso "Funda Samsung para iPhone 15" → Samsung (primera coincidencia)
+- Verificado en local con navegador: ficha real pre-columna sale con `brand: Apple` detectado del título. Typecheck ✅, **83/83 tests** (7 nuevos) ✅
+
 ## 2026-09-22 — Validación Rich Results Test de Google (ficha /producto/6160)
 
 - Resultado: **2 elementos válidos detectados** — "Fragmentos de productos" y "Fichas de comerciantes" — con **0 errores críticos**. El JSON-LD pasa la validación de Google a la primera

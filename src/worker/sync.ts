@@ -97,7 +97,7 @@ export async function getSnapshot(env: Env): Promise<CatalogSnapshot | null> {
 export async function importItems(
   env: Env,
   rawItems: unknown[],
-  importOptions: { forceRuleId?: string | null; skipRules?: boolean; sourceUrl?: string | null } = {}
+  importOptions: { forceRuleId?: string | null; skipRules?: boolean; sourceUrl?: string | null; isLastChunk?: boolean } = {}
 ): Promise<SyncOutcome> {
   const outcome = await importItemsChunk(env, rawItems, importOptions);
   // El importador manual manda los productos en chunks (para no exceder el límite
@@ -112,7 +112,7 @@ export async function importItems(
 async function importItemsChunk(
   env: Env,
   rawItems: unknown[],
-  importOptions: { forceRuleId?: string | null; skipRules?: boolean; sourceUrl?: string | null } = {}
+  importOptions: { forceRuleId?: string | null; skipRules?: boolean; sourceUrl?: string | null; isLastChunk?: boolean } = {}
 ): Promise<SyncOutcome> {
   const startedAt = nowMs();
   const { products, categories, skipped } = normalizeExternalItems(rawItems);
@@ -187,6 +187,7 @@ export async function runSync(env: Env, trigger: SyncTrigger): Promise<SyncOutco
       id: logId, trigger, status: outcome.ok ? "ok" : "error",
       itemsTotal: outcome.total, itemsImported: outcome.imported, itemsFailed: outcome.failed,
       itemsDeactivated: outcome.deactivated,
+      detail: null,
       error: outcome.ok
         ? (outcome.warnings.length > 0 ? outcome.warnings.join("; ") : null)
         : (outcome.errors.join("; ") || "Error de sincronización"),
@@ -199,6 +200,7 @@ export async function runSync(env: Env, trigger: SyncTrigger): Promise<SyncOutco
     await insertSyncLog(env.DB, {
       id: logId, trigger, status: "error",
       itemsTotal: null, itemsImported: null, itemsFailed: null, itemsDeactivated: null,
+      detail: null,
       error: message, startedAt, finishedAt: nowMs(),
     });
     await env.KV.put(KV_SYNC_STATE_KEY, JSON.stringify({ lastSyncAt: startedAt, lastStatus: "error", lastError: message }));
