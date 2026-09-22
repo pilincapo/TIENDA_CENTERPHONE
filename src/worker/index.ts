@@ -125,7 +125,10 @@ app.use("*", async (c, next) => {
   await next();
 });
 
-// Rutas de página: /producto/* sirve el shell de ficha; /admin sin slash redirige.
+// Rutas de página: / (home, explícito porque el montaje de seoApp en la raíz
+// consume el path y el fallback * no lo alcanzaría); /producto/* sirve el shell
+// de ficha; /admin sin slash redirige.
+app.get("/", (c) => c.env.ASSETS.fetch(new Request(new URL("/index.html", c.req.url))));
 app.get("/producto/*", (c) =>
   c.env.ASSETS.fetch(new Request(new URL("/product.html", c.req.url)))
 );

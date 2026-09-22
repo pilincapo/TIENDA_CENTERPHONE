@@ -1,3 +1,10 @@
+## 2026-09-22 — Meta tags SEO del home (title, canonical, Open Graph)
+
+- Title y description reales con la marca; `canonical` a `https://centerphone.com.ar/`; Open Graph completo (`og:title`, `og:description`, `og:image` con el logo, `og:url`, `og:site_name`) + `twitter:card` — la vista previa al compartir por WhatsApp/redes ahora muestra logo y nombre
+- El JS actualiza `og:title` con el storeName del panel (el panel manda sobre el default)
+- **Fix incluido**: al montar seoApp en la raíz, el fallback `app.all("*")` dejaba de capturar `/` y el home servía 404.html (detectado y corregido en producción; `app.get("/")` explícito)
+- Verificado en producción: home con title/og/canonical ✅, www redirect ✅, fichas ✅, sitemap/robots/API ✅. Typecheck ✅, 76/76 tests ✅
+
 ## 2026-09-22 — SEO: sitemap.xml dinámico + robots.txt
 
 - `sitemap.xml` generado on-the-fly desde D1: home (prioridad 1.0), categorías activas con `?cat=` (el formato que ya entiende el frontend) y todas las fichas de productos **publicados** (los ocultos/sin stock quedan excluidos de la indexación). Verificado en producción: 991 URLs

@@ -67,7 +67,17 @@ async function init(): Promise<void> {
     if (state.settings) {
       setupModals(state.settings);
       fillStoreInfo(state.settings);
-      if (state.settings.storeName) document.title = `${state.settings.storeName} — Catálogo`;
+      if (state.settings.storeName) {
+        // El nombre del panel manda: title + og:title/og:description dinámicos.
+        const fullTitle = `${state.settings.storeName} — Catálogo`;
+        document.title = fullTitle;
+        for (const sel of ['meta[property="og:title"]', 'meta[itemprop="og:title"]']) {
+          const m = document.querySelector<HTMLMetaElement>(sel);
+          if (m) m.content = fullTitle;
+        }
+        const ogDesc = document.querySelector<HTMLMetaElement>('meta[property="og:description"]');
+        if (ogDesc && state.settings.howTitle) ogDesc.content = state.settings.howTitle;
+      }
     }
     // Stats de la línea terminal del hero (se muestran cuando hay catálogo)
     const published = (state.snapshot?.products ?? []).length;
