@@ -16,11 +16,28 @@ const app = new Hono<{ Bindings: Env }>();
 app.route("/api/admin", adminApp);
 
 // Snapshot público (servido desde KV, con regeneración de emergencia).
-// Cache-Control: el navegador revalida 60s (stale-while-revalidate 5 min) para
-// no re-descargar los ~200KB del catálogo en cada navegación interna.
-// s-maxage=300: si hay Cache Rule de edge para /api/catalog, Cloudflare lo sirve
-// desde el borde sin ejecutar el worker; regenerateSnapshot purga al cambiar datos.
+// Caché edge real vía Cache API del propio worker (funciona en workers.dev y en
+// dominio propio, sin Cache Rules): la primera visita ejecuta el handler y guarda
+// la respuesta en el cache del PoP; las siguientes las sirve el borde sin tocar
+// D1/KV. Invalidación doble: TTL de 5 min + purge en cada regenerateSnapshot.
 app.get("/api/catalog", async (c) => {
+  const cache = caches.default;
+  const url = new URL(c.req.url);
+  const cacheable = c.req.method === "GET" && !url.search;
+  if (cacheable) {
+    // La clave incluye la versión del snapshot (un KV.get chico, ~1ms): al
+    // regenerar el catálogo cambia la versión y el cache viejo queda huérfano.
+    const version = (await c.env.KV.get("catalog:v")) || "0";
+    const cacheKey = `${url.origin}/api/catalog?v=${version}`;
+    const hit = await cache.match(cacheKey);
+    if (hit) return hit;
+    let snapshot: CatalogSnapshot | null = await getSnapshot(c.env);
+    if (!snapshot) snapshot = await regenerateSnapshot(c.env);
+    c.header("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=600");
+    const res = c.newResponse(JSON.stringify(snapshot), { headers: c.res.headers });
+    c.executionCtx.waitUntil(cache.put(cacheKey, res.clone()));
+    return res;
+  }
   let snapshot: CatalogSnapshot | null = await getSnapshot(c.env);
   if (!snapshot) snapshot = await regenerateSnapshot(c.env);
   c.header("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=600");

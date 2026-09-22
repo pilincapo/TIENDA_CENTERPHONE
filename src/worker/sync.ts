@@ -31,11 +31,13 @@ export interface SyncState {
   lastError: string | null;
 }
 
-// Invalida el caché edge de Cloudflare para /api/catalog. Se llama en cada
-// regeneración del snapshot: si la zona tiene una Cache Rule que cachea el API
-// en el edge, los visitantes ven el catálogo nuevo en cuanto se purga; sin zona
-// configurada la purga es un no-op (devuelve 404/400 y se ignora).
-// No bloquea la importación: los errores se registran, no se propagan.
+// Invalidación del caché del catálogo. La Cache API del worker (ver /api/catalog
+// en index.ts) es un cache por-PoP que la API de purga de zona NO afecta, así que
+// la invalidación real es por versión: el snapshot guarda un `cacheVersion` en KV
+// y la clave de cache incluye ese valor — al regenerar, la clave cambia y el PoP
+// vuelve a ejecutar el handler (el cache viejo caduca solo por TTL de 5 min).
+// CF_ZONE_ID/CF_API_TOKEN quedan sin uso; si algún día volvemos a Cache Rules de
+// zona, purgeCatalogEdgeCache vuelve a tener efecto.
 async function purgeCatalogEdgeCache(env: Env): Promise<void> {
   const zoneId = env.CF_ZONE_ID;
   const apiToken = env.CF_API_TOKEN;
@@ -72,8 +74,12 @@ export async function regenerateSnapshot(env: Env): Promise<CatalogSnapshot> {
     products: light,
   };
   await env.KV.put(KV_SNAPSHOT_KEY, JSON.stringify(snapshot));
-  // El snapshot cambió: purgar el caché edge si hay zona configurada (fire-and-forget
-  // conceptual, pero await para que el caller decida con waitUntil; los errores no propagan).
+  // Bump de versión del cache: la clave de /api/catalog incluye catalog:v, así
+  // que al cambiarla el PoP deja de servir el snapshot viejo (el TTL de 5 min lo
+  // limpia solo). Un write chico por regeneración, dentro del free tier.
+  await env.KV.put("catalog:v", String(nowMs()));
+  // Purga de zona (solo tiene efecto con Cache Rules de zona, no con la Cache API
+  // del worker). No bloquea: los errores no propagan.
   await purgeCatalogEdgeCache(env);
   return snapshot;
 }

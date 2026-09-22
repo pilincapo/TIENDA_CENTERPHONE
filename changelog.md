@@ -1,3 +1,19 @@
+## 2026-09-22 — Dominio propio centerphone.com.ar + caché edge real
+
+- **Custom domains verificados**: `centerphone.com.ar` y `www` ya apuntaban al worker (zona activa, confirmada vía API). El sitio responde 200 por el dominio
+- **Caché edge real implementado con la Cache API del worker** (no con Cache Rules de zona: las reglas de zona no aplican a responses de Workers en custom domains). Primera visita ejecuta el handler y guarda en el cache del PoP; siguientes sirven desde el borde sin tocar D1/KV. Verificado: `CF-Cache-Status: HIT` en `/api/catalog` ✅
+- **Invalidación por versión**: la clave de cache incluye `catalog:v` (KV); `regenerateSnapshot` hace bump de la versión, así el catálogo nuevo se ve al instante sin depender del TTL. Un write chico de KV por regeneración (free tier OK)
+- Page Rule de prueba creada y eliminada (no aporta: duplicaba el cache de zona sin invalidación instantánea)
+- `.dev.vars`: `CF_ZONE_ID` y `CF_SITE_ORIGIN=https://centerphone.com.ar` agregados. Pendiente para producción (opcional, solo si se vuelve a Cache Rules): `npx wrangler secret put CF_API_TOKEN`
+- Verificado en producción: dominio 200, `/api/catalog` HIT, home HIT. Typecheck ✅, 76/76 tests ✅, deploy `93d6486c`
+
+## 2026-09-21 — Auditoría de performance (re-medición post optimizaciones)
+
+- Re-medición con el skill `performance` tras las mejoras de WebP/eager/preconnect. **Baseline**: TTFB 28-52ms, FCP 257ms, LCP 783ms (caché tibia) / 1374ms (CDN en frío), CLS 0, TBT ~87ms
+- **Budget**: JS total ~20KB (límite 300KB) ✅ · CSS 25KB (límite 100KB) ✅ · fuentes via Google Fonts con preconnect ✅ · 0 scripts de terceros ✅ · página total muy por debajo de 1.5MB ✅
+- **Sin acciones correctivas necesarias**: los 5 pesos de JetBrains Mono solicitados (400-800) están todos en uso en el CSS (no hay recorte posible); las imágenes "originales" detectadas eran lazy below-fold aún no resueltas (falso positivo); el LCP dominante es latencia del CDN del proveedor, no código propio
+- Nota: el FCP 2530ms de la primera medición fue warm-up de compilación de wrangler dev, no un problema real
+
 ## 2026-09-21 — Deploy: fallback de imágenes
 
 - Commit `1b8fef8` pusheado y deploy `9b751fa0`. **Verificado en producción**: home 200, bundle con el fallback activo ✅
