@@ -23,6 +23,7 @@
 - El JSON-LD de la ficha incluye `brand { @type: Brand, name }` — **con fallback**: para los ~990 productos importados antes de la columna, se detecta del título en el momento del render (sin re-importar nada)
 - Cierre del único pendiente no crítico del Rich Results Test (marca/GTIN). Los tests detectan el caso "Funda Samsung para iPhone 15" → Samsung (primera coincidencia)
 - Verificado en local con navegador: ficha real pre-columna sale con `brand: Apple` detectado del título. Typecheck ✅, **83/83 tests** (7 nuevos) ✅
+- **En producción**: migración 007 aplicada a D1 remota (columna `brand` verificada), commit `1049bb2`, deploy `d28fe896`. Ficha real en centerphone.com.ar con `brand` y `BreadcrumbList` verificados en navegador
 
 ## 2026-09-22 — Validación Rich Results Test de Google (ficha /producto/6160)
 
