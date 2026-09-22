@@ -112,6 +112,17 @@ app.post("/api/track", async (c) => {
   return c.body(null, 204);
 });
 
+// Redirect 301 de www al dominio sin www (SEO: evita contenido duplicado y
+// consolida las señales de ranking en un solo host).
+app.use("*", async (c, next) => {
+  if (c.req.header("host") === "www.centerphone.com.ar") {
+    const dest = new URL(c.req.url);
+    dest.host = "centerphone.com.ar";
+    return c.redirect(dest.toString(), 301);
+  }
+  await next();
+});
+
 // Rutas de página: /producto/* sirve el shell de ficha; /admin sin slash redirige.
 app.get("/producto/*", (c) =>
   c.env.ASSETS.fetch(new Request(new URL("/product.html", c.req.url)))

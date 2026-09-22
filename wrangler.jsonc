@@ -6,7 +6,10 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": "./public",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    // El home (/) pasa primero por el worker: necesario para el redirect 301 de
+    // www → dominio sin www. El resto de assets se sirve directo (más rápido).
+    "run_worker_first": ["/"]
   },
   "triggers": {
     // Despierta cada 15 min; el worker decide si corresponde sincronizar

@@ -1,3 +1,9 @@
+## 2026-09-22 — Redirect 301 de www.centerphone.com.ar al dominio sin www
+
+- Middleware en el worker: si el host es `www.centerphone.com.ar`, redirige 301 conservando path y query. Consolida SEO en un solo host (evita contenido duplicado)
+- Detalle de plataforma descubierto: el home (`/`) se servía como asset estático **antes** de invocar el worker, así que el redirect no aplicaba ahí. Fix: `run_worker_first: ["/"]` en wrangler.jsonc (solo `/` pasa por el worker; el resto de assets se sirve directo)
+- Verificado en producción: home de www → 301 → 200 final en dominio sin www ✅; fichas ídem ✅; dominio directo y workers.dev sin cambios ✅; `/api/catalog` sigue en HIT ✅. Deploy `3579f34a`
+
 ## 2026-09-22 — Dominio propio centerphone.com.ar + caché edge real
 
 - **Custom domains verificados**: `centerphone.com.ar` y `www` ya apuntaban al worker (zona activa, confirmada vía API). El sitio responde 200 por el dominio
