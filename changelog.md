@@ -1,3 +1,8 @@
+## 2026-09-23 — Botón Seguimiento abre en la misma pestaña
+
+- Quitado `target="_blank"` del botón Seguimiento del header (`index.html` y `product.html`): navega en la misma pestaña como el resto de la barra
+- Deploy `18766f6d`, verificado en producción
+
 ## 2026-09-23 — Tracking de usos del atajo /seguimiento
 
 - Nuevo tipo de evento `track_view` en estadísticas: cada vez que alguien entra a `/seguimiento` se registra con geo (país/ciudad/región de Cloudflare) y referrer externo
