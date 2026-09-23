@@ -1,3 +1,11 @@
+## 2026-09-23 — Auditoría de links externos: solo WhatsApp y Maps abren en pestaña nueva
+
+- Barrido de todos los `target="_blank"` y `window.open` del sitio público
+- Corregido: Facebook e Instagram (footer y modal de contacto, 4 lugares en `store-modals.ts`) ya no abren en pestaña nueva
+- Se mantienen con pestaña nueva (por diseño): WhatsApp (botón flotante, botones de consulta, modales) y Maps (dirección del footer y modal)
+- Los links internos del panel de admin (`/producto/...`) siguen abriendo en pestaña nueva para no perder el contexto de estadísticas — no son parte del sitio público
+- Typecheck ✅, deploy `0236d50f`
+
 ## 2026-09-23 — Botón Seguimiento abre en la misma pestaña
 
 - Quitado `target="_blank"` del botón Seguimiento del header (`index.html` y `product.html`): navega en la misma pestaña como el resto de la barra
