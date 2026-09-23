@@ -13,6 +13,7 @@ import {
 import { markAutoImportRun, nowArgentina, runAllAutoImportsNow, runAutoImportById, runAutoImports } from "./autoimport";
 import { getSyncState, importItems, regenerateSnapshot, runSync } from "./sync";
 import { getStatsSummary } from "./stats";
+import { computeSalud } from "./health";
 import { applyRuleSet, roundToPeso, type PriceRule } from "../shared/pricing";
 import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { extractFromUrl } from "./extract";
@@ -312,7 +313,29 @@ adminApp.get("/sync/log", async (c) => {
   } else {
     log = await listSyncLog(c.env.DB, limit);
   }
-  return c.json({ state, log });
+  // Estado por fuente: lastRunAt/lastStatus de cada job de auto-importación,
+  // para que el dashboard muestre el detalle de cada link (la pestaña
+  // Auto-importaciones solo refleja su último intento, no siempre visible).
+  const jobs = await listAutoImports(c.env.DB);
+  const fuentes = jobs.map((j) => ({
+    id: j.id,
+    label: j.label,
+    url: j.url,
+    active: j.active,
+    times: j.times,
+    lastRunAt: j.lastRunAt,
+    lastStatus: j.lastStatus,
+  }));
+  return c.json({ state, log, fuentes });
+});
+
+// Salud semanal del cron: agrega sync_log de los últimos 7 días por fuente.
+adminApp.get("/sync/health", async (c) => {
+  const { results } = await c.env.DB
+    .prepare("SELECT status, detail, error, started_at, finished_at FROM sync_log WHERE started_at >= ?1 ORDER BY started_at DESC LIMIT 500")
+    .bind(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    .all<{ status: string; detail: string | null; error: string | null; started_at: number; finished_at: number | null }>();
+  return c.json({ salud: computeSalud(results ?? []) });
 });
 
 adminApp.post("/snapshot", async (c) => {

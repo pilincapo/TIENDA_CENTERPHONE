@@ -1,3 +1,13 @@
+## 2026-09-23 — Panel de salud semanal del cron en el Dashboard
+
+- Nuevo panel **"Salud del cron (7 días)"** entre "Estado por fuente" y el historial:
+  - Tarjetas: corridas totales, exitosas/con error, **tasa de éxito global** y **duración promedio** de importación
+  - Tabla por fuente: corridas, OK, errores, tasa de éxito y duración media (agrega `sync_log` de los últimos 7 días por `detail` = URL)
+- Colores de tasa: **verde ≥90%**, naranja ≥70%, **rojo <70%** — las filas con tasa <70% se resaltan con fondo rojo y muestran ⚠ con el último error en tooltip
+- Endpoint `GET /api/admin/sync/health` (protegido, igual que el resto del admin) con nuevo módulo `src/worker/health.ts`
+- Se carga en paralelo con el resto del dashboard (`Promise.all`) — no agrega demora; si falla, el dashboard funciona igual sin el panel
+- Verificado en local con datos reales: 76 corridas / 79% global / 9.6s promedio, mascotas 100% (19 corridas), fuentes de prueba muertas en rojo al fondo. Typecheck ✅, **91/91 tests** (3 nuevos) ✅ · deploy `21ebd068`
+
 ## 2026-09-23 — Recuperación automática de fuentes atrasadas en el cron
 
 - Complemento del alerta anterior: si un job activo con horarios tiene `lastRunAt` de hace **más de 24h** (el cron lo salteó por timeout/corte de CPU), el **próximo tick del cron lo recupera aunque no sea su horario**

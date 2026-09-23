@@ -133,6 +133,73 @@ interface FuenteEstado {
   lastStatus: string | null;
 }
 
+/** Salud semanal de una fuente (respuesta de /sync/health). */
+interface FuenteSaludUI {
+  url: string;
+  corridas: number;
+  ok: number;
+  errores: number;
+  tasaExito: number;
+  duracionMediaMs: number;
+  ultimaCorrida: number | null;
+  ultimoError: string | null;
+}
+
+interface SaludSemanalUI {
+  totalCorridas: number;
+  totalOk: number;
+  totalErrores: number;
+  tasaExitoGlobal: number;
+  duracionMediaMs: number;
+  fuentes: FuenteSaludUI[];
+}
+
+/** Color de la tasa de éxito: verde ≥90, naranja ≥70, rojo debajo. */
+function tasaClass(tasa: number): string {
+  return tasa >= 90 ? "ok" : tasa >= 70 ? "warn" : "err";
+}
+
+function fmtDuracion(ms: number): string {
+  if (ms <= 0) return "—";
+  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
+}
+
+/** Panel "Salud del cron (7 días)" para el Dashboard. */
+function saludPanel(s: SaludSemanalUI): string {
+  const filas = s.fuentes.length === 0
+    ? '<tr><td colspan="6" class="muted">Sin corridas en los últimos 7 días.</td></tr>'
+    : s.fuentes.map((f) => {
+        const nombre = f.url.replace(/^https?:\/\//, "").slice(0, 45);
+        const errTitle = f.ultimoError ? ` title="Último error: ${esc(f.ultimoError)}"` : "";
+        return `
+      <tr${f.tasaExito < 70 ? ' style="background:rgba(220,60,60,.08)"' : ""}>
+        <td class="muted">${esc(nombre)}${errTitle ? ' <span class="err-detail">⚠</span>' : ""}</td>
+        <td>${f.corridas}</td>
+        <td>${f.ok}</td>
+        <td class="${f.errores > 0 ? "err" : "muted"}">${f.errores}</td>
+        <td class="${tasaClass(f.tasaExito)}">${f.tasaExito}%</td>
+        <td class="muted">${esc(fmtDuracion(f.duracionMediaMs))}</td>
+      </tr>`;
+      }).join("");
+  return `
+    <div class="panel">
+      <h2>Salud del cron (7 días)</h2>
+      <div class="kv" style="margin-top:8px">
+        <span class="k">Corridas totales</span><span>${s.totalCorridas}</span>
+        <span class="k">Exitosas / con error</span><span><span class="ok">${s.totalOk}</span> / <span class="${s.totalErrores > 0 ? "err" : "muted"}">${s.totalErrores}</span></span>
+        <span class="k">Tasa de éxito global</span><span class="${tasaClass(s.tasaExitoGlobal)}">${s.tasaExitoGlobal}%</span>
+        <span class="k">Duración promedio</span><span>${esc(fmtDuracion(s.duracionMediaMs))}</span>
+      </div>
+      ${s.fuentes.length > 0 ? `
+      <div class="table-scroll">
+      <table class="table" style="margin-top:12px">
+        <thead><tr><th>Fuente</th><th>Corridas</th><th>OK</th><th>Errores</th><th>Éxito</th><th>Duración media</th></tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+      </div>` : ""}
+    </div>`;
+}
+
 /** Panel "Estado por fuente": última corrida de cada link configurado.
  *  Se muestra entre el estado del catálogo y el historial; responde a la
  *  pregunta "¿los 7 links están sincronizando?" de un vistazo. */
@@ -243,9 +310,12 @@ function scheduleDashRefresh(): void {
 
 async function viewDashboard(syncFilter = ""): Promise<void> {
   dashSyncFilter = syncFilter;
-  const { state, log, fuentes } = await api<{ state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }; log: SyncLogEntry[]; fuentes?: FuenteEstado[] }>(
-    `/sync/log?limit=50${syncFilter ? `&trigger=${encodeURIComponent(syncFilter)}` : ""}`
-  );
+  const [{ state, log, fuentes }, saludRes] = await Promise.all([
+    api<{ state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }; log: SyncLogEntry[]; fuentes?: FuenteEstado[] }>(
+      `/sync/log?limit=50${syncFilter ? `&trigger=${encodeURIComponent(syncFilter)}` : ""}`
+    ),
+    api<{ salud: SaludSemanalUI }>("/sync/health").catch(() => ({ salud: null as SaludSemanalUI | null })),
+  ]);
   const last = state.lastSyncAt ? new Date(state.lastSyncAt).toLocaleString("es-AR") : "nunca";
   const lastRow = state.lastStatus
     ? `<span class="${state.lastStatus === "ok" ? "ok" : "err"}">${esc(state.lastStatus)}</span>`
@@ -268,6 +338,7 @@ async function viewDashboard(syncFilter = ""): Promise<void> {
       </div>
     </div>
     ${fuentesPanel(fuentes ?? [])}
+    ${saludRes.salud ? saludPanel(saludRes.salud) : ""}
     <div class="panel">
       <div class="row">
         <h2 style="margin:0">Historial de sincronización</h2>
