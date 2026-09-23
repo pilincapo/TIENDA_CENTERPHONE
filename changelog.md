@@ -1,3 +1,15 @@
+## 2026-09-23 — Dashboard: estado por fuente + historial que ya no pierde corridas
+
+**Causa raíz del "solo 2 links en el historial"**: cuando una fuente se colgaba, consumía todo el presupuesto de CPU y **mataba la invocación del cron entera** — las filas del historial se escribían al final (fire-and-forget) y se perdían. Hogar (con sus 502 intermitentes) era la que tumbaba las corridas de las 08:00.
+
+- `fetchText` con **timeout de 20s** por intento: una fuente colgada ahora falla limpio (con reintento) en vez de matar el cron
+- `logRun` es **awaitable**: la fila del historial se escribe ANTES de terminar la invocación y sobrevive a cualquier corte posterior
+- Si el cron corta por presupuesto, la fila **"(pendientes)"** queda registrada en el historial con las fuentes que no corrieron
+- `/sync/log` devuelve **`fuentes`**: lastRunAt/lastStatus de cada link de Auto-importaciones
+- Dashboard: nuevo panel **"Estado por fuente"** con fuente, horarios, último intento y estado de cada link — responde "¿los 7 links están sincronizando?" de un vistazo, con refresco dinámico cada 15s
+- La pestaña Auto-importaciones no cambia (sigue mostrando el detalle de cada job con su último error)
+- Verificado en producción (home/fichas 200). Typecheck ✅, 87/87 tests ✅, deploy `62a82ffd`
+
 ## 2026-09-23 — Página intermedia de /seguimiento con Volver al catálogo
 
 - `/seguimiento` ya no redirige directo: sirve una **página intermedia** propia (liviana, sin assets) con "📦 Te llevamos al seguimiento"
