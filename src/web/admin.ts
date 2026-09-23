@@ -122,12 +122,62 @@ function dashErrorBanner(state: { lastSyncAt: number | null; lastStatus: string 
   return "";
 }
 
+/** Interfaz de una fuente en /sync/log (estado del último intento de cada link). */
+interface FuenteEstado {
+  id: string;
+  label: string;
+  url: string;
+  active: boolean;
+  times: string[];
+  lastRunAt: number | null;
+  lastStatus: string | null;
+}
+
+/** Panel "Estado por fuente": última corrida de cada link configurado.
+ *  Se muestra entre el estado del catálogo y el historial; responde a la
+ *  pregunta "¿los 7 links están sincronizando?" de un vistazo. */
+/** Ventana de atraso: una fuente activa con horarios que no corre hace más de 24h es sospechosa. */
+const STALE_MS = 24 * 60 * 60 * 1000;
+
+function fuenteAtrasada(f: { active: boolean; times: string[]; lastRunAt: number | null }, now = Date.now()): boolean {
+  return f.active && f.times.length > 0 && f.lastRunAt != null && now - f.lastRunAt > STALE_MS;
+}
+
+function fuentesPanel(fuentes: FuenteEstado[]): string {
+  if (fuentes.length === 0) return "";
+  const rows = fuentes.map((f) => {
+    const st = f.lastStatus ?? "—";
+    const cls = fuenteAtrasada(f) ? "err" : st === "ok" ? "ok" : st === "error" ? "err" : "muted";
+    const cuando = f.lastRunAt ? new Date(f.lastRunAt).toLocaleString("es-AR") : "nunca corrió";
+    const atrasada = fuenteAtrasada(f);
+    const horarios = f.times.length > 0 ? f.times.join(", ") : "—";
+    return `
+      <tr${atrasada ? ' style="background:rgba(220,60,60,.08)"' : ""}>
+        <td>${esc(f.label || f.url.replace(/^https?:\/\//, "").slice(0, 40))}${f.active ? "" : ' <span class="muted">(inactiva)</span>'}</td>
+        <td class="muted">${esc(horarios)}</td>
+        <td${atrasada ? ' class="err"' : ' class="muted"'}>${esc(cuando)}${atrasada ? ' <span class="badge" style="background:#7a1f1f;color:#fff" title="La fuente tiene horarios configurados pero no corre hace más de 24 horas">⚠ atrasada</span>' : ""}</td>
+        <td class="${cls}">${esc(st)}</td>
+      </tr>`;
+  });
+  return `
+    <div class="panel">
+      <h2>Estado por fuente</h2>
+      <p class="muted" style="margin-top:4px">Último intento de cada link configurado en Auto-importaciones — se actualiza solo cada 15 segundos.</p>
+      <div class="table-scroll">
+      <table class="table">
+        <thead><tr><th>Fuente</th><th>Horarios</th><th>Último intento</th><th>Estado</th></tr></thead>
+        <tbody id="dash-fuentes-body">${rows.join("")}</tbody>
+      </table>
+      </div>
+    </div>`;
+}
+
 async function refreshDashboardDynamic(): Promise<void> {
   const stateEl = document.getElementById("dash-state");
   const bodyEl = document.getElementById("dash-log-body");
   if (!stateEl || !bodyEl) return; // no estamos en el dashboard
   try {
-    const { state, log } = await api<{ state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }; log: SyncLogEntry[] }>(
+    const { state, log, fuentes } = await api<{ state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }; log: SyncLogEntry[]; fuentes?: FuenteEstado[] }>(
       `/sync/log?limit=50${dashSyncFilter ? `&trigger=${encodeURIComponent(dashSyncFilter)}` : ""}`
     );
     const last = state.lastSyncAt ? new Date(state.lastSyncAt).toLocaleString("es-AR") : "nunca";
@@ -141,6 +191,16 @@ async function refreshDashboardDynamic(): Promise<void> {
     bodyEl.innerHTML = log.length === 0
       ? '<tr><td colspan="6" class="muted">Todavía no hubo sincronizaciones.</td></tr>'
       : log.map(syncLogRow).join("");
+    // Estado por fuente: re-render del panel si existe (o creación en caliente).
+    const fuentesPrevio = document.getElementById("dash-fuentes-body");
+    if (fuentes && fuentes.length > 0) {
+      const nuevoPanel = fuentesPanel(fuentes);
+      if (fuentesPrevio) {
+        fuentesPrevio.closest(".panel")!.outerHTML = nuevoPanel;
+      } else {
+        document.getElementById("dash-state")?.closest(".panel")!.insertAdjacentHTML("afterend", nuevoPanel);
+      }
+    }
     // Aviso de error dinámico: insertarlo antes del primer panel si corresponde
     // (respetando el descarte de la sesión; un error nuevo tiene otro timestamp).
     const descartado = sessionStorage.getItem("dashErrorDismissed");
@@ -183,7 +243,7 @@ function scheduleDashRefresh(): void {
 
 async function viewDashboard(syncFilter = ""): Promise<void> {
   dashSyncFilter = syncFilter;
-  const { state, log } = await api<{ state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }; log: SyncLogEntry[] }>(
+  const { state, log, fuentes } = await api<{ state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }; log: SyncLogEntry[]; fuentes?: FuenteEstado[] }>(
     `/sync/log?limit=50${syncFilter ? `&trigger=${encodeURIComponent(syncFilter)}` : ""}`
   );
   const last = state.lastSyncAt ? new Date(state.lastSyncAt).toLocaleString("es-AR") : "nunca";
@@ -207,6 +267,7 @@ async function viewDashboard(syncFilter = ""): Promise<void> {
         <button class="btn" id="rebuild">Regenerar snapshot</button>
       </div>
     </div>
+    ${fuentesPanel(fuentes ?? [])}
     <div class="panel">
       <div class="row">
         <h2 style="margin:0">Historial de sincronización</h2>
@@ -1324,21 +1385,25 @@ async function viewAutoImports(): Promise<void> {
     }
     return `<br/><span class="err-detail" style="font-size:12px;display:inline-block;max-width:280px;white-space:normal" title="${esc(err)}">⚠ ${esc(err.slice(0, 90))}${err.length > 90 ? "…" : ""}</span>`;
   };
+  const staleMs = 24 * 60 * 60 * 1000;
   const rows = jobs
-    .map((j) => `
-      <tr data-autourl="${esc(j.url)}">
+    .map((j) => {
+      const atrasado = j.active && j.times.length > 0 && j.lastRunAt != null && Date.now() - j.lastRunAt > staleMs;
+      return `
+      <tr data-autourl="${esc(j.url)}"${atrasado ? ' style="background:rgba(220,60,60,.08)"' : ""}>
         <td>
           <label class="checks"><input type="checkbox" class="auto-active" data-id="${esc(j.id)}" ${j.active ? "checked" : ""}/> Activa</label>
         </td>
         <td><strong>${esc(j.label || j.url)}</strong><br/><span class="muted" style="font-size:12px">${esc(j.url)}</span></td>
         <td>${esc(ruleOrAutoLabel(j.priceRuleId, rules))}</td>
         <td>${j.times.length ? j.times.map((t) => `<span class="badge">${esc(t)}</span>`).join(" ") : '<span class="muted">sin horarios</span>'}</td>
-        <td>${j.lastStatus ? `<span class="${j.lastStatus === "ok" ? "ok" : "err"}">${j.lastStatus}</span><br/><span class="muted" style="font-size:12px">${new Date(j.lastRunAt ?? 0).toLocaleString("es-AR")}</span>${lastErrHtml(j.url)}` : '<span class="muted">nunca</span>'}</td>
+        <td>${j.lastStatus ? `<span class="${j.lastStatus === "ok" && !atrasado ? "ok" : "err"}">${j.lastStatus}</span><br/><span class="${atrasado ? "err" : "muted"}" style="font-size:12px">${new Date(j.lastRunAt ?? 0).toLocaleString("es-AR")}${atrasado ? ' <span class="badge" style="background:#7a1f1f;color:#fff" title="El job tiene horarios configurados pero no corre hace más de 24 horas — verificá que siga activo y que el cron lo esté ejecutando">⚠ atrasado >24h</span>' : ""}</span>${lastErrHtml(j.url)}` : '<span class="muted">nunca</span>'}</td>
         <td style="white-space:nowrap">
           <button class="btn btn-auto-edit" data-id="${esc(j.id)}">Editar</button>
           <button class="btn btn-danger btn-auto-del" data-id="${esc(j.id)}">Borrar</button>
         </td>
-      </tr>`)
+      </tr>`;
+    })
     .join("");
   el.view.innerHTML = `
     ${lastCron && lastCron.status === "error" ? autoErrorBanner(lastCron) : ""}

@@ -1,3 +1,10 @@
+## 2026-09-23 — Alerta de fuentes atrasadas (>24h) en Auto-importaciones y Dashboard
+
+- Un job **activo con horarios** cuyo `lastRunAt` tiene más de 24 horas se marca en rojo con badge **"⚠ atrasado >24h"**: detecta fuentes que el cron dejó de ejecutar (la anomalía que daba Auto-importaciones "todo OK" con fuentes muertas)
+- Marca en ambas vistas: tabla de Auto-importaciones y panel "Estado por fuente" del Dashboard (fila resaltada + badge)
+- No marca jobs sin horarios (nunca corren por cron, no es anomalía) ni inactivos (desactivados a propósito)
+- Verificado en local con un job forzado a hace 2 días (badge y fila resaltada en ambas vistas). Typecheck ✅, deploy `0adcabe8`
+
 ## 2026-09-23 — Dashboard: estado por fuente + historial que ya no pierde corridas
 
 **Causa raíz del "solo 2 links en el historial"**: cuando una fuente se colgaba, consumía todo el presupuesto de CPU y **mataba la invocación del cron entera** — las filas del historial se escribían al final (fire-and-forget) y se perdían. Hogar (con sus 502 intermitentes) era la que tumbaba las corridas de las 08:00.
