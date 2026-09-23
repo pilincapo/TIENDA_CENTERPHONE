@@ -1,3 +1,11 @@
+## 2026-09-23 — Recuperación automática de fuentes atrasadas en el cron
+
+- Complemento del alerta anterior: si un job activo con horarios tiene `lastRunAt` de hace **más de 24h** (el cron lo salteó por timeout/corte de CPU), el **próximo tick del cron lo recupera aunque no sea su horario**
+- La lógica vive en `isDueNow`, así que aplica a todos los caminos que deciden si un job corre
+- No aplica a jobs inactivos ni sin horarios (los mismos criterios del alerta)
+- Si nunca corrió (`lastRunAt` null) se respeta su horario normal — la primera corrida esperada no cuenta como atraso
+- Tests: nuevo caso con 6 aserciones (atrasado +25h corre en cualquier tick, +23h respeta horario, null/inactivo/sin horarios no se recuperan). 88/88 ✅ · deploy `c0389651`
+
 ## 2026-09-23 — Alerta de fuentes atrasadas (>24h) en Auto-importaciones y Dashboard
 
 - Un job **activo con horarios** cuyo `lastRunAt` tiene más de 24 horas se marca en rojo con badge **"⚠ atrasado >24h"**: detecta fuentes que el cron dejó de ejecutar (la anomalía que daba Auto-importaciones "todo OK" con fuentes muertas)

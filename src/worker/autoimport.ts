@@ -22,31 +22,36 @@ export interface AutoImportOutcome {
   results: { id: string; url: string; ok: boolean; imported: number; deactivated: number; warnings: string[]; error: string | null }[];
 }
 
-/** Registra una corrida de auto-importación en el historial (sync_log). */
-function logRun(
+/** Registra una corrida de auto-importación en el historial (sync_log).
+ *  Es awaitable: si se escribe antes de que termine la invocación, la fila
+ *  sobrevive aunque el runtime mate el request después (antes era
+ *  fire-and-forget y el historial perdía corridas enteras). */
+async function logRun(
   env: Env,
   trigger: "cron" | "manual",
   url: string,
   ok: boolean,
   stats: { imported: number; total: number | null; failed: number | null; deactivated: number; warnings: string[]; errors: string[] },
   startedAt: number
-): void {
+): Promise<void> {
   const motivos: string[] = [...stats.errors, ...stats.warnings];
-  void insertSyncLog(env.DB, {
-    id: newId(),
-    trigger,
-    status: ok ? "ok" : "error",
-    itemsTotal: stats.total,
-    itemsImported: stats.imported,
-    itemsFailed: stats.failed,
-    itemsDeactivated: stats.deactivated,
-    error: ok
-      ? (motivos.length > 0 ? motivos.join("; ").slice(0, 900) : null)
-      : (motivos.join("; ").slice(0, 900) || null),
-    detail: url,
-    startedAt,
-    finishedAt: nowMs(),
-  }).catch(() => { /* el historial no debe romper la corrida */ });
+  try {
+    await insertSyncLog(env.DB, {
+      id: newId(),
+      trigger,
+      status: ok ? "ok" : "error",
+      itemsTotal: stats.total,
+      itemsImported: stats.imported,
+      itemsFailed: stats.failed,
+      itemsDeactivated: stats.deactivated,
+      error: ok
+        ? (motivos.length > 0 ? motivos.join("; ").slice(0, 900) : null)
+        : (motivos.join("; ").slice(0, 900) || null),
+      detail: url,
+      startedAt,
+      finishedAt: nowMs(),
+    });
+  } catch { /* el historial no debe romper la corrida */ }
 }
 
 /** Hora actual en Argentina (America/Argentina/Buenos_Aires) como "HH:MM". */
@@ -60,13 +65,23 @@ export function nowArgentina(): string {
   return fmt.format(new Date());
 }
 
+/** Ventana de atraso: si un job activo con horarios no corre hace más de 24h,
+ *  el próximo tick del cron lo recupera aunque no sea su horario. */
+const STALE_MS = 24 * 60 * 60 * 1000;
+
 /**
  * ¿La auto-importación debe correr ahora? El cron corre cada 1 hora
  * (a las XX:00 exactas), así que solo aplican horarios de horas enteras.
  * Horarios con minutos (legado) corren en su hora entera ("09:10" → tick 09:00).
+ *
+ * Recuperación: un job activo con horarios cuyo lastRunAt tiene más de 24h
+ * (el cron lo salteó por timeout/corte de CPU) corre en este tick aunque
+ * no sea su horario — así una fuente muerta no espera hasta mañana.
  */
-export function isDueNow(job: AutoImport, hhmm: string): boolean {
+export function isDueNow(job: AutoImport, hhmm: string, now = Date.now()): boolean {
   if (!job.active) return false;
+  if (job.times.length === 0) return false;
+  if (job.lastRunAt != null && now - job.lastRunAt > STALE_MS) return true; // atrasado: recuperar
   const [h, m] = hhmm.split(":").map(Number);
   if (h === undefined || m === undefined || Number.isNaN(h) || Number.isNaN(m)) return false;
   if (m !== 0) return false; // el cron solo despierta a las XX:00
@@ -95,13 +110,13 @@ async function runOneJob(env: Env, job: AutoImport, trigger: "cron" | "manual"):
     if (r.items.length === 0) {
       const motivo = r.errors.length > 0 ? r.errors.join("; ") : "La fuente no devolvió productos";
       await markAutoImportRun(env.DB, job.id, "error", nowMs());
-      logRun(env, trigger, job.url, false, { imported: 0, total: 0, failed: 0, deactivated: 0, warnings: [], errors: [motivo] }, startedAt);
+      await logRun(env, trigger, job.url, false, { imported: 0, total: 0, failed: 0, deactivated: 0, warnings: [], errors: [motivo] }, startedAt);
       updateSyncState(env, false, startedAt, motivo);
       return { id: job.id, url: job.url, ok: false, imported: 0, deactivated: 0, warnings: [], error: motivo };
     }
     const outcome = await importItems(env, r.items, { forceRuleId: job.priceRuleId ?? null, sourceUrl: job.url });
     await markAutoImportRun(env.DB, job.id, outcome.ok ? "ok" : "error", nowMs());
-    logRun(env, trigger, job.url, outcome.ok, { imported: outcome.imported, total: outcome.total, failed: outcome.failed, deactivated: outcome.deactivated, warnings: outcome.warnings, errors: outcome.errors }, startedAt);
+    await logRun(env, trigger, job.url, outcome.ok, { imported: outcome.imported, total: outcome.total, failed: outcome.failed, deactivated: outcome.deactivated, warnings: outcome.warnings, errors: outcome.errors }, startedAt);
     updateSyncState(env, outcome.ok, startedAt, outcome.ok ? null : (outcome.errors[0] ?? null));
     return { id: job.id, url: job.url, ok: outcome.ok, imported: outcome.imported, deactivated: outcome.deactivated, warnings: outcome.warnings, error: outcome.ok ? null : (outcome.errors[0] ?? "Error") };
   } catch (e) {
@@ -110,7 +125,7 @@ async function runOneJob(env: Env, job: AutoImport, trigger: "cron" | "manual"):
     const where = e instanceof Error && e.stack ? e.stack.split("\n")[1]?.trim() ?? "" : "";
     const msg = where !== "" ? `${raw} | ${where}` : raw;
     await markAutoImportRun(env.DB, job.id, "error", nowMs());
-    logRun(env, trigger, job.url, false, { imported: 0, total: null, failed: null, deactivated: 0, warnings: [], errors: [msg] }, startedAt);
+    await logRun(env, trigger, job.url, false, { imported: 0, total: null, failed: null, deactivated: 0, warnings: [], errors: [msg] }, startedAt);
     updateSyncState(env, false, startedAt, msg);
     return { id: job.id, url: job.url, ok: false, imported: 0, deactivated: 0, warnings: [], error: msg };
   }
@@ -134,6 +149,8 @@ export async function runAutoImports(env: Env): Promise<AutoImportOutcome> {
       const pend = due.length - results.length;
       const msg = `Cron interrumpido por límite de tiempo: ${pend} fuente(s) quedaron pendientes para el próximo tick`;
       results.push({ id: "", url: "(pendientes)", ok: false, imported: 0, deactivated: 0, warnings: [], error: msg });
+      // La fila va al historial con await: si la invocación muere después, ya está escrita.
+      await logRun(env, "cron", "(pendientes)", false, { imported: 0, total: null, failed: null, deactivated: 0, warnings: [], errors: [msg] }, Date.now());
       break;
     }
     results.push(await runOneJob(env, job, "cron"));
