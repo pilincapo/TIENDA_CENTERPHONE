@@ -154,7 +154,51 @@ app.get("/seguimiento", async (c) => {
   }
   const settings = await getSettings(c.env.KV);
   const dest = settings.trackUrl || "https://repairpro.centerphone.com.ar/track-lite";
-  return c.redirect(dest, 302);
+  // Página intermedia en vez de redirect puro: muestra "Volver al catálogo"
+  // y auto-deriva al seguimiento a los 3 segundos (el destino está en data-attr
+  // para que la página funcione también sin JS).
+  const esc = (s: string): string => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  const html = `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Redirigiendo al seguimiento…</title>
+<style>
+  body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f6f7f9;color:#1c1e21;
+       display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center}
+  .card{background:#fff;border-radius:16px;padding:40px 32px;max-width:420px;width:100%;
+        box-shadow:0 4px 24px rgba(0,0,0,.08)}
+  .emoji{font-size:44px}
+  h1{font-size:20px;margin:16px 0 8px}
+  p{color:#65676b;margin:0 0 24px;font-size:14px}
+  a.btn{display:block;background:#25d366;color:#fff;text-decoration:none;border-radius:10px;
+        padding:14px;font-weight:600;font-size:15px}
+  a.back{display:block;margin-top:12px;color:#65676b;text-decoration:underline;font-size:14px}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="emoji">📦</div>
+  <h1>Te llevamos al seguimiento</h1>
+  <p>Continuando en <b id="count">3</b> segundos… Si no ocurre nada, tocá el botón.</p>
+  <a class="btn" id="go" href="${esc(dest)}">Ir al seguimiento ahora</a>
+  <a class="back" href="/">← Volver al catálogo</a>
+</div>
+<script>
+  // Auto-redirect con cuenta visible; cancelado si el usuario navega por su cuenta.
+  var n = 3;
+  var t = setInterval(function () {
+    n--;
+    var el = document.getElementById("count");
+    if (el) el.textContent = String(n);
+    if (n <= 0) { clearInterval(t); location.replace(document.getElementById("go").href); }
+  }, 1000);
+</script>
+</body>
+</html>`;
+  return c.html(html, 200, { "Cache-Control": "no-store" });
 });
 
 // Fallback: 404.html para páginas, JSON para la API.

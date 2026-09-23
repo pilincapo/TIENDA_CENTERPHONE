@@ -1,3 +1,12 @@
+## 2026-09-23 — Página intermedia de /seguimiento con Volver al catálogo
+
+- `/seguimiento` ya no redirige directo: sirve una **página intermedia** propia (liviana, sin assets) con "📦 Te llevamos al seguimiento"
+- **"← Volver al catálogo"** always visible: el cliente vuelve al home con un clic (el track-lite de RepairPro es externo y no se puede modificar)
+- Auto-redirect con cuenta regresiva de 3s (`location.replace`, no ensucia el historial) + botón "Ir al seguimiento ahora" para los impacientes; el destino está en el `href` (funciona sin JS)
+- `noindex` y `Cache-Control: no-store`: la página no se indexa ni se cachea (el destino cambia con el panel)
+- El evento `track_view` sigue registrándose igual (la lógica de tracking no cambió)
+- Verificado en local y producción. Typecheck ✅, deploy `8b13ec89`
+
 ## 2026-09-23 — Desglose de /seguimiento por ciudad y horario en Estadísticas
 
 - Nuevas agregaciones en `getStatsSummary`: usos de `track_view` agrupados por ciudad/región (top 12) y por hora Argentina (24 barras, mismo formato que el histograma de visitas)
