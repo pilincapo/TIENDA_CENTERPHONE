@@ -1,3 +1,11 @@
+## 2026-09-23 — Botón Seguimiento usa el atajo /seguimiento (redirect dinámico)
+
+- `index.html` y `product.html`: el botón "Seguimiento" del header apunta ahora al atajo corto `/seguimiento` en vez de la URL completa hardcodeada
+- El worker resuelve el destino dinámicamente: lee `trackUrl` del panel (KV) y redirige con **302** — si cambiás la URL en el panel, el atajo corto la respeta al instante, sin redeploy
+- Fallback: si el campo está vacío en el panel, va a `https://repairpro.centerphone.com.ar/track-lite`
+- `store-modals.ts`: ya no sobrescribe el href del botón (solo oculta/muestra según haya URL configurada)
+- Verificado en producción: `/seguimiento` → 302 → track-lite ✅, botón del home con `href="/seguimiento"` ✅. Typecheck ✅, 87/87 tests ✅, deploy `e51da559`
+
 ## 2026-09-23 — Redirección /seguimiento → track-lite
 
 - Nueva ruta 301 en el worker: `centerphone.com.ar/seguimiento` → `https://repairpro.centerphone.com.ar/track-lite`
