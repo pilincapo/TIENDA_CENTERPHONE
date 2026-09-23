@@ -20,6 +20,23 @@ describe("detectBrand", () => {
     expect(detectBrand("Funda Samsung para iPhone 15")).toBe("Samsung");
   });
 
+  it("detecta marcas propias del catálogo (electro, audio, accesorios)", () => {
+    expect(detectBrand("Cable TIME TIPO C mallado 3.1A carga rápida")).toBe("Time");
+    expect(detectBrand("Trípode para parlante ECOPOWER en caja")).toBe("Ecopower");
+    expect(detectBrand("Auricular vincha bluetooth QCY HS2 LITE")).toBe("QCY");
+    expect(detectBrand("Joystick PS5 REDRAGON WARGRIP G831")).toBe("Redragon");
+    expect(detectBrand("Stereo Bluetooth con frente desmontable SEISA QM-C1884")).toBe("Seisa");
+    expect(detectBrand("Mini arrocera automática ORYX 1,2 Litros")).toBe("Oryx");
+    expect(detectBrand("Pava eléctrica de acero HYTOSHY 2 litros")).toBe("Hytoshy");
+    expect(detectBrand("Pila ENERGIZER MAX alcalina AA")).toBe("Energizer");
+  });
+
+  it("no confunde nombres de producto o conectores con marcas", () => {
+    // KITTY/CAPIBARA son diseños de lámparas, no marcas; RCA es un conector
+    expect(detectBrand("Lámpara recargable de silicona KITTY")).toBeNull();
+    expect(detectBrand("Adaptador plug 6,5mm a 2 RCA HEMBRA")).toBeNull();
+  });
+
   it("devuelve null si no reconoce ninguna marca", () => {
     expect(detectBrand("Cargador genérico 20W")).toBeNull();
     expect(detectBrand("")).toBeNull();

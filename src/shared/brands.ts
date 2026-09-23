@@ -50,6 +50,19 @@ const ALIASES: Record<string, string> = {
   anker: "Anker",
   romos: "Romos",
   joyroom: "Joyroom",
+  // Marcas propias del catálogo (electro, audio, accesorios) detectadas
+  // analizando los títulos sin marca del listado:
+  time: "Time",
+  ecopower: "Ecopower",
+  qcy: "QCY",
+  redragon: "Redragon",
+  seisa: "Seisa",
+  oryx: "Oryx",
+  hytoshy: "Hytoshy",
+  energizer: "Energizer",
+  greatnice: "Greatnice",
+  gts: "GTS",
+  zeus: "Zeus",
 };
 
 // Precompiladas una sola vez: palabra completa, ignorando mayúsculas/acentos.

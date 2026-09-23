@@ -1,3 +1,11 @@
+## 2026-09-22 — Detector de marcas ampliado (electro, audio, accesorios)
+
+- Análisis de los 830 títulos sin marca del catálogo: barrido de palabras frecuentes y de términos en MAYÚSCULAS para identificar marcas reales vs. genéricos
+- Nuevas marcas en `src/shared/brands.ts`: **Time** (33 productos), **GTS** (13), **Ecopower** (11), Seisa, Oryx, Hytoshy, QCY, Redragon, Energizer, Greatnice, Zeus
+- Impacto: **113 títulos más** detectan marca (fallback por título del JSON-LD, sin re-importar). El resto (~717) son realmente sin marca (LED, cables genéricos, pilas sueltas) y quedan correctamente sin nodo `brand`
+- Descartados deliberadamente como falsos positivos: KITTY/CAPIBARA/ASTRONAUTA (diseños de lámparas), RCA (conector), MACHO/HEMBRA/BLANCA (atributos)
+- Tests nuevos: detección de las marcas del catálogo + no confusión con conectores/diseños. Typecheck ✅, **87/87 tests** ✅
+
 ## 2026-09-22 — Re-validación en Rich Results Test: brand aceptado, Brand sin name corregido
 
 - Re-prueba de la ficha `/producto/6160` tras el deploy de marca + BreadcrumbList: **3 elementos válidos** (Fragmentos de productos, Fichas de comerciantes y el nuevo **Rutas de exploración/BreadcrumbList, sin problemas**) y 0 errores críticos
