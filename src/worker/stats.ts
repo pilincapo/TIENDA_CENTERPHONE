@@ -6,7 +6,7 @@ import type { Dict } from "./db";
 import type { Env } from "./db";
 import { nowMs } from "./settings";
 
-export type StatEventType = "product_view" | "search" | "home_view" | "wa_click";
+export type StatEventType = "product_view" | "search" | "home_view" | "wa_click" | "track_view";
 
 const DAY_MS = 86_400_000;
 // Retención: 90 días alcanza para el selector más largo del panel. El borrado
@@ -29,7 +29,7 @@ export function normalizeQuery(q: string): string {
 }
 
 export async function trackEvent(env: Env, input: TrackInput): Promise<void> {
-  const types: StatEventType[] = ["product_view", "search", "home_view", "wa_click"];
+  const types: StatEventType[] = ["product_view", "search", "home_view", "wa_click", "track_view"];
   if (!types.includes(input.type)) return;
   const row: Dict = { ts: nowMs(), type: input.type };
   if (input.productId) row.product_id = input.productId.slice(0, 64);
@@ -53,7 +53,7 @@ export async function pruneStats(env: Env): Promise<void> {
 
 export interface StatsSummary {
   since: number;
-  totals: { productViews: number; searches: number; waClicks: number; homeViews: number };
+  totals: { productViews: number; searches: number; waClicks: number; homeViews: number; trackViews: number };
   topProducts: { id: string; title: string; category: string; views: number }[];
   topWa: { id: string; title: string; clicks: number }[];
   topSearches: { query: string; count: number }[];
@@ -158,6 +158,7 @@ export async function getStatsSummary(env: Env, days: number): Promise<StatsSumm
       searches: await count("search"),
       waClicks: await count("wa_click"),
       homeViews: await count("home_view"),
+      trackViews: await count("track_view"),
     },
     topProducts: (topProducts.results ?? []).map((r) => ({ id: String(r.id), title: String(r.title ?? "(eliminado)"), category: String(r.category ?? ""), views: Number(r.views) })),
     topWa: (topWa.results ?? []).map((r) => ({ id: String(r.id), title: String(r.title ?? "(eliminado)"), clicks: Number(r.clicks) })),

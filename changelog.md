@@ -1,3 +1,11 @@
+## 2026-09-23 — Tracking de usos del atajo /seguimiento
+
+- Nuevo tipo de evento `track_view` en estadísticas: cada vez que alguien entra a `/seguimiento` se registra con geo (país/ciudad/región de Cloudflare) y referrer externo
+- El registro vive en el propio handler del redirect (try/catch: la medición nunca rompe el redirect)
+- Panel: nueva tarjeta **"usos de /seguimiento"** en las estadísticas, junto a vistas, búsquedas y consultas WhatsApp — para medir el interés en envíos/seguimiento de pedidos
+- Verificado end-to-end en local (redirect → evento en D1) y en producción (302 → track-lite). Typecheck ✅, 87/87 tests ✅, deploy `cb8900ff`
+- Nota de entorno: el puerto 8787 local quedó ocupado por el dev server de otro proyecto (ZonaLiga); las pruebas locales de este proyecto corren en el 8788
+
 ## 2026-09-23 — Botón Seguimiento usa el atajo /seguimiento (redirect dinámico)
 
 - `index.html` y `product.html`: el botón "Seguimiento" del header apunta ahora al atajo corto `/seguimiento` en vez de la URL completa hardcodeada

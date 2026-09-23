@@ -1645,7 +1645,7 @@ function dayChart(byDay: { day: string; views: number }[]): string {
 
 interface StatsSummary {
   since: number;
-  totals: { productViews: number; searches: number; waClicks: number; homeViews: number };
+  totals: { productViews: number; searches: number; waClicks: number; homeViews: number; trackViews: number };
   topProducts: { id: string; title: string; category: string; views: number }[];
   topWa: { id: string; title: string; clicks: number }[];
   topSearches: { query: string; count: number }[];
@@ -1685,6 +1685,7 @@ async function viewStats(days = 7): Promise<void> {
         <div class="stat-card"><b>${t.searches}</b><span>búsquedas</span></div>
         <div class="stat-card"><b>${t.waClicks}</b><span>consultas WhatsApp</span></div>
         <div class="stat-card"><b>${t.homeViews}</b><span>visitas al home</span></div>
+        <div class="stat-card"><b>${t.trackViews}</b><span>usos de /seguimiento</span></div>
       </div>
     </div>
     <div class="panel">

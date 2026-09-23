@@ -137,6 +137,21 @@ app.get("/admin", (c) => c.redirect("/admin/", 301));
 // en el panel (302 temporal, así siempre respeta el valor actual) con fallback
 // al track-lite de RepairPro si el campo está vacío.
 app.get("/seguimiento", async (c) => {
+  // Registro el uso del atajo (interés en envíos/seguimiento de pedidos).
+  const cf = c.req.raw.cf as Record<string, string> | undefined;
+  const ref = c.req.header("referer");
+  const refHost = ref ? (() => { try { return new URL(ref).host; } catch { return null; } })() : null;
+  try {
+    await trackEvent(c.env, {
+      type: "track_view",
+      country: cf?.country ?? null,
+      city: cf?.city ?? null,
+      region: cf?.region ?? null,
+      referrer: refHost !== c.req.header("host") ? refHost : null,
+    });
+  } catch {
+    // La medición nunca debe romper el redirect.
+  }
   const settings = await getSettings(c.env.KV);
   const dest = settings.trackUrl || "https://repairpro.centerphone.com.ar/track-lite";
   return c.redirect(dest, 302);
