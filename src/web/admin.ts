@@ -1655,6 +1655,8 @@ interface StatsSummary {
   byCountry: { country: string; count: number }[];
   byCity: { city: string; region: string; count: number }[];
   byReferrer: { referrer: string; count: number }[];
+  trackByCity: { city: string; region: string; count: number }[];
+  trackByHour: { hour: number; count: number }[];
 }
 
 const COUNTRY_NAMES: Record<string, string> = {
@@ -1726,6 +1728,21 @@ async function viewStats(days = 7): Promise<void> {
         <table class="table"><tbody>${rows(summary.byCity.map((c) => `<tr><td>${esc(c.city)}${c.region ? ` <small class="muted">(${esc(c.region)})</small>` : ""}</td><td class="num"><b>${c.count}</b></td></tr>`))}</tbody></table>
       </div>
     </div>
+    ${t.trackViews > 0 ? `
+    <div class="panel">
+      <h3>📦 Seguimiento de envíos (/seguimiento)</h3>
+      <div class="st-cols">
+        <div>
+          <h4 class="muted">Por ciudad</h4>
+          <table class="table"><tbody>${rows(summary.trackByCity.map((c) => `<tr><td>${esc(c.city)}${c.region ? ` <small class="muted">(${esc(c.region)})</small>` : ""}</td><td class="num"><b>${c.count}</b></td></tr>`))}</tbody></table>
+        </div>
+        <div>
+          <h4 class="muted">Por hora (Argentina)</h4>
+          <div class="st-hours">${summary.trackByHour.map((h) => `<div class="st-hour" title="${h.count} usos"><span class="st-hlabel">${String(h.hour).padStart(2, "0")}h</span>${bar(h.count)}</div>`).join("")}</div>
+        </div>
+      </div>
+    </div>
+    ` : ""}
     <div class="panel">
       <h3>🔗 Origen de las visitas</h3>
       <table class="table"><tbody>${rows(summary.byReferrer.map((r) => `<tr><td>${esc(r.referrer)}</td><td class="num"><b>${r.count}</b></td></tr>`))}</tbody></table>

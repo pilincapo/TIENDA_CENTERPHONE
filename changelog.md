@@ -1,3 +1,10 @@
+## 2026-09-23 — Desglose de /seguimiento por ciudad y horario en Estadísticas
+
+- Nuevas agregaciones en `getStatsSummary`: usos de `track_view` agrupados por ciudad/región (top 12) y por hora Argentina (24 barras, mismo formato que el histograma de visitas)
+- Panel: nueva sección **"📦 Seguimiento de envíos (/seguimiento)"** con dos columnas (ciudad + horario), visible solo cuando hay usos registrados en el período
+- Permite responder: ¿desde dónde y a qué hora consultan por su pedido? (ej. si se concentra de noche, convence publicar el horario de despacho en el modal Cómo comprar)
+- Verificado en local: 4 usos de prueba registrados con geo (Santa Fe) y agrupación correcta. Typecheck ✅, 87/87 tests ✅, deploy `97b38b3c`
+
 ## 2026-09-23 — Auditoría de links externos: solo WhatsApp y Maps abren en pestaña nueva
 
 - Barrido de todos los `target="_blank"` y `window.open` del sitio público

@@ -63,6 +63,9 @@ export interface StatsSummary {
   byCountry: { country: string; count: number }[];
   byCity: { city: string; region: string; count: number }[];
   byReferrer: { referrer: string; count: number }[];
+  // Desglose del atajo /seguimiento (interés en envíos).
+  trackByCity: { city: string; region: string; count: number }[];
+  trackByHour: { hour: number; count: number }[];
 }
 
 export async function getStatsSummary(env: Env, days: number): Promise<StatsSummary> {
@@ -134,6 +137,15 @@ export async function getStatsSummary(env: Env, days: number): Promise<StatsSumm
     `SELECT COALESCE(referrer, '(directo)') AS referrer, COUNT(*) AS n FROM stats_events
      WHERE ts >= ?1 AND type IN ('product_view','home_view') GROUP BY referrer ORDER BY n DESC LIMIT 10`
   ).bind(since).all<Dict>();
+  // Usos de /seguimiento por ciudad y por hora (mismo formato que visitas).
+  const trackCityRows = await db.prepare(
+    `SELECT COALESCE(city, '?') AS city, COALESCE(region, '') AS region, COUNT(*) AS n FROM stats_events
+     WHERE ts >= ?1 AND type = 'track_view' GROUP BY city, region ORDER BY n DESC LIMIT 12`
+  ).bind(since).all<Dict>();
+  const trackHourRows = await db.prepare(
+    `SELECT ((ts - ?2) / 3600000) % 24 AS h, COUNT(*) AS n FROM stats_events
+     WHERE type = 'track_view' AND ts >= ?1 GROUP BY h ORDER BY h`
+  ).bind(since, AR_OFFSET).all<Dict>();
 
   const mapHour = new Map<number, number>();
   for (const r of byHourRows.results ?? []) mapHour.set(Number(r.h), Number(r.n));
@@ -169,5 +181,10 @@ export async function getStatsSummary(env: Env, days: number): Promise<StatsSumm
     byCountry: (byCountryRows.results ?? []).map((r) => ({ country: String(r.country), count: Number(r.n) })),
     byCity: (byCityRows.results ?? []).map((r) => ({ city: String(r.city), region: String(r.region), count: Number(r.n) })),
     byReferrer: (byReferrerRows.results ?? []).map((r) => ({ referrer: String(r.referrer), count: Number(r.n) })),
+    trackByCity: (trackCityRows.results ?? []).map((r) => ({ city: String(r.city), region: String(r.region), count: Number(r.n) })),
+    trackByHour: Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      count: Number((trackHourRows.results ?? []).find((r) => Number(r.h) === hour)?.n ?? 0),
+    })),
   };
 }
