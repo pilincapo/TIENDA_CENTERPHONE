@@ -1,3 +1,8 @@
+## 2026-09-23 — Redirección /seguimiento → track-lite
+
+- Nueva ruta 301 en el worker: `centerphone.com.ar/seguimiento` → `https://repairpro.centerphone.com.ar/track-lite`
+- Verificada en producción: 301 con `Location` correcto. Typecheck ✅, deploy `0e14aa7c`
+
 ## 2026-09-22 — Detector de marcas ampliado (electro, audio, accesorios)
 
 - Análisis de los 830 títulos sin marca del catálogo: barrido de palabras frecuentes y de términos en MAYÚSCULAS para identificar marcas reales vs. genéricos

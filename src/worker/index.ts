@@ -133,6 +133,8 @@ app.get("/producto/*", (c) =>
   c.env.ASSETS.fetch(new Request(new URL("/product.html", c.req.url)))
 );
 app.get("/admin", (c) => c.redirect("/admin/", 301));
+// Atajo a la página de seguimiento de envíos (track-lite de RepairPro).
+app.get("/seguimiento", (c) => c.redirect("https://repairpro.centerphone.com.ar/track-lite", 301));
 
 // Fallback: 404.html para páginas, JSON para la API.
 app.all("*", async (c) => {
