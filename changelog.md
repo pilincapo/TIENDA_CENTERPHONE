@@ -1,3 +1,11 @@
+## 2026-09-22 — Re-validación en Rich Results Test: brand aceptado, Brand sin name corregido
+
+- Re-prueba de la ficha `/producto/6160` tras el deploy de marca + BreadcrumbList: **3 elementos válidos** (Fragmentos de productos, Fichas de comerciantes y el nuevo **Rutas de exploración/BreadcrumbList, sin problemas**) y 0 errores críticos
+- **El warning de brand/GTIN desapareció**: Google ahora lee la marca (detectada por título o guardada en la columna `brand`) — antes era "no se ha proporcionado ningún identificador internacional"
+- Fix menor detectado por la re-validación: cuando un producto no tiene marca guardada ni detectable (ej. accesorios genéricos), se emitía `{"@type":"Brand"}` sin `name` y Google lo marcaba como warning — ahora el nodo `brand` se omite si no hay nombre (`schema.ts`)
+- Warnings restantes, todos opcionales e inevitables sin sistema de reseñas ni política formal: `review`, `aggregateRating` (Fragmentos) y `hasMerchantReturnPolicy`, `shippingDetails` (Fichas de comerciantes)
+- Typecheck ✅, 85/85 tests ✅, deploy `da061244`
+
 ## 2026-09-22 — Typecheck del worker restaurado (7 errores preexistentes)
 
 - `npm run typecheck` completo (web + worker) volvió a estar verde: estaba roto por drift de tipos de sesiones anteriores que esbuild no detecta (el runtime funcionaba igual)

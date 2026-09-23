@@ -12,6 +12,9 @@ function availabilitySchema(p: Product): string {
 }
 
 export function productJsonLd(p: Product, storeName: string): string {
+  // Si no hay marca guardada ni detectable del título, se omite el nodo:
+  // un Brand sin "name" genera warning en Search Console.
+  const brandName = p.brand ?? detectBrand(p.title);
   const data: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -21,7 +24,7 @@ export function productJsonLd(p: Product, storeName: string): string {
     sku: p.id,
     // Marca guardada en la importación; si el producto es anterior a la
     // columna, se detecta del título en el momento (evita re-importar todo).
-    brand: { "@type": "Brand", name: p.brand ?? detectBrand(p.title) ?? undefined },
+    ...(brandName ? { brand: { "@type": "Brand", name: brandName } } : {}),
     offers: {
       "@type": "Offer",
       url: `https://centerphone.com.ar/producto/${encodeURIComponent(p.id)}`,
