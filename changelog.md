@@ -1,3 +1,9 @@
+## 2026-09-29 — Checklist manual de auditoría de seguridad post-deploy
+
+- Nuevo `CHECKLIST_SEGURIDAD.md`: 7 secciones con comandos curl listos para copiar y resultado esperado de cada caso
+- Cubre: cabeceras (A1), tracking (A2), login + rate limit, flags de cookies, logout que revoca (M4), cambio de contraseña que cierra otras sesiones y persistencia en KV (M1), https forzado (B1/B3), límite de descarga (M3) y smoke test funcional del panel
+- Incluye tabla de resultados con la primera fila ya registrada (auditoría del deploy `189fe0d4`)
+
 ## 2026-09-29 — Fixes M4+B1+B3: logout que revoca sesiones y https forzado en URLs configurables
 
 - **M4 — Logout revoca la sesión**: `POST /api/admin/logout` guarda un epoch de revocación en KV (`admin:sessions-revoked-before`); el middleware rechaza todo token emitido antes de ese epoch (inferido del token: `expiry - TTL`). Una cookie copiada (máquina compartida) muere en el logout, no recién al expirar. Margen de 5s hacia atrás por desvíos de reloj entre isolates. 1 lectura de KV por request admin (lecturas gratis ilimitadas en el free tier)
