@@ -25,6 +25,25 @@ export function newId(): string {
   return [...buf].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * Fuerza https:// en una URL configurable (fix B1/B3): http en texto claro
+ * filtra datos (tokens de sync, destino de seguimiento) a interceptadores.
+ * Acepta vacío; agrega el esquema si falta. Devuelve "" si no es una URL válida.
+ */
+export function forceHttpsUrl(raw: unknown, max: number): string {
+  const s = String(raw ?? "").trim().slice(0, max);
+  if (s === "") return "";
+  const candidate = /^https?:\/\//.test(s) ? s : `https://${s}`;
+  try {
+    const u = new URL(candidate);
+    if (u.protocol !== "https:") return ""; // rechaza http:// explícito
+    u.protocol = "https:";
+    return u.toString();
+  } catch {
+    return "";
+  }
+}
+
 export function nowMs(): number {
   return Date.now();
 }

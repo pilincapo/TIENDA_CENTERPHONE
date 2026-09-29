@@ -45,6 +45,40 @@ function looksLikeHtml(text: string): boolean {
   return head.includes("<!doctype html") || head.includes("<html");
 }
 
+// Límite de descarga por respuesta: una fuente gigante (o maliciosa) no puede
+// reventar la memoria del isolate del free tier. Los JSON de catálogo reales
+// quedan muy por debajo (Shopify 250 items ≈ 1-2MB).
+export const MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024; // 8MB
+
+/** Lee el body con tope de tamaño; error claro si la respuesta lo supera. */
+export async function readBodyCapped(res: Response, maxBytes = MAX_DOWNLOAD_BYTES): Promise<string> {
+  const len = Number(res.headers.get("content-length") ?? "0");
+  if (Number.isFinite(len) && len > maxBytes) {
+    throw new Error(`La respuesta pesa más de ${Math.round(maxBytes / 1024 / 1024)}MB — no se descarga`);
+  }
+  const reader = res.body?.getReader();
+  if (!reader) return await res.text();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      throw new Error(`La respuesta supera el límite de ${Math.round(maxBytes / 1024 / 1024)}MB — descarga abortada`);
+    }
+    chunks.push(value);
+  }
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(merged);
+}
+
 async function fetchText(url: string): Promise<string> {
   // Reintentos automáticos ante errores temporales del sitio de origen: 522/524
   // (Cloudflare del origen saturado), 429 (rate limit) y otros 5xx. En la práctica
@@ -56,8 +90,16 @@ async function fetchText(url: string): Promise<string> {
     if (attempt > 1) await new Promise((r) => setTimeout(r, attempt * 1500)); // 3s y 4.5s
     let res: Response;
     try {
-      res = await fetch(url, { headers: fetchHeaders(), redirect: "follow" });
+      // Timeout de 20s por intento: una fuente colgada no puede consumir el
+      // presupuesto de CPU del plan gratis y matar toda la invocación del cron
+      // (eso perdía las filas del historial de las fuentes ya procesadas).
+      res = await fetch(url, { headers: fetchHeaders(), redirect: "follow", signal: AbortSignal.timeout(20_000) });
     } catch (e) {
+      // Timeout: la fuente existe pero tardó más de 20s en responder.
+      if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) {
+        lastError = new Error("La fuente no respondió en 20 segundos (timeout) — se reintenta");
+        continue;
+      }
       // Fallo de red/DNS: el runtime puede dar mensajes opacos (ej: "internal error;
       // reference = ..."). Traducimos a una causa clara para el historial.
       // Un fallo de red también se reintenta: puede ser un timeout puntual.
@@ -65,7 +107,7 @@ async function fetchText(url: string): Promise<string> {
       continue;
     }
     if (res.ok) {
-      const text = await res.text();
+      const text = await readBodyCapped(res);
       if (text.trim() === "") {
         lastError = new Error("La URL devolvió una respuesta vacía");
         continue;

@@ -17,11 +17,12 @@ import { computeSalud } from "./health";
 import { applyRuleSet, roundToPeso, type PriceRule } from "../shared/pricing";
 import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { extractFromUrl } from "./extract";
-import { getSettings, newId, nowMs, saveSettings } from "./settings";
+import { forceHttpsUrl, getSettings, newId, nowMs, saveSettings } from "./settings";
 import {
   clearSessionCookieHeader, createSessionToken, readSessionCookie,
-  SESSION_TTL_MS, sessionCookieHeader, timingSafeEqualStr, verifySessionToken,
+  SESSION_TTL_MS, sessionCookieHeader, verifySessionToken,
 } from "./auth";
+import { changeAdminPassword, getRevocationEpoch, getSessionSecret, revokeActiveSessions, verifyAdminPassword } from "./admin-credentials";
 
 export const adminApp = new Hono<{ Bindings: Env }>();
 
@@ -52,16 +53,19 @@ adminApp.post("/login", async (c) => {
   }
   const body = await c.req.json<{ password?: string }>().catch(() => null);
   const password = body?.password ?? "";
-  if (!timingSafeEqualStr(password, c.env.ADMIN_PASSWORD ?? "")) {
+  if (!(await verifyAdminPassword(c.env, password))) {
     recordLoginFailure(ip);
     return c.json({ error: "Contraseña incorrecta" }, 401);
   }
-  const token = await createSessionToken(c.env.ADMIN_SESSION_SECRET ?? c.env.ADMIN_PASSWORD);
+  const token = await createSessionToken(await getSessionSecret(c.env));
   c.header("Set-Cookie", sessionCookieHeader(token));
   return c.json({ ok: true });
 });
 
-adminApp.post("/logout", (c) => {
+// Logout: borra la cookie Y revoca la sesión en KV (fix M4). Si alguien copió
+// la cookie (máquina compartida), muere acá — no sigue válida hasta expirar.
+adminApp.post("/logout", async (c) => {
+  await revokeActiveSessions(c.env);
   c.header("Set-Cookie", clearSessionCookieHeader());
   return c.json({ ok: true });
 });
@@ -69,7 +73,7 @@ adminApp.post("/logout", (c) => {
 adminApp.use("*", async (c, next) => {
   if (c.req.path === "/api/admin/login") return next();
   const token = readSessionCookie(c.req.raw);
-  const ok = await verifySessionToken(c.env.ADMIN_SESSION_SECRET ?? c.env.ADMIN_PASSWORD, token);
+  const ok = await verifySessionToken(await getSessionSecret(c.env), token, await getRevocationEpoch(c.env));
   if (!ok) return c.json({ error: "No autorizado" }, 401);
   // Sliding session: si la sesión ya corre más de la mitad de su TTL, se renueva
   // (nueva cookie con 1h fresca). Así, mientras haya uso activo no se corta;
@@ -77,7 +81,7 @@ adminApp.use("*", async (c, next) => {
   const expiry = Number((token ?? "").split(".")[0]);
   const remaining = expiry - nowMs();
   if (Number.isFinite(remaining) && remaining < SESSION_TTL_MS / 2) {
-    const renewed = await createSessionToken(c.env.ADMIN_SESSION_SECRET ?? c.env.ADMIN_PASSWORD);
+    const renewed = await createSessionToken(await getSessionSecret(c.env));
     c.header("Set-Cookie", sessionCookieHeader(renewed));
   }
   await next();
@@ -86,13 +90,15 @@ adminApp.use("*", async (c, next) => {
 adminApp.get("/session", (c) => c.json({ ok: true }));
 
 // Cambio de contraseña: pide la actual y la nueva (mínimo 8 caracteres).
-// Actualiza el secret ADMIN_PASSWORD en caliente para el resto de la vida del isolate
-// (la próxima re-deploy/reinicio usa el secret persistido en Cloudflare).
+// Persiste el hash en KV (sobrevive deploys e isolates) y rota el secret de
+// sesión: todas las sesiones activas (otras pestañas/dispositivos) quedan
+// inválidas y hay que volver a entrar. La cookie actual se renueva aquí mismo
+// con el nuevo secret para no cortar la sesión en curso.
 adminApp.post("/password", async (c) => {
   const body = await c.req.json<{ current?: string; next?: string }>().catch(() => null);
   const current = body?.current ?? "";
   const next = body?.next ?? "";
-  if (!timingSafeEqualStr(current, c.env.ADMIN_PASSWORD ?? "")) {
+  if (!(await verifyAdminPassword(c.env, current))) {
     return c.json({ error: "La contraseña actual no coincide" }, 401);
   }
   if (next.length < 8) {
@@ -101,13 +107,10 @@ adminApp.post("/password", async (c) => {
   if (next === current) {
     return c.json({ error: "La nueva contraseña debe ser distinta de la actual" }, 400);
   }
-  // Persistir en Cloudflare (secret): no se puede desde un Worker (sin procesos).
-  // La contraseña queda activa en caliente para este isolate; para persistirla
-  // el panel avisa (persisted=false) y se ejecuta `npx wrangler secret put ADMIN_PASSWORD`.
-  // (Antes intentaba execSync de node:child_process, que nunca corre en workerd.)
-  const persisted = false;
-  c.env.ADMIN_PASSWORD = next;
-  return c.json({ ok: true, persisted });
+  const newSecret = await changeAdminPassword(c.env, next);
+  // Re-emitir la cookie de sesión con el nuevo secret: la sesión en curso sigue.
+  c.header("Set-Cookie", sessionCookieHeader(await createSessionToken(newSecret)));
+  return c.json({ ok: true, persisted: true });
 });
 
 // ---- Productos ----
@@ -344,13 +347,9 @@ adminApp.post("/snapshot", async (c) => {
 });
 
 // ---- Configuración ----
-
-// Normaliza una URL opcional: acepta vacío; fuerza https:// si falta el esquema.
-function normalizeUrl(v: unknown, max: number): string {
-  const s = String(v ?? "").trim().slice(0, max);
-  if (s === "") return "";
-  return /^https?:\/\//.test(s) ? s : `https://${s}`;
-}
+// B3: todas las URLs configurables fuerzan https:// (forceHttpsUrl rechaza
+// http:// explícito y agrega el esquema si falta).
+const normalizeUrl = forceHttpsUrl;
 
 adminApp.get("/settings", async (c) => {
   return c.json({ settings: await getSettings(c.env.KV) });
@@ -362,7 +361,7 @@ adminApp.put("/settings", async (c) => {
   const settings = await saveSettings(c.env.KV, {
     whatsappPhone: String(body.whatsappPhone ?? "").replace(/[^0-9+]/g, ""),
     currencySymbol: String(body.currencySymbol ?? "$").slice(0, 3) || "$",
-    syncUrl: String(body.syncUrl ?? "").slice(0, 500),
+    syncUrl: forceHttpsUrl(body.syncUrl, 500),
     syncIntervalMinutes: Math.max(15, Math.round(Number(body.syncIntervalMinutes ?? 60))),
     syncToken: String(body.syncToken ?? "").slice(0, 200),
     storeName: String(body.storeName ?? "").slice(0, 60),
@@ -457,11 +456,14 @@ adminApp.get("/auto-imports", async (c) => {
 
 adminApp.post("/auto-imports", async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
-  if (!body?.url || !String(body.url).startsWith("http")) {
-    return c.json({ error: "Falta una URL válida" }, 400);
+  // B1: la URL de la fuente se normaliza a https (un http en claro podría
+  // servir HTML manipulado que termina en el catálogo).
+  const jobUrl = forceHttpsUrl(body?.url, 500);
+  if (!body?.url || jobUrl === "") {
+    return c.json({ error: "Falta una URL válida (https)" }, 400);
   }
   const id = typeof body.id === "string" && body.id.trim() !== "" ? body.id.trim() : newId();
-  const job = sanitizeAutoImport(body, id);
+  const job = sanitizeAutoImport({ ...body, url: jobUrl }, id);
   if (job.label === "") job.label = job.url.replace(/^https?:\/\//, "").slice(0, 80);
   await upsertAutoImport(c.env.DB, job, nowMs());
   return c.json({ job }, 201);
@@ -570,7 +572,9 @@ adminApp.post("/import", async (c) => {
   // chunkIndex/chunkTotal marcan la posición; el ocultado y el snapshot solo
   // se ejecutan en el último chunk (importItems ya lo maneja).
   const skipRules = r.source === "selección";
-  const sourceUrl = body?.url?.trim().startsWith("http") ? body.url.trim() : null;
+  // B1: la URL de origen se registra normalizada a https (si era http://
+  // explícito se descarta como sourceUrl, igual que una vacía).
+  const sourceUrl = forceHttpsUrl(body?.url?.trim(), 500) || null;
   const outcome = await importItems(c.env, r.items, {
     forceRuleId: skipRules ? null : body?.priceRuleId ?? null,
     skipRules,

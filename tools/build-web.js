@@ -21,3 +21,9 @@ for (const f of ["favicon.png", "logo.jpg"]) {
   copyFileSync(join("brand", f), join(dist, f));
 }
 console.log("✔ favicon.png y logo.jpg copiados a public/");
+
+// Cabeceras de seguridad para los assets estáticos (Workers Assets las aplica
+// al servir directo). El archivo vive en la raíz del repo porque vite limpia
+// public/ en cada build.
+copyFileSync("_headers", join(dist, "_headers"));
+console.log("✔ public/_headers copiado");

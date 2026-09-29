@@ -1,3 +1,46 @@
+## 2026-09-29 — Fixes M4+B1+B3: logout que revoca sesiones y https forzado en URLs configurables
+
+- **M4 — Logout revoca la sesión**: `POST /api/admin/logout` guarda un epoch de revocación en KV (`admin:sessions-revoked-before`); el middleware rechaza todo token emitido antes de ese epoch (inferido del token: `expiry - TTL`). Una cookie copiada (máquina compartida) muere en el logout, no recién al expirar. Margen de 5s hacia atrás por desvíos de reloj entre isolates. 1 lectura de KV por request admin (lecturas gratis ilimitadas en el free tier)
+- **B1 — https forzado en fuentes**: nuevo helper `forceHttpsUrl` en `settings.ts` (normaliza agregando `https://` si falta; **rechaza** `http://` explícito). Aplicado a: URLs de auto-importaciones (400 si no es https válida), `sourceUrl` de `/import` y `syncUrl` en settings
+- **B3 — https en /seguimiento**: el destino (`trackUrl`) se pasa por `forceHttpsUrl`; un valor viejo en `http://` cae al fallback https en vez de derivar a texto claro
+- Las URLs de settings del panel (maps/instagram/facebook/track) ahora pasan por la misma validación estricta
+- Tests: 12 nuevos en `session-revoke.test.ts` (revocación en KV, tokens viejos rechazados / nuevos aceptados, persistencia del epoch, `sessionIssuedAt`, y 7 casos de `forceHttpsUrl`). **125 en total** ✅
+- Verificado en vivo (local): login → logout → **la misma cookie da 401** (antes seguiría válida); re-login OK; auto-import con `http://` → 400; sin esquema → se guarda como `https://`; `/seguimiento` con setting http cae al fallback https
+
+## 2026-09-29 — Deploy a producción de los fixes de seguridad (A1+A2+M1+M3)
+
+- Deploy `189fe0d4` a centerphone.com.ar con cabeceras de seguridad, tracking protegido, contraseña persistida en KV y límite de descarga
+- Verificado en producción: CSP/XFO/nosniff/Referrer-Policy/Permissions-Policy en `/`, `/admin/` y `/seguimiento`; `Cache-Control: no-store` en el panel (fix B4 de yapa); tracking externo 403 / propio 204; login con password incorrecta 401 (la real intacta); catálogo API OK; www → apex 301; nonce en `/seguimiento`
+- Ajuste post-deploy 1: la regla `no-store` de `_headers` ahora cubre también `/admin` y `/admin/` (antes solo `/admin/index.html`, que no matchea el path sin sufijo)
+- Ajuste post-deploy 2: la CSP bloqueaba el beacon de Cloudflare Web Analytics (inyectado por el proxy en producción) — agregado `static.cloudflareinsights.com` a `script-src` y `cloudflareinsights.com` a `connect-src`. Verificado en navegador: consola limpia con 980 productos renderizados
+- **Nota**: al cambiar la contraseña desde el panel en producción, ahora persiste en el KV del deploy (no hace falta `wrangler secret put`)
+
+## 2026-09-29 — Fix M1: contraseña admin persistida en KV + invalidación de sesiones
+
+- **El cambio de contraseña desde el panel ahora persiste de verdad**: hash PBKDF2 (SHA-256, 100k iteraciones, salt aleatorio) guardado en KV (`admin:password`). Antes solo mutaba `env.ADMIN_PASSWORD` en el isolate actual — otros isolates seguían aceptando la vieja y al redeployar volvía
+- **Invalidación de sesiones activas**: al cambiar contraseña se rota el secret de sesión (KV `admin:session-secret`); todas las cookies firmadas con el secret anterior quedan inválidas (otras pestañas/dispositivos tienen que volver a entrar). La sesión que hizo el cambio se re-emite con el nuevo secret para no cortarse a sí misma
+- Nuevo módulo `src/worker/admin-credentials.ts`: `verifyAdminPassword` (KV con fallback al secret `ADMIN_PASSWORD` para migración sin pasos manuales), `changeAdminPassword`, `getSessionSecret` (KV → `ADMIN_SESSION_SECRET` → `ADMIN_PASSWORD`, con cache por isolate — de paso implementa el espíritu de M2)
+- `verifySessionToken` ahora usa `timingSafeEqualStr` (compatible Node/workerd; antes dependía de `crypto.subtle.timingSafeEqual` que solo existe en workerd)
+- Login, middleware de sesión y `POST /api/admin/password` usan los nuevos helpers. El panel muestra "Contraseña cambiada y guardada. Las otras sesiones activas quedaron cerradas."
+- Tests: 7 nuevos en `admin-credentials.test.ts` (PBKDF2 verify/salt único, fallback de migración, KV manda sobre secret, persistencia del hash, rotación de secret invalida tokens viejos, cadena de fallbacks del secret). **112 en total** ✅
+- Verificado en vivo (local): login con contraseña de `.dev.vars` (migración) → cambio → la vieja da 401 y la nueva 200 **tras reiniciar el server completo** (isolate nuevo, prueba clave de M1); sesión de otro "dispositivo" → 401 tras el cambio; password restaurada a `admin123` al final. Hash visible en KV local via `wrangler kv key get`
+- Nota para producción: el KV es el del deploy (`celu-store-db` KV namespace) — no requiere `wrangler secret put` para cambiar la contraseña nunca más
+
+## 2026-09-29 — Fixes de seguridad A1+A2+M3 (cabeceras, tracking, límite de descarga)
+
+- **A1 — Cabeceras de seguridad**: nuevo módulo `src/worker/security.ts` con middleware en `index.ts` (aplicadas después de `next()`, con recreación de la respuesta si los headers son inmutables — caso de la Response cruda de ASSETS en `/`). CSP con nonce por request (sin `unsafe-inline` en scripts), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`. Cobertura doble: rutas dinámicas vía middleware, assets estáticos vía nuevo `_headers` (copiado a `public/` en el post-build). `/admin/index.html` además con `Cache-Control: no-store`. La página `/seguimiento` mantiene su único script inline pero ahora con nonce (y CSP propia más estricta con `strict-dynamic`)
+- **A2 — Tracking protegido**: `POST /api/track` rechaza (403) requests sin Origin/Referer propio o de otro dominio. En producción solo acepta `centerphone.com.ar`/`www`; en local también `localhost`/`127.0.0.1` para no romper el desarrollo. Evita el inflado de métricas y el consumo de cuota D1 del free tier
+- **M3 — Límite de descarga**: `fetchText` en `extract.ts` ahora usa `readBodyCapped` (8MB máx): rechaza por `Content-Length` antes de descargar o corta el stream a mitad si el body supera el tope — una fuente gigante no puede reventar la memoria del isolate
+- `wrangler.jsonc`: `run_worker_first` vuelve a solo `["/"]` (probar de enrutar `/admin/*` por el worker rompía el serving del panel — 404)
+- Tests: 14 nuevos (10 de `security.ts` + 4 de `readBodyCapped`), 105 en total. Typecheck ✅, build ✅
+- Verificado en vivo (local): cabeceras presentes en `/`, `/api/*`, `/admin/`, `/seguimiento` y `/assets/*.js`; tracking local 204 / externo 403; catálogo renderiza 829 productos con imágenes de CDN (CSP no rompe); `/seguimiento` auto-deriva (nonce ejecuta); login admin intacto
+
+## 2026-09-29 — Auditoría de seguridad (solo informe, sin cambios de código)
+
+- Revisión completa de auth/sesiones, rutas admin y públicas, SQL, XSS, secrets y extracción de fuentes
+- Informe con hallazgos por severidad en `INFORME_SEGURIDAD.md`: sin cabeceras de seguridad (CSP/XFO) y `/api/track` sin límites como prioridad alta; cambio de contraseña por-isolate, secret de sesión, límite de tamaño en `fetchText`, logout no invalida token, etc.
+- Lo verificado como correcto: HMAC timing-safe, cookies HttpOnly/Secure/SameSite, SQL 100% parametrizado, secrets fuera del repo, escapado HTML consistente, rate limit de login
+
 ## 2026-09-23 — Panel de salud semanal del cron en el Dashboard
 
 - Nuevo panel **"Salud del cron (7 días)"** entre "Estado por fuente" y el historial:

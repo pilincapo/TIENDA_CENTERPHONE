@@ -1748,8 +1748,8 @@ async function viewSettings(): Promise<void> {
         body: JSON.stringify({ current: fd.get("current"), next }),
       });
       toast(res.persisted
-        ? "Contraseña cambiada y guardada en Cloudflare. Usala la próxima vez que entres."
-        : "Contraseña cambiada en esta sesión (en local no se persiste automáticamente; actualizá .dev.vars)");
+        ? "Contraseña cambiada y guardada. Las otras sesiones activas quedaron cerradas."
+        : "Contraseña cambiada en esta sesión solamente (no se pudo persistir)");
       pwForm.reset();
     } catch (e) {
       toast(e instanceof Error ? e.message : "Error", false);

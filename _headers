@@ -1,0 +1,15 @@
+# Cabeceras de seguridad para los assets estáticos (Workers Assets).
+# Las rutas dinámicas del worker reciben las mismas cabeceras vía middleware
+# (src/worker/security.ts). Sin nonce aquí: los HTML estáticos no tienen
+# scripts inline (solo la página /seguimiento, que genera el worker con nonce).
+/admin/index.html
+/admin
+/admin/
+  Cache-Control: no-store
+
+/*
+  Content-Security-Policy: default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self' https://cloudflareinsights.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()

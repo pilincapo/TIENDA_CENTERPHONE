@@ -8,7 +8,8 @@
     "directory": "./public",
     "binding": "ASSETS",
     // El home (/) pasa primero por el worker: necesario para el redirect 301 de
-    // www → dominio sin www. El resto de assets se sirve directo (más rápido).
+    // www → dominio sin www. El resto de assets se sirve directo (más rápido) y
+    // recibe las cabeceras de seguridad vía el archivo public/_headers.
     "run_worker_first": ["/"]
   },
   "triggers": {

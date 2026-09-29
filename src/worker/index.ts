@@ -4,15 +4,33 @@ import { Hono } from "hono";
 import type { CatalogSnapshot } from "../shared/types";
 import type { Env } from "./db";
 import { adminApp } from "./admin";
-import { getSettings } from "./settings";
+import { forceHttpsUrl, getSettings } from "./settings";
 import { getProduct, listProducts } from "./db";
 import { getSnapshot, isSyncDue, regenerateSnapshot, runSync } from "./sync";
 import { runAutoImports } from "./autoimport";
 import { seoApp } from "./seo";
 import { trackEvent, pruneStats, type StatEventType } from "./stats";
 import { isValidPhone } from "../shared/whatsapp";
+import { applySecurityHeaders, isAllowedTrackOrigin, newNonce } from "./security";
 
 const app = new Hono<{ Bindings: Env }>();
+
+// Cabeceras de seguridad en todas las respuestas (CSP con nonce por request,
+// X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy). Se aplican
+// después de next() para cubrir también handlers que devuelven la Response
+// cruda de ASSETS.fetch (como "/").
+app.use("*", async (c, next) => {
+  await next();
+  try {
+    applySecurityHeaders(c);
+  } catch {
+    // Respuesta con headers inmutables (ej: la Response cruda de ASSETS.fetch
+    // en "/"): se recrea con headers copiados y ahora mutables.
+    const r = c.res;
+    c.res = new Response(r.body, { status: r.status, statusText: r.statusText, headers: new Headers(r.headers) });
+    applySecurityHeaders(c);
+  }
+});
 
 app.route("/api/admin", adminApp);
 app.route("/", seoApp);
@@ -93,7 +111,13 @@ app.get("/api/public/settings", async (c) => {
 // Tracking de estadísticas (beacon del frontend). La geo viene de request.cf,
 // que Cloudflare provee gratis en cada request — no se usa ninguna API externa.
 // Respuesta vacía 204: el beacon no espera cuerpo.
+// Solo acepta beacons del propio sitio: sin esto, cualquier script externo
+// puede inflar las métricas (visitas, clicks de WhatsApp) y quemar la cuota
+// D1 del free tier.
 app.post("/api/track", async (c) => {
+  if (!isAllowedTrackOrigin(c.req.header("origin"), c.req.header("referer"), c.req.header("host"))) {
+    return c.json({ error: "Origen no permitido" }, 403);
+  }
   const cf = c.req.raw.cf as Record<string, string> | undefined;
   const ref = c.req.header("referer");
   const refHost = ref ? (() => { try { return new URL(ref).host; } catch { return null; } })() : null;
@@ -153,11 +177,18 @@ app.get("/seguimiento", async (c) => {
     // La medición nunca debe romper el redirect.
   }
   const settings = await getSettings(c.env.KV);
-  const dest = settings.trackUrl || "https://repairpro.centerphone.com.ar/track-lite";
+  // B3: el destino se fuerza a https (el trackUrl viejo pudo guardarse como
+  // http:// antes de la validación; el fallback ya es https). Si el valor
+  // guardado no es una URL válida/https, se usa el fallback.
+  const dest = forceHttpsUrl(settings.trackUrl, 300) || "https://repairpro.centerphone.com.ar/track-lite";
   // Página intermedia en vez de redirect puro: muestra "Volver al catálogo"
   // y auto-deriva al seguimiento a los 3 segundos (el destino está en data-attr
   // para que la página funcione también sin JS).
   const esc = (s: string): string => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  // CSP con nonce: el único <script> inline del sitio es el auto-redirect de
+  // esta página; sin nonce la CSP 'self' lo bloquearía.
+  const nonce = newNonce();
+  c.header("Content-Security-Policy", `default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}' 'strict-dynamic'`);
   const html = `<!doctype html>
 <html lang="es">
 <head>
@@ -186,7 +217,7 @@ app.get("/seguimiento", async (c) => {
   <a class="btn" id="go" href="${esc(dest)}">Ir al seguimiento ahora</a>
   <a class="back" href="/">← Volver al catálogo</a>
 </div>
-<script>
+<script nonce="${nonce}">
   // Auto-redirect con cuenta visible; cancelado si el usuario navega por su cuenta.
   var n = 3;
   var t = setInterval(function () {

@@ -27,7 +27,7 @@ describe("computeSalud", () => {
     expect(a.duracionMediaMs).toBe(4333); // (5000+7000+1000)/3
     expect(a.ultimoError).toBe("502");
     // Orden: más corridas primero.
-    expect(s.fuentes[0].url).toBe("https://a.com/x");
+    expect(s.fuentes[0]!.url).toBe("https://a.com/x");
   });
 
   it("excluye filas de más de 7 días y filas sin finished_at no rompen la duración", () => {
@@ -39,7 +39,7 @@ describe("computeSalud", () => {
       now
     );
     expect(s.totalCorridas).toBe(1);
-    expect(s.fuentes[0].duracionMediaMs).toBe(0);
+    expect(s.fuentes[0]!.duracionMediaMs).toBe(0);
   });
 
   it("ventana vacía devuelve todo en ceros sin dividir por cero", () => {
