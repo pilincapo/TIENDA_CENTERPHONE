@@ -13,6 +13,9 @@ export interface Env {
   ASSETS: Fetcher;
   ADMIN_PASSWORD: string;
   ADMIN_SESSION_SECRET: string;
+  // Pago online (MercadoPago): secret. Vacío = pagos deshabilitados aunque el
+  // panel tenga el toggle activado.
+  MERCADOPAGO_ACCESS_TOKEN?: string;
   // Opcionales: habilitan la purga del caché edge de /api/catalog al regenerar
   // el snapshot. Sin ellos, la purga se omite silenciosamente (el sitio funciona igual).
   CF_ZONE_ID?: string;

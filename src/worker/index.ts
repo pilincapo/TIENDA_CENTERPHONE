@@ -12,6 +12,8 @@ import { seoApp } from "./seo";
 import { trackEvent, pruneStats, type StatEventType } from "./stats";
 import { isValidPhone } from "../shared/whatsapp";
 import { applySecurityHeaders, isAllowedTrackOrigin, newNonce } from "./security";
+import { checkoutApp } from "./checkout";
+import { orderPageApp } from "./orders-page";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -33,6 +35,8 @@ app.use("*", async (c, next) => {
 });
 
 app.route("/api/admin", adminApp);
+app.route("/", checkoutApp);
+app.route("/", orderPageApp);
 app.route("/", seoApp);
 
 // Snapshot público (servido desde KV, con regeneración de emergencia).
@@ -100,6 +104,8 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     howTitle: s.howTitle,
     howPickupNote: s.howPickupNote,
     freshHours: s.freshHours,
+    paymentsEnabled: s.paymentsEnabled,
+    checkoutNote: s.checkoutNote,
   };
 }
 

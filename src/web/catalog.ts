@@ -6,6 +6,7 @@ import { formatPrice, tagLabel } from "../shared/format";
 import { waLinkText } from "../shared/whatsapp";
 import { fillStoreInfo, setupModals } from "./store-modals";
 import { track } from "./track";
+import { setupCartUI } from "./cart-ui";
 
 type SortMode = "default" | "price-asc" | "price-desc" | "random";
 
@@ -67,6 +68,8 @@ async function init(): Promise<void> {
     if (state.settings) {
       setupModals(state.settings);
       fillStoreInfo(state.settings);
+      // Carrito + pago online (botón header, modal y delegación de clicks).
+      setupCartUI(state.settings, state.snapshot?.products ?? []);
       if (state.settings.storeName) {
         // El nombre del panel manda: title + og:title/og:description dinámicos.
         const fullTitle = `${state.settings.storeName} — Catálogo`;
@@ -358,6 +361,14 @@ function cardHtml(p: Product, eager = false): string {
   const wa = state.settings?.whatsappOk
     ? `<button class="card-wa" data-wa="${esc(p.id)}" title="Consultar por WhatsApp">Consultar</button>`
     : "";
+  // Pago online: solo "En stock". Agregar suma al carrito; Comprar abre el
+  // checkout directo con ese producto (o el carrito si ya tenía cosas).
+  const buy = state.settings?.paymentsEnabled && p.availability === "in_stock"
+    ? `<span class="card-buy-row">
+         <button class="card-add" data-add="${esc(p.id)}" type="button" title="Agregar al carrito">Agregar</button>
+         <button class="card-buy" data-buy="${esc(p.id)}" type="button" title="Comprar ahora con MercadoPago">Comprar</button>
+       </span>`
+    : "";
   return `
     <div class="card-wrap">
       <a class="card" href="/producto/${esc(p.id)}">
@@ -369,6 +380,7 @@ function cardHtml(p: Product, eager = false): string {
             <span class="card-price">${formatPrice(p.priceCents, symbol)}</span>
             ${wa}
           </div>
+          ${buy}
         </div>
       </a>
     </div>`;

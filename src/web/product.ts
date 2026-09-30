@@ -9,6 +9,7 @@ import { productJsonLd, breadcrumbJsonLd } from "./schema";
 import { setupModals, fillStoreInfo } from "./store-modals";
 import { track } from "./track";
 import { isFresh, cdnSrcset } from "./catalog";
+import { setupCartUI } from "./cart-ui";
 
 interface DetailResponse {
   product: Product;
@@ -103,6 +104,13 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
   const wa = settings.whatsappOk
     ? waLink(settings, product, location.origin)
     : null;
+  // Pago online en la ficha: solo "En stock". Los botones se agregan al HTML
+  // si el carrito está habilitado (setupCartUI los conecta por delegación).
+  const buyable = settings.paymentsEnabled && product.availability === "in_stock" && !product.hiddenNoStock;
+  const buyButtons = buyable
+    ? `<button class="btn btn-primary" data-buy="${esc(product.id)}" type="button">💳 Comprar ahora</button>
+       <button class="btn btn-secondary" data-add="${esc(product.id)}" type="button">Agregar al carrito</button>`
+    : "";
 
   el.app.innerHTML = `
     <div class="product-detail">
@@ -115,6 +123,7 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
         ${hiddenNotice}
         <p class="muted">Disponibilidad: ${esc(availabilityLabel(product.availability))}</p>
         <div class="actions">
+          ${buyButtons}
           ${wa ? `<a class="btn btn-wa" href="${esc(wa)}" target="_blank" rel="noopener" data-wa-track="${esc(product.id)}">💬 Consultar por WhatsApp</a>` : ""}
           <a class="btn" href="/">← Seguir viendo</a>
         </div>
@@ -152,6 +161,8 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
   // Botón "Cómo comprar" del header: modal compartido con el home.
   setupModals(settings);
   fillStoreInfo(settings);
+  // Carrito + pago online (solo el producto de la ficha en el cache local).
+  setupCartUI(settings, [product]);
 
   // Tracking de clics a WhatsApp (botón inline y flotante).
   document.querySelectorAll("[data-wa-track]").forEach((a) => {

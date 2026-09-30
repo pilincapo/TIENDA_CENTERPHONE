@@ -1,7 +1,8 @@
 // Rutas de administración (montadas en /api/admin).
 
 import { Hono } from "hono";
-import type { Category, Product, SyncLogEntry } from "../shared/types";
+import type { Category, OrderStatus, Product, SyncLogEntry } from "../shared/types";
+import { ORDER_STATUSES } from "../shared/types";
 import type { AutoImport } from "../shared/autoimport";
 import { TAGS } from "../shared/types";
 import type { Env } from "./db";
@@ -18,6 +19,7 @@ import { applyRuleSet, roundToPeso, type PriceRule } from "../shared/pricing";
 import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { extractFromUrl } from "./extract";
 import { forceHttpsUrl, getSettings, newId, nowMs, saveSettings } from "./settings";
+import { adminSetOrderStatus, listOrders, setOrderNotifiedWa } from "./orders";
 import {
   clearSessionCookieHeader, createSessionToken, readSessionCookie,
   SESSION_TTL_MS, sessionCookieHeader, verifySessionToken,
@@ -346,6 +348,36 @@ adminApp.post("/snapshot", async (c) => {
   return c.json({ ok: true, products: snapshot.products.length });
 });
 
+// ---- Pedidos (pago online) ----
+
+adminApp.get("/orders", async (c) => {
+  const status = c.req.query("status") ?? "";
+  const limit = Number(c.req.query("limit") ?? 100);
+  return c.json({ orders: await listOrders(c.env.DB, status, Number.isFinite(limit) ? limit : 100) });
+});
+
+// Cambio manual de estado (Plan B si MP no avisa por webhook, o corrección).
+adminApp.patch("/orders/:id", async (c) => {
+  const body = await c.req.json<{ status?: unknown }>().catch(() => null);
+  const status = String(body?.status ?? "");
+  if (!ORDER_STATUSES.includes(status as OrderStatus)) return c.json({ error: "Estado inválido" }, 400);
+  const order = await adminSetOrderStatus(c.env.DB, c.req.param("id"), status as OrderStatus);
+  if (!order) return c.json({ error: "Pedido no encontrado" }, 404);
+  return c.json({ order });
+});
+
+// Marca "comprador notificado por WhatsApp" (informativo para el panel).
+adminApp.post("/orders/:id/notified", async (c) => {
+  await setOrderNotifiedWa(c.env.DB, c.req.param("id"));
+  return c.json({ ok: true });
+});
+
+// Indicador del panel: hay token configurado y toggle activado (no expone nada).
+adminApp.get("/payments/status", async (c) => {
+  const settings = await getSettings(c.env.KV);
+  return c.json({ configured: (c.env.MERCADOPAGO_ACCESS_TOKEN ?? "") !== "", enabled: settings.paymentsEnabled });
+});
+
 // ---- Configuración ----
 // B3: todas las URLs configurables fuerzan https:// (forceHttpsUrl rechaza
 // http:// explícito y agrega el esquema si falta).
@@ -375,6 +407,8 @@ adminApp.put("/settings", async (c) => {
     howTitle: String(body.howTitle ?? "").slice(0, 80),
     howPickupNote: String(body.howPickupNote ?? "").slice(0, 300),
     freshHours: Math.min(24 * 30, Math.max(0, Math.round(Number(body.freshHours ?? 48)))) ,
+    paymentsEnabled: body.paymentsEnabled === true,
+    checkoutNote: String(body.checkoutNote ?? "").slice(0, 300),
   });
   return c.json({ settings });
 });

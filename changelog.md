@@ -1,3 +1,37 @@
+## 2026-09-29 — Fix de configuración de pagos en producción (secret + toggle)
+
+- **Secret mal creado corregido**: el intento anterior de `wrangler secret put` había guardado el token como **nombre** del secret (request interactivo: pide nombre y valor por separado). Creado `MERCADOPAGO_ACCESS_TOKEN` con el token renovado como valor y borrado el secret-artefacto. Confirmado que usa la credencial RENOVADA: el `pref_id` de MP arranca con el app id nuevo (`13230033`)
+- **Toggle `paymentsEnabled` estaba en `false` en la KV de producción** (el guardado desde el panel nunca llegó o se hizo antes del deploy): activado directamente en KV remota (`config:settings:v1`), preservando el resto de los valores
+- Verificado end-to-end en producción: `POST /api/checkout` crea preferencia real (producto $840), pedido en D1 remota con precio recalculado server-side, `/pedido/:id` en vivo y checkout de MP cargando con los medios de pago del vendedor
+- Lección: `npx wrangler secret list` muestra solo nombres — si el valor queda vacío el worker responde 503 "pago online no habilitado" sin más pista
+
+## 2026-09-29 — Deploy a producción: carrito + MercadoPago en centerphone.com.ar
+
+- Migración D1 **remota** aplicada (tabla `orders` + índice, 8 tablas + `_cf_KV`) y deploy `bd1c4a85` con todo el flujo de pagos
+- Verificado en producción: home 200, `/api/admin/orders` sin sesión 401, webhook responde, `/pedido/:id` inexistente 404, checkout **503 correcto** hasta activar el toggle en el panel
+- Pendiente del usuario: renovar el token de MP (el anterior quedó expuesto en el chat), cargarlo con `wrangler secret put MERCADOPAGO_ACCESS_TOKEN` y activar "Pagos online" en Configuración → Pagos del panel de producción
+- El webhook no requiere configuración en MP: la `notification_url` viaja en cada preferencia
+
+## 2026-09-29 — Token MP configurado + fix de auto_return/back_urls en local
+
+- Token de acceso de MercadoPago cargado en `.dev.vars` (local); `payments/status` ahora reporta `configured: true` y **el checkout crea preferencias reales**: verificado end-to-end con el checkout de MP abierto en navegador ("¿Cómo querés pagar?" con saldo del vendedor)
+- **Fix: `auto_return` condicional** — MP rechaza la preferencia (`auto_return invalid. back_url.success must be defined`) cuando las `back_urls` no son https (caso local `http://127.0.0.1`). Ahora `auto_return` + `notification_url` solo se envían si `siteUrl` es https: en producción idéntico a antes, en local MP muestra el botón "Volver al sitio" y el webhook se puede probar con túnel https (cloudflared)
+- `CF_SITE_ORIGIN` comentado en `.dev.vars` durante las pruebas (las `back_urls` apuntan a localhost); en producción no hace falta: cae al `url.origin` real del request
+- Nota de seguridad: el token compartido por chat es de **producción** (`APP_USR-`) — recomendación de renovarlo desde el panel de MP; solo vive en `.dev.vars` (gitignoreado)
+- 146/146 tests ✅ tras los cambios
+
+## 2026-09-29 — Carrito + pago online con MercadoPago (Checkout Pro)
+
+- **Nueva vía de cierre de venta**: carrito en `localStorage` con botones **Agregar** / **Comprar** en cards y ficha (solo "En stock"; sin stock sigue solo por WhatsApp), modal de carrito con cantidades (+/−), total, nota de envío configurable y opción de "Consultar este pedido" por WhatsApp
+- **Checkout Pro**: `POST /api/checkout` valida el carrito **recalculando todos los precios desde D1** (el cliente solo manda `{id, qty}` — nunca precios ni totales), guarda el pedido en la nueva tabla `orders` con precios congelados y devuelve la URL de MercadoPago. Sin token configurado, `503` y el sitio funciona exactamente como antes
+- **Webhook anti-fraude**: `POST /api/payments/webhook` responde 200 enseguida y con `waitUntil` **re-consulta el pago a la API de MP** (`GET /v1/payments/:id` con el secret); solo marca "pagado" si es `approved`, no es `test_mode` y la `external_reference` corresponde a un pedido conocido (idempotente, no baja un pedido de paid)
+- **Página `/pedido/:id`** (HTML en worker con nonce, `noindex`): estado en vivo (auto-refresh 5s), detalle de ítems, total y botón **WhatsApp pre-cargado** con el detalle del pedido para coordinar entrega. El id de 32 hex es la única credencial (intratable)
+- **Panel**: pestaña **Pedidos** con filtros por estado, detalle de comprador/ítems/MP ID, acciones (marcar pagado, cancelar, "Ya avisé" que abre WhatsApp al comprador), y sección **Pagos** en Configuración con toggle `paymentsEnabled`, nota de checkout, indicador de token configurado sí/no y instrucciones del secret + webhook
+- Secret nuevo `MERCADOPAGO_ACCESS_TOKEN` (`.dev.vars` local con valor vacío; en producción `npx wrangler secret put`). `AGENTS.md` actualizado: carrito + pagos quedan dentro del alcance del proyecto
+- Settings nuevos: `paymentsEnabled` (default off) y `checkoutNote`. `publicSettings` los expone al frontend
+- Tests: 21 nuevos (validación server-side del carrito, cliente MP con fetch mockeado, carrito localStorage) — **146 en total** ✅. Typecheck ✅
+- Schema D1: tabla `orders` + índice (aplicada en local; en producción correr `wrangler d1 execute celu-store-db --remote --file=db/schema.sql` al deployar)
+
 ## 2026-09-29 — Checklist manual de auditoría de seguridad post-deploy
 
 - Nuevo `CHECKLIST_SEGURIDAD.md`: 7 secciones con comandos curl listos para copiar y resultado esperado de cada caso

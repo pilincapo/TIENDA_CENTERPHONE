@@ -14,4 +14,8 @@ export interface PublicSettings {
   howTitle: string;
   howPickupNote: string;
   freshHours: number;
+  /** Pago online activado en el panel (requiere además el secret del worker). */
+  paymentsEnabled: boolean;
+  /** Nota de envío/retiro para el carrito y el pedido. */
+  checkoutNote: string;
 }

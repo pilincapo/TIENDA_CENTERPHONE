@@ -69,3 +69,24 @@ CREATE TABLE IF NOT EXISTS auto_imports (
 CREATE INDEX IF NOT EXISTS idx_products_status   ON products(status);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_categories_parent ON categories(parent_id);
+
+-- Pedidos con pago online (MercadoPago Checkout Pro). El id es aleatorio e
+-- intratable: la página pública /pedido/:id muestra el estado solo con ese link.
+CREATE TABLE IF NOT EXISTS orders (
+  id                 TEXT PRIMARY KEY,
+  status             TEXT NOT NULL DEFAULT 'pending',  -- pending | paid | cancelled | rejected
+  total_cents        INTEGER NOT NULL,
+  currency           TEXT NOT NULL DEFAULT 'ARS',
+  buyer_name         TEXT NOT NULL DEFAULT '',
+  buyer_phone        TEXT NOT NULL DEFAULT '',
+  payer_email        TEXT,                             -- email que reporta MP en el pago
+  items_json         TEXT NOT NULL DEFAULT '[]',       -- [{id,title,qty,priceCents}] congelados al crear
+  mp_preference_id   TEXT,
+  mp_payment_id      TEXT,
+  paid_at            INTEGER,
+  notified_wa        INTEGER NOT NULL DEFAULT 0,
+  created_at         INTEGER NOT NULL,
+  updated_at         INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status, created_at);

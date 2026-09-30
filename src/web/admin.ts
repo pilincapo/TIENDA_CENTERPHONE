@@ -1,6 +1,7 @@
 // SPA del panel de administración.
 
-import type { Category, Product, StoreSettings, SyncLogEntry } from "../shared/types";
+import type { Category, Order, Product, StoreSettings, SyncLogEntry } from "../shared/types";
+import { formatPrice } from "../shared/format";
 import type { AutoImport } from "../shared/autoimport";
 import type { PriceRule } from "../shared/pricing";
 import { findOverlaps, groupNames } from "../shared/pricing";
@@ -66,6 +67,7 @@ async function render(): Promise<void> {
     else if (tab === "rules") await viewRules();
     else if (tab === "auto") await viewAutoImports();
     else if (tab === "stats") await viewStats();
+    else if (tab === "orders") await viewOrders();
     else if (tab === "settings") await viewSettings();
     else await viewDashboard();
   } catch (e) {
@@ -1650,6 +1652,97 @@ function openAutoForm(job: AutoImport | null, rules: PriceRule[], groups: string
 
 // ---- Configuración ----
 
+// ---- Pedidos (pago online) ----
+
+const ORDER_STATUS_META: Record<string, { label: string; cls: string }> = {
+  pending: { label: "Pendiente", cls: "ord-pending" },
+  paid: { label: "Pagado", cls: "ord-paid" },
+  cancelled: { label: "Cancelado", cls: "ord-cancelled" },
+  rejected: { label: "Rechazado", cls: "ord-rejected" },
+};
+
+async function viewOrders(statusFilter = ""): Promise<void> {
+  const [{ orders }, payments] = await Promise.all([
+    api<{ orders: Order[] }>(`/orders${statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : ""}`),
+    api<{ configured: boolean; enabled: boolean }>("/payments/status").catch(() => ({ configured: false, enabled: false })),
+  ]);
+  const symbol = "$";
+  const chips = ["", "pending", "paid", "cancelled", "rejected"];
+  const chipLabels: Record<string, string> = { "": "Todos", pending: "Pendientes", paid: "Pagados", cancelled: "Cancelados", rejected: "Rechazados" };
+  const rows = orders.map((o) => {
+    const meta = ORDER_STATUS_META[o.status] ?? ORDER_STATUS_META["pending"]!;
+    const items = o.items.map((i) => `${i.qty}x ${esc(i.title)}`).join(" · ");
+    const fecha = new Date(o.createdAt).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    return `
+    <tr>
+      <td><span class="ord-id" title="${esc(o.id)}">${esc(o.id.slice(0, 10))}…</span><br>
+          <small class="muted">${fecha}</small></td>
+      <td>${esc(o.buyerName)}<br><small class="muted">${esc(o.buyerPhone)}</small>${o.payerEmail ? `<br><small class="muted">${esc(o.payerEmail)}</small>` : ""}</td>
+      <td class="ord-items" title="${esc(items)}">${items}</td>
+      <td class="num"><b>${formatPrice(o.totalCents, symbol)}</b></td>
+      <td><span class="ord-badge ${meta.cls}">${meta.label}</span>${o.mpPaymentId ? `<br><small class="muted">MP ${esc(o.mpPaymentId)}</small>` : ""}</td>
+      <td class="ord-actions">
+        ${o.status === "pending" ? `<button class="btn" data-ord-pay="${esc(o.id)}" title="Marcar pagado (verificado fuera de la web)">✓ Pagado</button>` : ""}
+        ${o.status !== "cancelled" && o.status !== "paid" ? `<button class="btn" data-ord-cancel="${esc(o.id)}">✕ Cancelar</button>` : ""}
+        ${o.status === "paid" && !o.notifiedWa ? `<button class="btn" data-ord-wa="${esc(o.id)}" data-wa-phone="${esc(o.buyerPhone)}">💬 Ya avisé</button>` : ""}
+        <a class="btn" href="/pedido/${esc(o.id)}" target="_blank" rel="noopener">Ver</a>
+      </td>
+    </tr>`;
+  }).join("");
+  el.view.innerHTML = `
+    <div class="panel">
+      <div class="stats-head">
+        <h2>🧾 Pedidos</h2>
+        <div class="stats-range">
+          ${chips.map((s) => `<button class="chip ${s === statusFilter ? "on" : ""}" data-ord-filter="${s}">${chipLabels[s] ?? s}</button>`).join("")}
+        </div>
+      </div>
+      ${payments.configured && payments.enabled
+        ? `<p class="muted">Pago online activo: MercadoPago confirma solo vía webhook.</p>`
+        : `<p class="muted">Pago online ${payments.configured ? "configurado pero <b>desactivado</b> en Configuración → Pagos" : "<b>sin token</b>: configurá el secret <code>MERCADOPAGO_ACCESS_TOKEN</code> (ver Configuración → Pagos)"}. Los pedidos que veas acá se confirman a mano.</p>`}
+      ${orders.length === 0
+        ? `<p class="muted">Todavía no hay pedidos${statusFilter ? " con este estado" : ""}.</p>`
+        : `<table class="table ord-table">
+            <thead><tr><th>Pedido</th><th>Comprador</th><th>Productos</th><th class="num">Total</th><th>Estado</th><th></th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`}
+    </div>`;
+  el.view.querySelectorAll<HTMLButtonElement>("button[data-ord-filter]").forEach((b) => {
+    b.addEventListener("click", () => void viewOrders(b.dataset.ordFilter ?? ""));
+  });
+  el.view.querySelectorAll<HTMLButtonElement>("button[data-ord-pay]").forEach((b) => {
+    b.addEventListener("click", async () => {
+      try {
+        await api(`/orders/${encodeURIComponent(b.dataset.ordPay ?? "")}`, { method: "PATCH", body: JSON.stringify({ status: "paid" }) });
+        toast("Pedido marcado como pagado");
+        void viewOrders(statusFilter);
+      } catch (e) { toast(e instanceof Error ? e.message : "Error", false); }
+    });
+  });
+  el.view.querySelectorAll<HTMLButtonElement>("button[data-ord-cancel]").forEach((b) => {
+    b.addEventListener("click", async () => {
+      try {
+        await api(`/orders/${encodeURIComponent(b.dataset.ordCancel ?? "")}`, { method: "PATCH", body: JSON.stringify({ status: "cancelled" }) });
+        toast("Pedido cancelado");
+        void viewOrders(statusFilter);
+      } catch (e) { toast(e instanceof Error ? e.message : "Error", false); }
+    });
+  });
+  // Botón "Ya avisé": abre WhatsApp con mensaje pre-cargado al comprador y
+  // marca el pedido como notificado (fire-and-forget).
+  el.view.querySelectorAll<HTMLButtonElement>("button[data-ord-wa]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const phone = (b.dataset.waPhone ?? "").replace(/\D/g, "");
+      const dest = phone.length > 0 ? (phone.startsWith("54") || phone.startsWith("9") ? phone : `549${phone}`) : "";
+      const text = encodeURIComponent("Hola! Te confirmo que tu pago quedó acreditado. Coordinamos la entrega cuando quieras.");
+      if (dest !== "") window.open(`https://wa.me/${dest}?text=${text}`, "_blank", "noopener");
+      void api(`/orders/${encodeURIComponent(b.dataset.ordWa ?? "")}/notified`, { method: "POST", body: "{}" })
+        .then(() => viewOrders(statusFilter))
+        .catch(() => { /* no crítico */ });
+    });
+  });
+}
+
 async function viewSettings(): Promise<void> {
   const { settings } = await api<{ settings: StoreSettings }>("/settings");
   el.view.innerHTML = `
@@ -1688,6 +1781,17 @@ async function viewSettings(): Promise<void> {
             <option value="168" ${settings.freshHours === 168 ? "selected" : ""}>7 días</option>
             <option value="0" ${settings.freshHours !== 24 && settings.freshHours !== 48 && settings.freshHours !== 168 ? "selected" : ""}>Desactivado</option>
           </select></div>
+        <h2 style="margin-top:24px">Pagos online (MercadoPago)</h2>
+        <div class="field field--check">
+          <label><input type="checkbox" name="paymentsEnabled" ${settings.paymentsEnabled ? "checked" : ""}/> Activar pago online con MercadoPago (botones "Comprar" y "Agregar" en el catálogo)</label>
+        </div>
+        <div class="field"><label>Nota de envío/retiro (se muestra en el carrito y en la página del pedido)</label>
+          <input name="checkoutNote" value="${esc(settings.checkoutNote)}" placeholder="Coordinamos envío o retiro por WhatsApp después del pago."/></div>
+        <p class="muted" id="payments-status">Verificando credenciales…</p>
+        <p class="muted">El token <strong>no</strong> se configura acá: es un secret del worker.<br>
+        • Local: agregá <code>MERCADOPAGO_ACCESS_TOKEN=TEST-…</code> a <code>.dev.vars</code>.<br>
+        • Producción: <code>npx wrangler secret put MERCADOPAGO_ACCESS_TOKEN</code>.<br>
+        • Webhook a configurar en MercadoPago (Tus integraciones → Webhooks): <code>https://tu-dominio/api/payments/webhook</code> — evento <em>Pagos</em>.</p>
         <h2 style="margin-top:24px">Sincronización</h2>
         <p class="muted">La sincronización se gestiona desde la pestaña <strong>Auto-importaciones</strong>: cargás los links, les asignás horarios (hora Argentina) y el cron los actualiza solo. El historial de cada corrida queda en el Dashboard.</p>
         <button type="submit" class="btn btn-primary">Guardar configuración</button>
@@ -1724,6 +1828,8 @@ async function viewSettings(): Promise<void> {
           howTitle: fd.get("howTitle"),
           howPickupNote: fd.get("howPickupNote"),
           freshHours: Number(fd.get("freshHours")),
+          paymentsEnabled: (fd.get("paymentsEnabled") ?? "") === "on",
+          checkoutNote: fd.get("checkoutNote"),
         }),
       });
       toast("Configuración guardada");
@@ -1731,6 +1837,14 @@ async function viewSettings(): Promise<void> {
       toast(e instanceof Error ? e.message : "Error", false);
     }
   });
+
+  // Indicador de credenciales de pago (configurado sí/no, sin exponer nada).
+  void api<{ configured: boolean; enabled: boolean }>("/payments/status").then((st) => {
+    const p = el.view.querySelector("#payments-status");
+    if (p) p.innerHTML = st.configured
+      ? `✅ Token de MercadoPago configurado. Toggle activo: <strong>${st.enabled ? "sí" : "no"}</strong>.`
+      : `⚠️ <strong>Sin token</strong>: el pago online no funciona aunque el toggle esté activo. Configurá el secret <code>MERCADOPAGO_ACCESS_TOKEN</code> (instrucciones abajo).`;
+  }).catch(() => {});
 
   // Cambio de contraseña del panel.
   const pwForm = el.view.querySelector("#pw-form") as HTMLFormElement;

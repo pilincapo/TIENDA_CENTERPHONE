@@ -6,9 +6,10 @@
 - Identificadores de código se quedan en inglés estándar (`products`, `syncLog`, etc.).
 
 ## Este proyecto
-- Catálogo de celulares con cierre de venta por **WhatsApp** (sin carrito, sin pagos).
-- Stack fijo: Cloudflare Workers + D1 + KV + Hono + Vite (vanilla TS). **Todo gratis**: no introducir servicios ni planes pagos, no superar límites del free tier (ej: no escribir en KV por request).
-- El número de WhatsApp, moneda y sync se configuran desde el panel (`/admin/`), no hardcodear.
+- Catálogo de celulares con cierre de venta por **WhatsApp** y, opcionalmente, **pago online por MercadoPago con carrito** (Checkout Pro redirect; solo productos "En stock").
+- Stack fijo: Cloudflare Workers + D1 + KV + Hono + Vite (vanilla TS). **Todo gratis**: no introducir servicios ni planes pagos, no superar límites del free tier (ej: no escribir en KV por request). MercadoPago no cobra plan: solo comisión por venta.
+- El número de WhatsApp, moneda, sync y el toggle de pagos se configuran desde el panel (`/admin/`), no hardcodear. El token de MercadoPago es un **secret** del worker (`MERCADOPAGO_ACCESS_TOKEN`): sin token, el sitio funciona como catálogo + WhatsApp.
+- Anti-fraude del checkout: el cliente nunca manda precios ni totales (el worker recalcula desde D1) y el webhook de MP re-consulta la API antes de marcar "pagado".
 
 ## Convenciones de trabajo
 - Mantener los archivos **chicos** (los writes largos se corrompen; preferir varios archivos medianos).

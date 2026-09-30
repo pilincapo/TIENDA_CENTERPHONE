@@ -55,7 +55,39 @@ export interface SyncLogEntry {
   finishedAt: number | null;
 }
 
+// ---- Pedidos con pago online (MercadoPago) ----
+
+export type OrderStatus = "pending" | "paid" | "cancelled" | "rejected";
+
+export interface OrderItem {
+  id: string;
+  title: string;
+  qty: number;
+  priceCents: number;
+}
+
+export interface Order {
+  id: string;
+  status: OrderStatus;
+  totalCents: number;
+  currency: string;
+  buyerName: string;
+  buyerPhone: string;
+  payerEmail: string | null;
+  items: OrderItem[];
+  mpPreferenceId: string | null;
+  mpPaymentId: string | null;
+  paidAt: number | null;
+  notifiedWa: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface StoreSettings {
+  /** Pago online por MercadoPago: activa botones de compra y /api/checkout. Requiere el secret MERCADOPAGO_ACCESS_TOKEN. */
+  paymentsEnabled: boolean;
+  /** Nota de envío/retiro que se muestra en el carrito y en la página del pedido. */
+  checkoutNote: string;
   whatsappPhone: string;
   currencySymbol: string;
   syncUrl: string;
@@ -116,8 +148,12 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   howTitle: "Cómo comprar",
   howPickupNote: "",
   freshHours: 48,
+  paymentsEnabled: false,
+  checkoutNote: "Coordinamos envío o retiro por WhatsApp después del pago. Envío gratis en la ciudad de Santa Fe.",
 };
 
 export const KV_SNAPSHOT_KEY = "catalog:snapshot:v1";
 export const KV_SETTINGS_KEY = "config:settings:v1";
 export const KV_SYNC_STATE_KEY = "config:syncstate:v1";
+// Pedidos: solo se marca "notificado por WhatsApp" del lado del panel.
+export const ORDER_STATUSES: OrderStatus[] = ["pending", "paid", "cancelled", "rejected"];
