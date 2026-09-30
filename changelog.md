@@ -1,3 +1,9 @@
+## 2026-09-30 — Deploy: buscador de Productos + WhatsApp normalizado
+
+- Deploy a producción: versión **`2d7aeaa6-d32a-4a3e-9558-0918f918c2f3`** (commits `4b8023a` y `bd2ee38`, push pendiente de orden explícita; cron `0 * * * *` intacto)
+- Smoke: home 200, `/admin/` 200 sirviendo `admin-DmIug6E-.js` con el buscador ("prod-search" ×3, "Buscar por título"), login rechaza clave falsa (401), seguimiento 200
+- **Número de WhatsApp de producción limpiado**: `+5493425819402` → `5493425819402` (edición directa del KV `config:settings:v1` vía API de Cloudflare, JSON completo reescrito sin tocar los otros 22 campos; verificado releyendo la clave y en `/api/public/settings` con `whatsappOk: true`) — queda consistente con lo que el panel pide y la normalización nueva del worker mantiene de acá en más
+
 ## 2026-09-30 — Buscador en la pestaña Productos
 
 - Campo **"Buscar por título o código…"** junto a los chips de Productos: filtra las filas **mientras se tipea** (sin recargar la tabla de 979 productos), muestra "N de M coinciden" y "Marcar todos" pasa a marcar solo las filas visibles con el filtro activo
