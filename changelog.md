@@ -1,3 +1,30 @@
+## 2026-09-30 — Menú del panel reordenado en grupos
+
+- Las 10 pestañas planas (que se partían en 3 líneas mezcladas con la marca) pasan a **4 grupos en columnas con etiqueta**: **Ventas** (Pedidos, Estadísticas), **Catálogo** (Productos, Categorías, Sin stock), **Importación** (Importar, Auto-imp., Reglas) y **Sistema** (Dashboard, Configuración)
+- Criterio de orden: lo más usado primero (Ventas), abastecimiento agrupado, y lo esporádico al final; los hashes de rutas no cambian (#orders, #products, …), así que los links guardados siguen funcionando
+- **Contador ámbar de pedidos pendientes** junto a la pestaña Pedidos (aparece al entrar a la pestaña y se actualiza con cada acción; se oculta en 0, tope 99+)
+- Nombres cortos en el menú ("Auto-imp.", "Reglas"); los títulos dentro de cada vista quedan completos. Marca y botón Salir en la barra de arriba
+- Responsive: en <900px los grupos compactan y en <640px se apilan uno debajo del otro (verificado a 420px)
+- 158/158 tests ✅, typecheck ✅; vistas verificadas por DOM (dashboard/products/rules/orders)
+
+## 2026-09-30 — Mensaje de "Ya avisé" del panel con el detalle del pedido
+
+- El WhatsApp que abre el botón "Ya avisé" ya no manda el texto genérico: ahora sigue el mismo estilo que la página /pedido/:id — saludo con el nombre del comprador, confirmación con el nombre de la tienda, id de pedido, ítems y total (formatPrice con el símbolo configurado)
+- Fix colateral: la pestaña Pedidos tenía el símbolo de moneda hardcodeado "$"; ahora usa `currencySymbol` de la configuración
+- Verificado en el panel local capturando el mensaje: "Hola Juan Transferencia! Te confirmo que tu pago en CenterPhone Celulares quedó acreditado ✅ / Pedido: 04b9f12e… / • 1x Pila TyE CR2016 blister x 5 / Total: $3.024 / ¿Coordinamos la entrega cuando quieras?"
+
+## 2026-09-30 — Estilos unificados al tema terminal en las páginas del worker
+
+- Mantenimiento, `/pedido/:id` (con sus 4 estados y el 404) y la intermedia de `/seguimiento` abandonan el estilo claro genérico (system-ui, blanco, bordes redondeados) y usan **el mismo tema terminal/CRT del sitio**: fondo `#0b0f14`, panel `#10161d`, borde `#33475e`, texto `#d7e2ea`, verde `#3fb950`, JetBrains Mono, sombras duras y scanlines
+- Badges de estado con los mismos colores que el panel: ámbar (`pending`), verde (`paid`), rojo (`cancelled`/`rejected`) — el JS de auto-refresh también actualiza el color del badge al cambiar el estado
+- Botones WhatsApp iguales a los del sitio (verde `#3fb950` con texto oscuro y sombra dura); descuento y acreditación en verde; hint de pendiente en ámbar
+- CSP de las 3 páginas ampliada para Google Fonts (JetBrains Mono), igual que el sitio principal
+- Verificado visualmente en local (screenshot de las 3 páginas con mantenimiento activo); 158/158 tests ✅, typecheck ✅
+
+## 2026-09-30 — Deploy del modo mantenimiento
+
+- Deploy `4bc11e78-d6e5-4c54-8708-fb6342a3d966`; en producción la tienda sigue abierta (`maintenanceMode: false`), smoke OK (home 200, webhook 200, pedido 404, admin 200) — listo para activar desde Configuración cuando haga falta
+
 ## 2026-09-30 — Modo mantenimiento: cerrar el catálogo sin perder a los clientes
 
 - **Toggle + mensaje en Configuración** (`maintenanceMode` / `maintenanceMessage`): al activarlo, todo el sitio público responde **503** con una página del worker (🛠️, mensaje configurable, botón grande de **WhatsApp** y links a **Instagram/Facebook** del panel); `Retry-After` y `no-store` para que no quede cacheada ni indexada

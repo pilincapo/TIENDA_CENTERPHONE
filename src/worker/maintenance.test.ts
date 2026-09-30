@@ -35,13 +35,13 @@ describe("maintenanceHtml", () => {
     expect(html).toContain("https://wa.me/549345555555");
     expect(html).toContain("instagram.com/centerphonesantafe");
     expect(html).toContain("Actualizando &lt;b&gt;el&lt;/b&gt; sistema");
-    expect(html).toContain("CenterPhone está en mantenimiento");
+    expect(html).toContain('<span class="accent">CenterPhone</span> está en mantenimiento');
   });
 
   it("usa el mensaje por defecto cuando no hay configurado y omite redes vacías", () => {
     const html = maintenanceHtml(settings({ maintenanceMessage: "", instagramUrl: "", facebookUrl: "" }), "Mi tienda");
     expect(html).toContain("Estamos actualizando la tienda");
     expect(html).not.toContain("class=\"social\"");
-    expect(html).toContain("Mi tienda está en mantenimiento");
+    expect(html).toContain('<span class="accent">Mi tienda</span> está en mantenimiento');
   });
 });

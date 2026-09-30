@@ -51,6 +51,24 @@ function setTabHighlight(name: string): void {
   });
 }
 
+/** Contador ámbar de pedidos pendientes junto a la pestaña Ventas → Pedidos. */
+function updatePendingBadge(count: number): void {
+  const link = el.tabs.querySelector<HTMLAnchorElement>('a[data-tab="orders"]');
+  if (!link) return;
+  let badge = link.querySelector(".tab-badge");
+  if (count > 0) {
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "tab-badge";
+      link.appendChild(badge);
+    }
+    badge.textContent = count > 99 ? "99+" : String(count);
+    badge.setAttribute("title", `${count} pedidos pendientes`);
+  } else if (badge) {
+    badge.remove();
+  }
+}
+
 function route(): string {
   return location.hash.replace("#", "") || "dashboard";
 }
@@ -1662,11 +1680,15 @@ const ORDER_STATUS_META: Record<string, { label: string; cls: string }> = {
 };
 
 async function viewOrders(statusFilter = ""): Promise<void> {
-  const [{ orders }, payments] = await Promise.all([
+  const [{ orders }, payments, { settings }, pending] = await Promise.all([
     api<{ orders: Order[] }>(`/orders${statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : ""}`),
     api<{ configured: boolean; enabled: boolean }>("/payments/status").catch(() => ({ configured: false, enabled: false })),
+    api<{ settings: StoreSettings }>("/settings"),
+    // Contador del menú: pedidos pendientes (independiente del filtro en pantalla).
+    api<{ orders: Order[] }>("/orders?status=pending&limit=200").catch(() => ({ orders: [] as Order[] })),
   ]);
-  const symbol = "$";
+  const symbol = settings.currencySymbol || "$";
+  updatePendingBadge(pending.orders.length);
   const chips = ["", "pending", "paid", "cancelled", "rejected"];
   const chipLabels: Record<string, string> = { "": "Todos", pending: "Pendientes", paid: "Pagados", cancelled: "Cancelados", rejected: "Rechazados" };
   const rows = orders.map((o) => {
@@ -1729,12 +1751,24 @@ async function viewOrders(statusFilter = ""): Promise<void> {
     });
   });
   // Botón "Ya avisé": abre WhatsApp con mensaje pre-cargado al comprador y
-  // marca el pedido como notificado (fire-and-forget).
+  // marca el pedido como notificado (fire-and-forget). El mensaje sigue el
+  // mismo estilo que el de la página /pedido/:id: saludo por nombre, tienda,
+  // detalle del pedido y total — cero texto genérico.
   el.view.querySelectorAll<HTMLButtonElement>("button[data-ord-wa]").forEach((b) => {
     b.addEventListener("click", () => {
       const phone = (b.dataset.waPhone ?? "").replace(/\D/g, "");
       const dest = phone.length > 0 ? (phone.startsWith("54") || phone.startsWith("9") ? phone : `549${phone}`) : "";
-      const text = encodeURIComponent("Hola! Te confirmo que tu pago quedó acreditado. Coordinamos la entrega cuando quieras.");
+      const order = orders.find((x) => x.id === (b.dataset.ordWa ?? ""));
+      const lines = order
+        ? [
+            `Hola ${order.buyerName}! Te confirmo que tu pago en ${settings.storeName || "la tienda"} quedó acreditado ✅`,
+            `Pedido: ${order.id.slice(0, 8)}…`,
+            ...order.items.filter((i) => i.priceCents > 0).map((i) => `• ${i.qty}x ${i.title}`),
+            `Total: ${formatPrice(order.totalCents, symbol)}`,
+            "¿Coordinamos la entrega cuando quieras?",
+          ]
+        : ["Hola! Te confirmo que tu pago quedó acreditado. Coordinamos la entrega cuando quieras."];
+      const text = encodeURIComponent(lines.filter(Boolean).join("\n"));
       if (dest !== "") window.open(`https://wa.me/${dest}?text=${text}`, "_blank", "noopener");
       void api(`/orders/${encodeURIComponent(b.dataset.ordWa ?? "")}/notified`, { method: "POST", body: "{}" })
         .then(() => viewOrders(statusFilter))

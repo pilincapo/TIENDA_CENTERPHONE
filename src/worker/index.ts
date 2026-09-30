@@ -203,25 +203,37 @@ app.get("/seguimiento", async (c) => {
   // CSP con nonce: el único <script> inline del sitio es el auto-redirect de
   // esta página; sin nonce la CSP 'self' lo bloquearía.
   const nonce = newNonce();
-  c.header("Content-Security-Policy", `default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}' 'strict-dynamic'`);
+  c.header("Content-Security-Policy", `default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'nonce-${nonce}' 'strict-dynamic'`);
   const html = `<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <title>Redirigiendo al seguimiento…</title>
 <style>
-  body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f6f7f9;color:#1c1e21;
-       display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center}
-  .card{background:#fff;border-radius:16px;padding:40px 32px;max-width:420px;width:100%;
-        box-shadow:0 4px 24px rgba(0,0,0,.08)}
+  :root{--bg:#0b0f14;--panel:#10161d;--panel-2:#161e27;--border-bright:#33475e;
+        --text:#d7e2ea;--muted:#7d8f9f;--brand:#3fb950;--brand-dark:#2e9e3f;
+        --shadow:4px 4px 0 rgb(0 0 0 / .55);
+        --font:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
+       min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center}
+  body::before{content:"";position:fixed;inset:0;z-index:9;pointer-events:none;
+       background:repeating-linear-gradient(to bottom,transparent 0 2px,rgb(0 0 0/.12) 3px,transparent 4px);mix-blend-mode:multiply}
+  .card{background:var(--panel);border:1px solid var(--border-bright);box-shadow:var(--shadow);
+        padding:36px 28px;max-width:440px;width:100%;position:relative;z-index:10}
   .emoji{font-size:44px}
-  h1{font-size:20px;margin:16px 0 8px}
-  p{color:#65676b;margin:0 0 24px;font-size:14px}
-  a.btn{display:block;background:#25d366;color:#fff;text-decoration:none;border-radius:10px;
-        padding:14px;font-weight:600;font-size:15px}
-  a.back{display:block;margin-top:12px;color:#65676b;text-decoration:underline;font-size:14px}
+  h1{font-size:18px;margin:16px 0 8px;font-weight:800}
+  p{color:var(--muted);margin:0 0 24px;font-size:14px;line-height:1.5}
+  p b{color:var(--brand)}
+  a.btn{display:block;background:var(--brand);color:#04180a;text-decoration:none;
+        padding:14px;font-weight:700;font-size:14px;border:1px solid var(--brand);
+        box-shadow:2px 2px 0 rgb(0 0 0/.45)}
+  a.btn:hover{background:var(--brand-dark);border-color:var(--brand-dark)}
+  a.back{display:block;margin-top:12px;color:var(--muted);text-decoration:underline;font-size:14px}
+  a.back:hover{color:var(--brand)}
 </style>
 </head>
 <body>
