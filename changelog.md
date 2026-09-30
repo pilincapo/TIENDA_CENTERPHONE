@@ -1,3 +1,9 @@
+## 2026-09-30 — Limpieza de la cola de pedidos de producción
+
+- El pedido de verificación `5aae15d9…` quedó cancelado (el vendedor lo canceló desde el panel); no hay pedidos `pending` en la D1 remota: solo 2 `paid` (el real de Valeria Pain vía webhook y uno marcado a mano) y 4 `cancelled` de pruebas
+- Backfill con la API de MP: el pedido `57b79490…` quedó con `payer_email: valeriapain@gmail.com` (del pago `approved` confirmado). El **preference id no es recuperable**: MP no lo incluye en el payload del pago, así que los pedidos anteriores al deploy quedan sin él
+- `e840c82a…` ($9.230, Jorge Esquivel) verificado contra la lista completa de pagos de MP del 29–30/9: **ningún pago coincide** (ni monto ni external_reference) — se pagó por fuera de MercadoPago y se marcó a mano desde el panel; queda sin `mp_payment_id` a propósito (no se inventan ids), pendiente cobro/registro fuera del sistema
+
 ## 2026-09-30 — Deploy a producción: persistencia de datos de MP + panel de Pedidos
 
 - Deploy `9a07ccc7-1122-4735-9864-c283d5d036ec` (sucesor de `bd1c4a85`) con la persistencia y la mejora del panel; el `/admin/` sirve el bundle nuevo (`admin-BQtVfl_N.js`)
