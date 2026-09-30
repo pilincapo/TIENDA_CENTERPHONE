@@ -1,3 +1,9 @@
+## 2026-09-30 — Dashboard resumido y en lenguaje cotidiano
+
+- El Dashboard del panel deja de repetir avisos: los textos "se actualiza solo cada 15 segundos" de Estado por fuente e Historial se quitaron (la auto-actualización se mantiene igual), y la fila "Error —" ya solo aparece cuando hay un error real
+- "Salud del cron (7 días)" pasa a **"Actualizaciones automáticas — últimos 7 días"**: plegado para no ocupar pantalla, con las columnas y valores renombrados ("Corridas" → "Actualizaciones", "Tasa de éxito global" → "Salieron bien el %", "Duración promedio" → "Tardan en promedio")
+- Los datos de las 4 secciones (Estado del catálogo, Estado por fuente, estadísticas 7 días e Historial) no cambian; build ✅, typecheck ✅, 158/158 tests ✅, verificado por DOM en local
+
 ## 2026-09-30 — Configuración en secciones plegables
 
 - La pestaña Configuración pasa de una lista larguísima de campos sueltos a **5 secciones que se abren y cierran** tocándolas: **Tienda** (nombre, dirección, horarios, redes y link de seguimiento — abierta por defecto), **Ventas** (WhatsApp, moneda y texto «Cómo comprar»), **Pagos online (MercadoPago)** (toggle, nota de envío, recargo, descuento, CBU e indicador del token), **Mantenimiento** (toggle + mensaje) y **Seguridad** (cambio de contraseña del panel)

@@ -190,13 +190,14 @@ function fmtDuracion(ms: number): string {
   return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
 }
 
-/** Panel "Salud del cron (7 días)" para el Dashboard. */
+/** Panel de estadísticas de los últimos 7 días (antes "Salud del cron"), en
+ *  lenguaje cotidiano y plegado para que el Dashboard quede resumido. */
 function saludPanel(s: SaludSemanalUI): string {
   const filas = s.fuentes.length === 0
-    ? '<tr><td colspan="6" class="muted">Sin corridas en los últimos 7 días.</td></tr>'
+    ? '<tr><td colspan="6" class="muted">Sin actualizaciones en los últimos 7 días.</td></tr>'
     : s.fuentes.map((f) => {
         const nombre = f.url.replace(/^https?:\/\//, "").slice(0, 45);
-        const errTitle = f.ultimoError ? ` title="Último error: ${esc(f.ultimoError)}"` : "";
+        const errTitle = f.ultimoError ? ` title="Último problema: ${esc(f.ultimoError)}"` : "";
         return `
       <tr${f.tasaExito < 70 ? ' style="background:rgba(220,60,60,.08)"' : ""}>
         <td class="muted">${esc(nombre)}${errTitle ? ' <span class="err-detail">⚠</span>' : ""}</td>
@@ -208,22 +209,24 @@ function saludPanel(s: SaludSemanalUI): string {
       </tr>`;
       }).join("");
   return `
-    <div class="panel">
-      <h2>Salud del cron (7 días)</h2>
-      <div class="kv" style="margin-top:8px">
-        <span class="k">Corridas totales</span><span>${s.totalCorridas}</span>
-        <span class="k">Exitosas / con error</span><span><span class="ok">${s.totalOk}</span> / <span class="${s.totalErrores > 0 ? "err" : "muted"}">${s.totalErrores}</span></span>
-        <span class="k">Tasa de éxito global</span><span class="${tasaClass(s.tasaExitoGlobal)}">${s.tasaExitoGlobal}%</span>
-        <span class="k">Duración promedio</span><span>${esc(fmtDuracion(s.duracionMediaMs))}</span>
+    <details class="cfg-group dash-fold" id="dash-salud">
+      <summary>Actualizaciones automáticas — últimos 7 días <span class="cfg-hint">cuántas se hicieron, cuántas fallaron y cómo viene cada link</span></summary>
+      <div class="cfg-body">
+        <div class="kv">
+          <span class="k">Actualizaciones hechas</span><span>${s.totalCorridas}</span>
+          <span class="k">Sin problemas / con problemas</span><span><span class="ok">${s.totalOk}</span> / <span class="${s.totalErrores > 0 ? "err" : "muted"}">${s.totalErrores}</span></span>
+          <span class="k">Salieron bien el</span><span class="${tasaClass(s.tasaExitoGlobal)}">${s.tasaExitoGlobal}%</span>
+          <span class="k">Tardan en promedio</span><span>${esc(fmtDuracion(s.duracionMediaMs))}</span>
+        </div>
+        ${s.fuentes.length > 0 ? `
+        <div class="table-scroll">
+        <table class="table" style="margin-top:12px">
+          <thead><tr><th>Fuente</th><th>Actualizaciones</th><th>Bien</th><th>Con problema</th><th>% bien</th><th>Tardan</th></tr></thead>
+          <tbody>${filas}</tbody>
+        </table>
+        </div>` : ""}
       </div>
-      ${s.fuentes.length > 0 ? `
-      <div class="table-scroll">
-      <table class="table" style="margin-top:12px">
-        <thead><tr><th>Fuente</th><th>Corridas</th><th>OK</th><th>Errores</th><th>Éxito</th><th>Duración media</th></tr></thead>
-        <tbody>${filas}</tbody>
-      </table>
-      </div>` : ""}
-    </div>`;
+    </details>`;
 }
 
 /** Panel "Estado por fuente": última corrida de cada link configurado.
@@ -255,7 +258,7 @@ function fuentesPanel(fuentes: FuenteEstado[]): string {
   return `
     <div class="panel">
       <h2>Estado por fuente</h2>
-      <p class="muted" style="margin-top:4px">Último intento de cada link configurado en Auto-importaciones — se actualiza solo cada 15 segundos.</p>
+      <p class="muted" style="margin-top:4px">Último intento de cada link configurado en Auto-importaciones.</p>
       <div class="table-scroll">
       <table class="table">
         <thead><tr><th>Fuente</th><th>Horarios</th><th>Último intento</th><th>Estado</th></tr></thead>
@@ -273,14 +276,7 @@ async function refreshDashboardDynamic(): Promise<void> {
     const { state, log, fuentes } = await api<{ state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }; log: SyncLogEntry[]; fuentes?: FuenteEstado[] }>(
       `/sync/log?limit=50${dashSyncFilter ? `&trigger=${encodeURIComponent(dashSyncFilter)}` : ""}`
     );
-    const last = state.lastSyncAt ? new Date(state.lastSyncAt).toLocaleString("es-AR") : "nunca";
-    const lastRow = state.lastStatus
-      ? `<span class="${state.lastStatus === "ok" ? "ok" : "err"}">${esc(state.lastStatus)}</span>`
-      : '<span class="muted">—</span>';
-    stateEl.innerHTML = `
-      <span class="k">Última sincronización</span><span>${esc(last)}</span>
-      <span class="k">Resultado</span><span>${lastRow}</span>
-      <span class="k">Error</span><span>${esc(state.lastError ?? "—")}</span>`;
+    stateEl.innerHTML = estadoCatalogoKv(state);
     bodyEl.innerHTML = log.length === 0
       ? '<tr><td colspan="6" class="muted">Todavía no hubo sincronizaciones.</td></tr>'
       : log.map(syncLogRow).join("");
@@ -314,6 +310,17 @@ async function refreshDashboardDynamic(): Promise<void> {
   }
 }
 
+/** Filas del bloque "Estado del catálogo" (compartido entre el render inicial y el polling).
+ *  La fila de error solo aparece cuando hay un error real, para no mostrar "—" de relleno. */
+function estadoCatalogoKv(state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }): string {
+  const last = state.lastSyncAt ? new Date(state.lastSyncAt).toLocaleString("es-AR") : "nunca";
+  const lastRow = state.lastStatus
+    ? `<span class="${state.lastStatus === "ok" ? "ok" : "err"}">${esc(state.lastStatus)}</span>`
+    : '<span class="muted">—</span>';
+  const errRow = state.lastError ? `\n<span class="k">Error</span><span>${esc(state.lastError)}</span>` : "";
+  return `<span class="k">Última sincronización</span><span>${esc(last)}</span>\n<span class="k">Resultado</span><span>${lastRow}</span>${errRow}`;
+}
+
 /** Conecta el botón de descartar del aviso (y recuerda el descarte por sesión).
  *  Si aparece un error NUEVO (otra corrida), el aviso vuelve a mostrarse. */
 function bindBannerClose(): void {
@@ -342,10 +349,6 @@ async function viewDashboard(syncFilter = ""): Promise<void> {
     ),
     api<{ salud: SaludSemanalUI }>("/sync/health").catch(() => ({ salud: null as SaludSemanalUI | null })),
   ]);
-  const last = state.lastSyncAt ? new Date(state.lastSyncAt).toLocaleString("es-AR") : "nunca";
-  const lastRow = state.lastStatus
-    ? `<span class="${state.lastStatus === "ok" ? "ok" : "err"}">${esc(state.lastStatus)}</span>`
-    : '<span class="muted">—</span>';
   // Si el error mostrado es el mismo que el usuario ya descartó en esta sesión, no re-mostrar.
   const descartado = sessionStorage.getItem("dashErrorDismissed");
   const bannerVisible = state.lastStatus === "error" && state.lastError !== null && descartado !== String(state.lastSyncAt ?? 0);
@@ -353,11 +356,7 @@ async function viewDashboard(syncFilter = ""): Promise<void> {
     ${bannerVisible ? dashErrorBanner(state) : ""}
     <div class="panel">
       <h2>Estado del catálogo</h2>
-      <div class="kv" id="dash-state">
-        <span class="k">Última sincronización</span><span>${esc(last)}</span>
-        <span class="k">Resultado</span><span>${lastRow}</span>
-        <span class="k">Error</span><span>${esc(state.lastError ?? "—")}</span>
-      </div>
+      <div class="kv" id="dash-state">${estadoCatalogoKv(state)}</div>
       <div class="row" style="margin-top:16px">
         <button class="btn btn-primary" id="sync-now">⟳ Sincronizar ahora</button>
         <button class="btn" id="rebuild">Regenerar snapshot</button>
@@ -374,7 +373,7 @@ async function viewDashboard(syncFilter = ""): Promise<void> {
           <option value="manual" ${syncFilter === "manual" ? "selected" : ""}>Manuales</option>
         </select>
       </div>
-      <p class="muted" style="margin-top:4px">Últimas 50 corridas — se actualiza solo cada 15 segundos.</p>
+      <p class="muted" style="margin-top:4px">Últimas 50 corridas.</p>
       <div class="table-scroll">
       <table class="table">
         <thead><tr><th>Fecha</th><th>Origen</th><th>Detalle</th><th>Estado</th><th>Importados / Total</th><th>Error</th></tr></thead>

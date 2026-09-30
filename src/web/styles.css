@@ -857,3 +857,12 @@ a.topnav-btn {
 .cfg-group summary:hover { color: var(--brand); }
 .cfg-hint { font-size: 12px; font-weight: 400; color: var(--muted); }
 .cfg-body { padding: 14px; border-top: 1px dashed var(--border); }
+
+/* Versión del plegable a nivel de panel (Dashboard resumido) */
+.dash-fold {
+  background: var(--panel);
+  border: 1px solid var(--border-bright);
+  border-left: 3px solid var(--brand);
+  box-shadow: var(--term-shadow-sm);
+  margin-bottom: 20px;
+}
