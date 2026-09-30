@@ -1,3 +1,9 @@
+## 2026-09-30 — Deploy: estilos unificados + menú del panel reordenado
+
+- Deploys con commit `1051180` (estilos terminal en páginas del worker + mensaje "Ya avisé" con detalle) y `d5549a8` (menú agrupado con contador de pendientes); versión activa `b26889e9-cf20-44a9-ade8-be10566ff900`
+- Smoke en producción: home 200, pedido 404, seguimiento 200, webhook 200, y el `/admin/` sirviendo el menú agrupado (4 `menu-group`) con el badge de pendientes en el bundle (`admin-8iwTez5u.js`)
+- La página /pedido/:id sirve la versión con tema terminal (JetBrains Mono en el HTML)
+
 ## 2026-09-30 — Menú del panel reordenado en grupos
 
 - Las 10 pestañas planas (que se partían en 3 líneas mezcladas con la marca) pasan a **4 grupos en columnas con etiqueta**: **Ventas** (Pedidos, Estadísticas), **Catálogo** (Productos, Categorías, Sin stock), **Importación** (Importar, Auto-imp., Reglas) y **Sistema** (Dashboard, Configuración)
