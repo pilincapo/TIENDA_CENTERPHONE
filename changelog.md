@@ -1,3 +1,10 @@
+## 2026-09-30 — Editor visual de "Cómo comprar"
+
+- El campo de pasos deja de ser una caja de texto con `**negritas**`: ahora son **filas numeradas** con botones subir (↑) / bajar (↓) / quitar (✕), "Agregar paso", y una **vista previa en vivo** con el estilo real de la tienda (flecha verde + negritas) para ver cómo queda antes de guardar
+- Guarda exactamente el mismo formato de siempre (una línea por paso, `**negrita**` opcional): la tienda muestra lo mismo que venía mostrando, no hizo falta tocar nada del sitio público
+- Corregido en el camino un bug del primer intento: al agregar una fila vacía no aparecía y se pisaba el último paso real; ahora las filas vacías se dibujan siempre
+- E2E en local: cargar los 5 pasos existentes, editar con negrita (preview la marca), reordenar, agregar, quitar y guardar → los 5 pasos intactos en settings y en el modal real de la tienda. Typecheck ✅, build ✅, 158/158 tests ✅
+
 ## 2026-09-30 — Importar: casilla "Repetir automáticamente"
 
 - Al analizar un link en la pestaña Importar, aparece la casilla **"Repetir automáticamente todos los días"** al pie del resultado (con o sin productos): al marcarla se despliega nombre opcional, grilla de horarios (hora Argentina, pre-cargada 09:00 y 21:00, tope 3) y el botón "Guardar repetición diaria"

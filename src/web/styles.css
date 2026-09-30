@@ -871,3 +871,14 @@ a.topnav-btn {
 .imp-repeat-toggle { margin: 16px 0 10px; padding: 10px 12px; background: var(--panel-2); border: 1px dashed var(--border-bright); }
 .imp-repeat-toggle label { cursor: pointer; font-size: 14px; }
 #imp-repeat-cfg { padding: 12px 14px; border: 1px solid var(--border); border-left: 3px solid var(--brand); background: var(--panel-2); margin-bottom: 14px; }
+
+/* Editor visual de "Cómo comprar" (Configuración → Ventas) */
+.how-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.how-row { display: flex; gap: 8px; align-items: center; }
+.how-row .how-idx { min-width: 22px; text-align: right; color: var(--brand); font-size: 13px; }
+.how-row .how-txt { flex: 1; }
+.how-row .how-ops { display: flex; gap: 4px; }
+.how-row .how-ops .btn { padding: 5px 8px; font-size: 12px; }
+.how-preview { margin: 4px 0 0; padding-left: 20px; background: var(--panel-2); border: 1px dashed var(--border); padding: 10px 10px 10px 30px; }
+.how-preview li { color: var(--muted); font-size: 13px; }
+.how-preview strong { color: var(--text); }

@@ -1872,8 +1872,16 @@ async function viewSettings(): Promise<void> {
               <input name="currencySymbol" value="${esc(settings.currencySymbol)}" maxlength="3"/></div>
             <div class="field"><label>Título del modal "Cómo comprar"</label>
               <input name="howTitle" value="${esc(settings.howTitle)}" placeholder="Cómo comprar"/></div>
-            <div class="field"><label>Pasos de "Cómo comprar" (un paso por línea, con formato **negrita**)</label>
-              <textarea name="howSteps" rows="6" placeholder="Explorá el catálogo…\nTocá Consultar…">${esc(settings.howSteps)}</textarea></div>
+            <div class="field">
+              <label>Pasos de "Cómo comprar" — un paso por fila; **texto** sale en negrita</label>
+              <input type="hidden" name="howSteps"/>
+              <ol class="how-list" id="how-list"></ol>
+              <div class="row" style="margin-top:8px">
+                <button type="button" class="btn" id="how-add">+ Agregar paso</button>
+              </div>
+              <p class="muted" style="margin-top:10px">Así se ve en la tienda:</p>
+              <ol class="modal-steps how-preview" id="how-preview"></ol>
+            </div>
             <div class="field"><label>Nota de retiro del modal (vacía = "Retiro en el local: {dirección}")</label>
               <input name="howPickupNote" value="${esc(settings.howPickupNote)}" placeholder="📍 Retiro en el local: Mendoza 2974"/></div>
             <div class="field"><label>Badge "Nuevo" automático (productos cargados hace menos de…)</label>
@@ -1970,6 +1978,73 @@ async function viewSettings(): Promise<void> {
       toast(e instanceof Error ? e.message : "Error", false);
     }
   });
+
+  // Editor visual de "Cómo comprar": filas reordenables con vista previa.
+  // Guarda el mismo formato de siempre (una línea por paso, **negrita** opcional)
+  // en el campo howSteps, así la tienda sigue mostrando exactamente lo mismo.
+  const howHidden = form.querySelector<HTMLInputElement>('[name="howSteps"]')!;
+  const howList = el.view.querySelector("#how-list") as HTMLElement;
+  const howPreview = el.view.querySelector("#how-preview") as HTMLElement;
+  let howSteps: string[] = settings.howSteps ? settings.howSteps.split("\n").map((l) => l.trim()).filter(Boolean) : [];
+  if (howSteps.length === 0) howSteps = [""];
+  const boldHtml = (s: string): string => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  const renderHow = (): void => {
+    // Dibuja SIEMPRE todas las filas, incluso vacías: filtrarlas acá hacía que
+    // el paso nuevo de "Agregar" no apareciera y se pisara el último real.
+    if (howSteps.length === 0) howSteps = [""];
+    howList.innerHTML = howSteps.map((s, i) => `
+      <li class="how-row" data-i="${i}">
+        <span class="how-idx">${i + 1}</span>
+        <input class="how-txt" value="${esc(s)}" placeholder="Tocá **Consultar** para preguntarnos por WhatsApp"/>
+        <span class="how-ops">
+          <button type="button" class="btn how-up" title="Subir" ${i === 0 ? "disabled" : ""}>↑</button>
+          <button type="button" class="btn how-down" title="Bajar" ${i === howSteps.length - 1 ? "disabled" : ""}>↓</button>
+          <button type="button" class="btn btn-danger how-del" title="Quitar paso">✕</button>
+        </span>
+      </li>`).join("");
+  };
+  const refreshHow = (): void => {
+    howHidden.value = howSteps.filter((s) => s !== "").join("\n");
+    howPreview.innerHTML = howSteps.map((s) => `<li>${boldHtml(s) || '<span class="muted">—</span>'}</li>`).join("");
+  };
+  // Mientras se tipea NO se re-dibuja la fila (perdería el foco): solo preview + valor.
+  howList.addEventListener("input", (ev) => {
+    const input = ev.target as HTMLInputElement;
+    if (!input.classList.contains("how-txt")) return;
+    const i = Number(input.closest(".how-row")?.getAttribute("data-i") ?? -1);
+    if (i >= 0) howSteps[i] = input.value.trim();
+    refreshHow();
+  });
+  howList.addEventListener("click", (ev) => {
+    const btn = (ev.target as HTMLElement).closest("button");
+    if (!btn || btn.classList.contains("how-txt")) return;
+    // Sincroniza con lo tipeado (conservando filas vacías para no romper índices).
+    howSteps = [...howList.querySelectorAll<HTMLInputElement>(".how-txt")].map((i) => i.value.trim());
+    const i = Number(btn.closest(".how-row")?.getAttribute("data-i") ?? -1);
+    if (btn.classList.contains("how-del")) {
+      howSteps.splice(i, 1);
+    } else if (btn.classList.contains("how-up") && i > 0) {
+      const prev = howSteps[i - 1] ?? "";
+      howSteps[i - 1] = howSteps[i] ?? "";
+      howSteps[i] = prev;
+    } else if (btn.classList.contains("how-down") && i < howSteps.length - 1) {
+      const next = howSteps[i + 1] ?? "";
+      howSteps[i + 1] = howSteps[i] ?? "";
+      howSteps[i] = next;
+    } else return;
+    renderHow();
+    refreshHow();
+  });
+  el.view.querySelector("#how-add")?.addEventListener("click", () => {
+    howSteps = [...howList.querySelectorAll<HTMLInputElement>(".how-txt")].map((i) => i.value.trim());
+    howSteps.push("");
+    renderHow();
+    refreshHow();
+    const inputs = [...howList.querySelectorAll<HTMLInputElement>(".how-txt")];
+    inputs[inputs.length - 1]?.focus();
+  });
+  renderHow();
+  refreshHow();
 
   // Indicador de credenciales de pago (configurado sí/no, sin exponer nada).
   void api<{ configured: boolean; enabled: boolean }>("/payments/status").then((st) => {
