@@ -875,6 +875,12 @@ a.topnav-btn {
 /* Editor visual de "Cómo comprar" (Configuración → Ventas) */
 .how-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
 .how-row { display: flex; gap: 8px; align-items: center; }
+.how-row[draggable="true"] { cursor: grab; }
+.how-row .how-grip { color: var(--muted); cursor: grab; font-size: 14px; user-select: none; }
+.how-row.dragging { opacity: .45; }
+.how-row.drop-before { box-shadow: inset 0 2px 0 var(--brand); }
+.how-row.drop-after { box-shadow: inset 0 -2px 0 var(--brand); }
+.how-row.dragging .how-txt, .how-row.dragging .how-ops { pointer-events: none; }
 .how-row .how-idx { min-width: 22px; text-align: right; color: var(--brand); font-size: 13px; }
 .how-row .how-txt { flex: 1; }
 .how-row .how-ops { display: flex; gap: 4px; }

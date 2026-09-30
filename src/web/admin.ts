@@ -1993,7 +1993,8 @@ async function viewSettings(): Promise<void> {
     // el paso nuevo de "Agregar" no apareciera y se pisara el último real.
     if (howSteps.length === 0) howSteps = [""];
     howList.innerHTML = howSteps.map((s, i) => `
-      <li class="how-row" data-i="${i}">
+      <li class="how-row" data-i="${i}" draggable="true">
+        <span class="how-grip" title="Arrastrá para reordenar" aria-hidden="true">⠿</span>
         <span class="how-idx">${i + 1}</span>
         <input class="how-txt" value="${esc(s)}" placeholder="Tocá **Consultar** para preguntarnos por WhatsApp"/>
         <span class="how-ops">
@@ -2034,6 +2035,47 @@ async function viewSettings(): Promise<void> {
     } else return;
     renderHow();
     refreshHow();
+  });
+  // Reordenar arrastrando (HTML5 DnD; en touch quedan los botones ↑/↓).
+  let dragIdx = -1;
+  howList.addEventListener("dragstart", (ev) => {
+    const row = (ev.target as HTMLElement).closest(".how-row");
+    if (!row) return;
+    // Lo tipeado entra al array antes de mover, para no perder ediciones.
+    howSteps = [...howList.querySelectorAll<HTMLInputElement>(".how-txt")].map((i) => i.value.trim());
+    dragIdx = Number(row.getAttribute("data-i") ?? -1);
+    row.classList.add("dragging");
+    ev.dataTransfer?.setData("text/plain", String(dragIdx));
+    if (ev.dataTransfer) ev.dataTransfer.effectAllowed = "move";
+  });
+  howList.addEventListener("dragover", (ev) => {
+    ev.preventDefault();
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = "move";
+    const over = (ev.target as HTMLElement).closest(".how-row");
+    howList.querySelectorAll(".how-row").forEach((r) => r.classList.remove("drop-before", "drop-after"));
+    if (!over || over.classList.contains("dragging")) return;
+    const rect = over.getBoundingClientRect();
+    over.classList.add(ev.clientY < rect.top + rect.height / 2 ? "drop-before" : "drop-after");
+  });
+  howList.addEventListener("drop", (ev) => {
+    ev.preventDefault();
+    const over = (ev.target as HTMLElement).closest(".how-row");
+    howList.querySelectorAll(".how-row").forEach((r) => r.classList.remove("dragging", "drop-before", "drop-after"));
+    if (!over || dragIdx < 0) { dragIdx = -1; return; }
+    const target = Number(over.getAttribute("data-i") ?? -1);
+    if (target < 0 || target === dragIdx) { dragIdx = -1; return; }
+    const rect = over.getBoundingClientRect();
+    let to = ev.clientY < rect.top + rect.height / 2 ? target : target + 1;
+    if (to > dragIdx) to -= 1; // al sacar el elemento, los índices se corren
+    const [moved] = howSteps.splice(dragIdx, 1);
+    howSteps.splice(Math.max(0, Math.min(howSteps.length, to)), 0, moved ?? "");
+    dragIdx = -1;
+    renderHow();
+    refreshHow();
+  });
+  howList.addEventListener("dragend", () => {
+    howList.querySelectorAll(".how-row").forEach((r) => r.classList.remove("dragging", "drop-before", "drop-after"));
+    dragIdx = -1;
   });
   el.view.querySelector("#how-add")?.addEventListener("click", () => {
     howSteps = [...howList.querySelectorAll<HTMLInputElement>(".how-txt")].map((i) => i.value.trim());

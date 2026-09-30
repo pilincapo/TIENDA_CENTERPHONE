@@ -1,3 +1,9 @@
+## 2026-09-30 — "Cómo comprar": reordenar pasos arrastrándolos
+
+- Cada paso del editor tiene ahora una **manija ⠿**: se arrastra la fila y se suelta donde se la quiera (marca verde en la zona de destino, mitad superior = antes, mitad inferior = después); lo tipeado entra al reorden sin perderse
+- Los botones ↑ / ↓ siguen existiendo como alternativa (útil en celular, donde el arrastre no funciona)
+- Verificado en local: arrastre real de un paso hacia abajo y de vuelta a su lugar, con preview sincronizado; typecheck ✅, build ✅, 158/158 tests ✅
+
 ## 2026-09-30 — Deploy: panel simplificado (4 mejoras)
 
 - Push `5bf3747..0bebb2c` a `pilincapo/TIENDA_CENTERPHONE` y deploy a producción: versión **`cb83ed8f-fccd-4ca9-bcb5-0247456c9c7d`** (cron `0 * * * *` intacto)
