@@ -1,3 +1,10 @@
+## 2026-09-30 — Deploy: panel simplificado (4 mejoras)
+
+- Push `5bf3747..0bebb2c` a `pilincapo/TIENDA_CENTERPHONE` y deploy a producción: versión **`cb83ed8f-fccd-4ca9-bcb5-0247456c9c7d`** (cron `0 * * * *` intacto)
+- Suben las 4 mejoras del panel: Configuración en 5 secciones plegables, Dashboard resumido con estadísticas en criollo, casilla "Repetir automáticamente" en Importar y editor visual de "Cómo comprar"
+- Smoke en producción: home 200 con 40 tarjetas de catálogo, modal "Cómo comprar" con los 5 pasos reales, `/admin/` 200 sirviendo el bundle nuevo (`admin-CxqEPG1J.js` con `cfg-group` y "Repetir automáticamente", CSS `format-uOi3oYNE.css` con `.cfg-group`/`.how-list`), login rechaza contraseña incorrecta (401), seguimiento 200, pedido inexistente 404
+- Nota: `/api/products` responde 404 (la API pública es otra ruta; el catálogo se renderiza igual); el webhook de pagos desde curl sin firma da 404 (comportamiento esperado: valida origen)
+
 ## 2026-09-30 — Editor visual de "Cómo comprar"
 
 - El campo de pasos deja de ser una caja de texto con `**negritas**`: ahora son **filas numeradas** con botones subir (↑) / bajar (↓) / quitar (✕), "Agregar paso", y una **vista previa en vivo** con el estilo real de la tienda (flecha verde + negritas) para ver cómo queda antes de guardar
