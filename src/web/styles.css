@@ -838,3 +838,22 @@ a.topnav-btn {
 .transfer-done-sub { color: #65676b; font-size: 13px; margin: 0 0 12px; }
 .transfer-done-total { font-size: 15px; margin: 0 0 14px; }
 .transfer-done .cart-pay { display: block; width: 100%; text-decoration: none; text-align: center; }
+
+/* ===== Panel: Configuración en secciones plegables ===== */
+.cfg-group {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--brand);
+  background: var(--panel-2);
+  margin-bottom: 12px;
+}
+.cfg-group summary {
+  list-style: none; cursor: pointer; user-select: none;
+  padding: 12px 14px; font-size: 14px; font-weight: 700; color: var(--text);
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+}
+.cfg-group summary::-webkit-details-marker { display: none; }
+.cfg-group summary::before { content: "[+]"; color: var(--brand); font-family: var(--font-mono, monospace); }
+.cfg-group[open] summary::before { content: "[-]"; }
+.cfg-group summary:hover { color: var(--brand); }
+.cfg-hint { font-size: 12px; font-weight: 400; color: var(--muted); }
+.cfg-body { padding: 14px; border-top: 1px dashed var(--border); }

@@ -1757,77 +1757,98 @@ async function viewSettings(): Promise<void> {
   el.view.innerHTML = `
     <div class="panel">
       <h2>Configuración de la tienda</h2>
+      <p class="muted">Tocá una sección para abrirla o cerrarla. Los cambios se guardan todos juntos con el botón «Guardar configuración».</p>
       <form id="s-form">
-        <div class="field"><label>Número de WhatsApp (con código de país, sin + ni espacios)</label>
-          <input name="whatsappPhone" value="${esc(settings.whatsappPhone)}" placeholder="5491100000000"/></div>
-        <div class="field"><label>Símbolo de moneda</label>
-          <input name="currencySymbol" value="${esc(settings.currencySymbol)}" maxlength="3"/></div>
-        <h2 style="margin-top:24px">Datos del comercio (popups y footer)</h2>
-        <div class="field"><label>Nombre de la tienda</label>
-          <input name="storeName" value="${esc(settings.storeName)}" placeholder="Mi Tienda"/></div>
-        <div class="field"><label>Dirección del local</label>
-          <input name="storeAddress" value="${esc(settings.storeAddress)}" placeholder="Mendoza 2974 · Santa Fe"/></div>
-        <div class="field"><label>Link de Google Maps</label>
-          <input name="storeMapUrl" value="${esc(settings.storeMapUrl)}" placeholder="https://maps.google.com/?q=…"/></div>
-        <div class="field"><label>Horarios (una línea por rango)</label>
-          <textarea name="storeHours" rows="2" placeholder="Lunes a viernes: 9:00 a 19:00 hs">${esc(settings.storeHours)}</textarea></div>
-        <div class="field"><label>Instagram (URL)</label>
-          <input name="instagramUrl" value="${esc(settings.instagramUrl)}" placeholder="https://www.instagram.com/…"/></div>
-        <div class="field"><label>Facebook (URL)</label>
-          <input name="facebookUrl" value="${esc(settings.facebookUrl)}" placeholder="https://www.facebook.com/…"/></div>
-        <div class="field"><label>Link de Seguimiento (botón del header)</label>
-          <input name="trackUrl" value="${esc(settings.trackUrl)}" placeholder="https://repairpro.centerphone.com.ar/track-lite"/></div>
-        <div class="field"><label>Título del modal "Cómo comprar"</label>
-          <input name="howTitle" value="${esc(settings.howTitle)}" placeholder="Cómo comprar"/></div>
-        <div class="field"><label>Pasos de "Cómo comprar" (un paso por línea, con formato **negrita**)</label>
-          <textarea name="howSteps" rows="6" placeholder="Explorá el catálogo…\nTocá Consultar…">${esc(settings.howSteps)}</textarea></div>
-        <div class="field"><label>Nota de retiro del modal (vacía = "Retiro en el local: {dirección}")</label>
-          <input name="howPickupNote" value="${esc(settings.howPickupNote)}" placeholder="📍 Retiro en el local: Mendoza 2974"/></div>
-        <div class="field"><label>Badge "Nuevo" automático (productos cargados hace menos de…)</label>
-          <select name="freshHours">
-            <option value="24" ${settings.freshHours === 24 ? "selected" : ""}>24 horas</option>
-            <option value="48" ${settings.freshHours === 48 || settings.freshHours === 0 ? "selected" : ""}>48 horas</option>
-            <option value="168" ${settings.freshHours === 168 ? "selected" : ""}>7 días</option>
-            <option value="0" ${settings.freshHours !== 24 && settings.freshHours !== 48 && settings.freshHours !== 168 ? "selected" : ""}>Desactivado</option>
-          </select></div>
-        <h2 style="margin-top:24px">Pagos online (MercadoPago)</h2>
-        <div class="field field--check">
-          <label><input type="checkbox" name="paymentsEnabled" ${settings.paymentsEnabled ? "checked" : ""}/> Activar pago online con MercadoPago (botones "Comprar" y "Agregar" en el catálogo)</label>
-        </div>
-        <div class="field"><label>Nota de envío/retiro (se muestra en el carrito y en la página del pedido)</label>
-          <input name="checkoutNote" value="${esc(settings.checkoutNote)}" placeholder="Coordinamos envío o retiro por WhatsApp después del pago."/></div>
-        <div class="field"><label>Recargo por pagar con MercadoPago (%) — 0 = sin recargo</label>
-          <input name="mpSurchargePercent" type="number" min="0" max="50" step="1" value="${settings.mpSurchargePercent}" placeholder="0"/></div>
-        <div class="field"><label>Descuento por pagar con transferencia (%) — 0 = sin descuento</label>
-          <input name="transferDiscountPercent" type="number" min="0" max="50" step="1" value="${settings.transferDiscountPercent}" placeholder="0"/></div>
-        <div class="field"><label>CBU / alias para transferencias (opcional; va pre-cargado en el mensaje del pedido por transferencia)</label>
-          <input name="transferCbu" value="${esc(settings.transferCbu ?? "")}" maxlength="120" placeholder="Alias: CENTERPHONE.AR"/></div>
-        <p class="muted">El recargo se suma al total de MercadoPago al confirmar el pedido. El descuento por transferencia es informativo: se muestra en el carrito y en el cierre por WhatsApp (el cobro lo coordinás vos).</p>
-        <p class="muted" id="payments-status">Verificando credenciales…</p>
-        <h2 style="margin-top:24px">Modo mantenimiento</h2>
-        <div class="field field--check">
-          <label><input type="checkbox" name="maintenanceMode" ${settings.maintenanceMode ? "checked" : ""}/> Cerrar el catálogo al público (pantalla con WhatsApp y redes); el panel y los pedidos siguen funcionando</label>
-        </div>
-        <div class="field"><label>Mensaje para los clientes (opcional)</label>
-          <input name="maintenanceMessage" value="${esc(settings.maintenanceMessage ?? "")}" maxlength="300" placeholder="Estamos actualizando la tienda para atenderte mejor. En un rato volvemos 🙌"/></div>
-        <p class="muted">El token <strong>no</strong> se configura acá: es un secret del worker.<br>
-        • Local: agregá <code>MERCADOPAGO_ACCESS_TOKEN=TEST-…</code> a <code>.dev.vars</code>.<br>
-        • Producción: <code>npx wrangler secret put MERCADOPAGO_ACCESS_TOKEN</code>.<br>
-        • Webhook a configurar en MercadoPago (Tus integraciones → Webhooks): <code>https://tu-dominio/api/payments/webhook</code> — evento <em>Pagos</em>.</p>
-        <h2 style="margin-top:24px">Sincronización</h2>
-        <p class="muted">La sincronización se gestiona desde la pestaña <strong>Auto-importaciones</strong>: cargás los links, les asignás horarios (hora Argentina) y el cron los actualiza solo. El historial de cada corrida queda en el Dashboard.</p>
+        <details class="cfg-group" open>
+          <summary>Tienda <span class="cfg-hint">nombre, dirección, horarios, redes y link de seguimiento</span></summary>
+          <div class="cfg-body">
+            <div class="field"><label>Nombre de la tienda</label>
+              <input name="storeName" value="${esc(settings.storeName)}" placeholder="Mi Tienda"/></div>
+            <div class="field"><label>Dirección del local</label>
+              <input name="storeAddress" value="${esc(settings.storeAddress)}" placeholder="Mendoza 2974 · Santa Fe"/></div>
+            <div class="field"><label>Link de Google Maps</label>
+              <input name="storeMapUrl" value="${esc(settings.storeMapUrl)}" placeholder="https://maps.google.com/?q=…"/></div>
+            <div class="field"><label>Horarios (una línea por rango)</label>
+              <textarea name="storeHours" rows="2" placeholder="Lunes a viernes: 9:00 a 19:00 hs">${esc(settings.storeHours)}</textarea></div>
+            <div class="field"><label>Instagram (URL)</label>
+              <input name="instagramUrl" value="${esc(settings.instagramUrl)}" placeholder="https://www.instagram.com/…"/></div>
+            <div class="field"><label>Facebook (URL)</label>
+              <input name="facebookUrl" value="${esc(settings.facebookUrl)}" placeholder="https://www.facebook.com/…"/></div>
+            <div class="field"><label>Link de Seguimiento (botón del header)</label>
+              <input name="trackUrl" value="${esc(settings.trackUrl)}" placeholder="https://repairpro.centerphone.com.ar/track-lite"/></div>
+          </div>
+        </details>
+        <details class="cfg-group">
+          <summary>Ventas <span class="cfg-hint">WhatsApp, moneda y texto «Cómo comprar»</span></summary>
+          <div class="cfg-body">
+            <div class="field"><label>Número de WhatsApp (con código de país, sin + ni espacios)</label>
+              <input name="whatsappPhone" value="${esc(settings.whatsappPhone)}" placeholder="5491100000000"/></div>
+            <div class="field"><label>Símbolo de moneda</label>
+              <input name="currencySymbol" value="${esc(settings.currencySymbol)}" maxlength="3"/></div>
+            <div class="field"><label>Título del modal "Cómo comprar"</label>
+              <input name="howTitle" value="${esc(settings.howTitle)}" placeholder="Cómo comprar"/></div>
+            <div class="field"><label>Pasos de "Cómo comprar" (un paso por línea, con formato **negrita**)</label>
+              <textarea name="howSteps" rows="6" placeholder="Explorá el catálogo…\nTocá Consultar…">${esc(settings.howSteps)}</textarea></div>
+            <div class="field"><label>Nota de retiro del modal (vacía = "Retiro en el local: {dirección}")</label>
+              <input name="howPickupNote" value="${esc(settings.howPickupNote)}" placeholder="📍 Retiro en el local: Mendoza 2974"/></div>
+            <div class="field"><label>Badge "Nuevo" automático (productos cargados hace menos de…)</label>
+              <select name="freshHours">
+                <option value="24" ${settings.freshHours === 24 ? "selected" : ""}>24 horas</option>
+                <option value="48" ${settings.freshHours === 48 || settings.freshHours === 0 ? "selected" : ""}>48 horas</option>
+                <option value="168" ${settings.freshHours === 168 ? "selected" : ""}>7 días</option>
+                <option value="0" ${settings.freshHours !== 24 && settings.freshHours !== 48 && settings.freshHours !== 168 ? "selected" : ""}>Desactivado</option>
+              </select></div>
+          </div>
+        </details>
+        <details class="cfg-group">
+          <summary>Pagos online (MercadoPago) <span class="cfg-hint">toggle, recargo, descuento y CBU</span></summary>
+          <div class="cfg-body">
+            <div class="field field--check">
+              <label><input type="checkbox" name="paymentsEnabled" ${settings.paymentsEnabled ? "checked" : ""}/> Activar pago online con MercadoPago (botones "Comprar" y "Agregar" en el catálogo)</label>
+            </div>
+            <div class="field"><label>Nota de envío/retiro (se muestra en el carrito y en la página del pedido)</label>
+              <input name="checkoutNote" value="${esc(settings.checkoutNote)}" placeholder="Coordinamos envío o retiro por WhatsApp después del pago."/></div>
+            <div class="field"><label>Recargo por pagar con MercadoPago (%) — 0 = sin recargo</label>
+              <input name="mpSurchargePercent" type="number" min="0" max="50" step="1" value="${settings.mpSurchargePercent}" placeholder="0"/></div>
+            <div class="field"><label>Descuento por pagar con transferencia (%) — 0 = sin descuento</label>
+              <input name="transferDiscountPercent" type="number" min="0" max="50" step="1" value="${settings.transferDiscountPercent}" placeholder="0"/></div>
+            <div class="field"><label>CBU / alias para transferencias (opcional; va pre-cargado en el mensaje del pedido por transferencia)</label>
+              <input name="transferCbu" value="${esc(settings.transferCbu ?? "")}" maxlength="120" placeholder="Alias: CENTERPHONE.AR"/></div>
+            <p class="muted">El recargo se suma al total de MercadoPago al confirmar el pedido. El descuento por transferencia es informativo: se muestra en el carrito y en el cierre por WhatsApp (el cobro lo coordinás vos).</p>
+            <p class="muted" id="payments-status">Verificando credenciales…</p>
+            <p class="muted">El token <strong>no</strong> se configura acá: es un secret del worker.<br>
+            • Local: agregá <code>MERCADOPAGO_ACCESS_TOKEN=TEST-…</code> a <code>.dev.vars</code>.<br>
+            • Producción: <code>npx wrangler secret put MERCADOPAGO_ACCESS_TOKEN</code>.<br>
+            • Webhook a configurar en MercadoPago (Tus integraciones → Webhooks): <code>https://tu-dominio/api/payments/webhook</code> — evento <em>Pagos</em>.</p>
+          </div>
+        </details>
+        <details class="cfg-group">
+          <summary>Mantenimiento <span class="cfg-hint">cerrar la tienda al público</span></summary>
+          <div class="cfg-body">
+            <div class="field field--check">
+              <label><input type="checkbox" name="maintenanceMode" ${settings.maintenanceMode ? "checked" : ""}/> Cerrar el catálogo al público (pantalla con WhatsApp y redes); el panel y los pedidos siguen funcionando</label>
+            </div>
+            <div class="field"><label>Mensaje para los clientes (opcional)</label>
+              <input name="maintenanceMessage" value="${esc(settings.maintenanceMessage ?? "")}" maxlength="300" placeholder="Estamos actualizando la tienda para atenderte mejor. En un rato volvemos 🙌"/></div>
+          </div>
+        </details>
+        <p class="muted">La sincronización del catálogo se gestiona desde la pestaña <strong>Auto-importaciones</strong>: cargás los links, les asignás horarios (hora Argentina) y el cron los actualiza solo. El historial de cada corrida queda en el Dashboard.</p>
         <button type="submit" class="btn btn-primary">Guardar configuración</button>
       </form>
-      <h2 style="margin-top:32px">Cambiar contraseña del panel</h2>
-      <form id="pw-form">
-        <div class="field"><label>Contraseña actual</label>
-          <input name="current" type="password" autocomplete="current-password"/></div>
-        <div class="field"><label>Nueva contraseña (mínimo 8 caracteres)</label>
-          <input name="next" type="password" autocomplete="new-password" minlength="8"/></div>
-        <div class="field"><label>Repetir nueva contraseña</label>
-          <input name="next2" type="password" autocomplete="new-password" minlength="8"/></div>
-        <button type="submit" class="btn">Cambiar contraseña</button>
-      </form>
+      <details class="cfg-group" style="margin-top:24px">
+        <summary>Seguridad <span class="cfg-hint">cambiar la contraseña del panel</span></summary>
+        <div class="cfg-body">
+          <form id="pw-form">
+            <div class="field"><label>Contraseña actual</label>
+              <input name="current" type="password" autocomplete="current-password"/></div>
+            <div class="field"><label>Nueva contraseña (mínimo 8 caracteres)</label>
+              <input name="next" type="password" autocomplete="new-password" minlength="8"/></div>
+            <div class="field"><label>Repetir nueva contraseña</label>
+              <input name="next2" type="password" autocomplete="new-password" minlength="8"/></div>
+            <button type="submit" class="btn">Cambiar contraseña</button>
+          </form>
+        </div>
+      </details>
     </div>`;
   const form = el.view.querySelector("#s-form") as HTMLFormElement;
   form.addEventListener("submit", async (ev) => {

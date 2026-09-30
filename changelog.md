@@ -1,3 +1,14 @@
+## 2026-09-30 — Configuración en secciones plegables
+
+- La pestaña Configuración pasa de una lista larguísima de campos sueltos a **5 secciones que se abren y cierran** tocándolas: **Tienda** (nombre, dirección, horarios, redes y link de seguimiento — abierta por defecto), **Ventas** (WhatsApp, moneda y texto «Cómo comprar»), **Pagos online (MercadoPago)** (toggle, nota de envío, recargo, descuento, CBU e indicador del token), **Mantenimiento** (toggle + mensaje) y **Seguridad** (cambio de contraseña del panel)
+- El indicador «Sincronización» queda como texto fijo arriba del botón guardar (apunta a Auto-importaciones)
+- Guardado con un solo botón, igual que antes: se verificó guardar sin cambios → toast «Configuración guardada» y los 20 campos intactos; ninguna clave de settings cambió
+- Marker terminal `[+]` / `[-]` en cada sección (CSS `.cfg-group`); build ✅, typecheck ✅, 158/158 tests ✅, verificado por DOM + screenshots en local
+
+## 2026-09-30 — Deploy: "Sin stock" como filtro dentro de Productos
+
+- Deploy `6e794dc9-e7a5-4fc7-97bf-0064a8c11fe4` (commit `5bf3747`); en producción el menú quedó con 9 pestañas (sin "Sin stock") y el filtro de sin-stock activo en el sistema del panel
+
 ## 2026-09-30 — Deploy: estilos unificados + menú del panel reordenado
 
 - Deploys con commit `1051180` (estilos terminal en páginas del worker + mensaje "Ya avisé" con detalle) y `d5549a8` (menú agrupado con contador de pendientes); versión activa `b26889e9-cf20-44a9-ade8-be10566ff900`
