@@ -85,7 +85,15 @@ for i in 1 2 3 4 5 6 7; do curl -s -o /dev/null -w "%{http_code} " -X POST https
   -H 'Content-Type: application/json' -d '{"password":"mal-$i"}'; done; echo
 ```
 **Esperado**: algunos `401` y luego **`429`** ("Demasiados intentos"). Esperar 1 minuto antes de seguir con los otros tests (o el rate limit te bloquea a vos).
-Nota: el límite es por isolate (fix pendiente B2 con WAF); si no aparece 429, anotarlo pero no es regression.
+Nota: desde el 2026-09-30 hay además una regla WAF en el borde (fix B2): `POST /api/admin/login` con más de 5 requests cada 10s por IP → bloqueo de 10s (429 de Cloudflare, respuesta en ~50ms). El límite en memoria del worker sigue como segunda capa.
+
+### 3.2b Regla WAF del login (fix B2, borde)
+Ejecutar 8 veces seguidas:
+```bash
+for i in 1 2 3 4 5 6 7 8; do curl -s -o /dev/null -w "%{http_code} " -X POST https://centerphone.com.ar/api/admin/login \
+  -H 'Content-Type: application/json' -d '{"password":"mal-$i"}'; done; echo
+```
+**Esperado**: los primeros 5 `401` y los últimos **`429`** del borde de Cloudflare. A los ~12 segundos vuelve a responder `401` (el bloqueo dura 10s).
 
 ### 3.3 Sin cuerpo JSON
 ```bash
@@ -207,6 +215,7 @@ curl -s -X POST http://127.0.0.1:8788/api/admin/import \
 | 2.3 Track Origin propio | ✅ 204 |
 | 3.1 Password incorrecta | ✅ 401 |
 | 3.2 Rate limit (7 intentos) | ⚠️ sin 429 — cada request cayó en un isolate distinto (límite en memoria). Limitación conocida, no regression. Mitigación pendiente: regla WAF (fix B2) |
+| 3.2b Regla WAF login (fix B2, 2026-09-30) | ✅ ráfaga de 8: 5×401 + 3×**429** del borde; a los 12s vuelve a responder 401 (bloqueo 10s). Regla "Rate limit login admin (fix B2)" en `http_ratelimit` de la zona |
 | 3.3 Login sin body | ✅ 401 (no 500) |
 | 3.4 Rutas admin sin sesión (9 rutas) | ✅ todas 401, nada filtra datos |
 | 4.2 Cookie falsificada | ✅ 401 |
@@ -215,7 +224,7 @@ curl -s -X POST http://127.0.0.1:8788/api/admin/import \
 | 7 parcial: login UI rechaza mal password | ✅ mensaje "Contraseña incorrecta" en el panel |
 | 4.1, 4.3, 4.4, 5.1, 7 completo | ⏳ requieren la contraseña real de producción (no está en el repo, por diseño) |
 
-**Conclusión**: todos los controles automatizables pasan. Los 429 del rate limit siguen siendo la única debilidad conocida (fix B2 con WAF, sin código). El login con la contraseña de producción no se probó por seguridad — hacerlo manualmente con la sección 4 del checklist.
+**Conclusión**: todos los controles automatizables pasan. La debilidad del rate limit quedó cerrada el 2026-09-30 con la regla WAF del fix B2 (caso 3.2b). El login con la contraseña de producción no se probó por seguridad — hacerlo manualmente con la sección 4 del checklist.
 
 **Regla de oro**: si algo falla, NO revertir a lo rápido — consultar `INFORME_SEGURIDAD.md`
 y el changelog, que documentan por qué cada control existe.

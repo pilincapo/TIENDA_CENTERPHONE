@@ -1,3 +1,19 @@
+## 2026-09-30 — Webhook de MercadoPago verificado con el pago real en producción
+
+- Cerrado el circuito E2E con el pago real del 2026-09-29: el pedido `57b79490f746a0ac461a4e69c4863c5e` (Valeria Pain, $840, Encendedor TAYO) quedó **`paid` con `mp_payment_id: 181520554414`** — dato que solo escribe el webhook al confirmar
+- Verificación cruzada contra la API de MP (`GET /v1/payments/181520554414`): `status: approved` / `accredited`, monto 840, `external_reference` = el pedido, `test_mode` null y payer `valeriapain@gmail.com` — el webhook actuó correctamente sin configuración en el panel de MP
+- Nota para mejora: el webhook hoy guarda solo `mp_payment_id`; el email del pagador queda en MP y la columna `payer_email` de D1 queda vacía (agregar su persistencia en el webhook)
+- Pedidos de prueba de hoy (`e1bd9bcb...` para reintentar el E2E, y `d9f1f044...`) cancelados sin pago
+
+## 2026-09-30 — Fix B2: rate limit del login admin con regla WAF en el borde
+
+- Cerrada la única debilidad de la auditoría: regla WAF de rate limiting en la zona `centerphone.com.ar` para `POST /api/admin/login` (fase `http_ratelimit`, regla "Rate limit login admin (fix B2)", id `9c74f29bad9e4e1e8d67cc39a046e3e5`)
+- Límites del free plan descubiertos vía errores de la API: el período y el `mitigation_timeout` solo admiten **10 segundos**, y las características exigen `cf.colo.id` además de `ip.src` (el conteo se hace por colo)
+- Diseño final: 5 requests cada 10s por IP → `block` durante 10s (≈30/min sostenido, más estricto que el límite en memoria de la app, que queda como segunda capa)
+- Verificado contra producción: ráfaga de 8 logins → 5×`401` + 3×**`429`** del borde (~50ms, sin llegar al worker); a los 12s vuelve a responder `401` al expirar el bloqueo
+- `CHECKLIST_SEGURIDAD.md`: nuevo caso 3.2b para reprobar la regla con curl, y conclusión de la auditoría actualizada
+- Creada vía API (`PUT /zones/{zone}/rulesets/phases/http_ratelimit/entrypoint`); en el dashboard queda visible en Seguridad → Reglas
+
 ## 2026-09-29 — Fix de configuración de pagos en producción (secret + toggle)
 
 - **Secret mal creado corregido**: el intento anterior de `wrangler secret put` había guardado el token como **nombre** del secret (request interactivo: pide nombre y valor por separado). Creado `MERCADOPAGO_ACCESS_TOKEN` con el token renovado como valor y borrado el secret-artefacto. Confirmado que usa la credencial RENOVADA: el `pref_id` de MP arranca con el app id nuevo (`13230033`)
