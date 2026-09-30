@@ -23,20 +23,40 @@
     <div id="app" hidden>
       <header class="topbar">
         <a class="brand" href="/admin/"><img class="brand-logo" src="/logo.jpg" alt=""/><span>Admin</span></a>
-        <nav class="tabs" id="tabs">
-          <a href="#dashboard" data-tab="dashboard">Dashboard</a>
-          <a href="#products" data-tab="products">Productos</a>
-          <a href="#hidden" data-tab="hidden">Sin stock</a>
-          <a href="#categories" data-tab="categories">Categorías</a>
-          <a href="#import" data-tab="import">Importar</a>
-          <a href="#rules" data-tab="rules">Reglas de precios</a>
-          <a href="#auto" data-tab="auto">Auto-importaciones</a>
-          <a href="#stats" data-tab="stats">Estadísticas</a>
-          <a href="#orders" data-tab="orders">Pedidos</a>
-          <a href="#settings" data-tab="settings">Configuración</a>
-        </nav>
         <button id="logout" class="btn btn-ghost">Salir</button>
       </header>
+      <nav class="menu" id="tabs" aria-label="Secciones del panel">
+        <div class="menu-group">
+          <span class="menu-label">Ventas</span>
+          <div class="menu-links">
+            <a href="#orders" data-tab="orders">Pedidos</a>
+            <a href="#stats" data-tab="stats">Estadísticas</a>
+          </div>
+        </div>
+        <div class="menu-group">
+          <span class="menu-label">Catálogo</span>
+          <div class="menu-links">
+            <a href="#products" data-tab="products">Productos</a>
+            <a href="#categories" data-tab="categories">Categorías</a>
+            <a href="#hidden" data-tab="hidden">Sin stock</a>
+          </div>
+        </div>
+        <div class="menu-group">
+          <span class="menu-label">Importación</span>
+          <div class="menu-links">
+            <a href="#import" data-tab="import">Importar</a>
+            <a href="#auto" data-tab="auto">Auto-imp.</a>
+            <a href="#rules" data-tab="rules">Reglas</a>
+          </div>
+        </div>
+        <div class="menu-group">
+          <span class="menu-label">Sistema</span>
+          <div class="menu-links">
+            <a href="#dashboard" data-tab="dashboard">Dashboard</a>
+            <a href="#settings" data-tab="settings">Configuración</a>
+          </div>
+        </div>
+      </nav>
       <main class="admin-main" id="view"></main>
     </div>
 

@@ -305,13 +305,45 @@ img { max-width: 100%; display: block; }
 
 /* ===== Admin ===== */
 .admin-main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
-.tabs { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
-.tabs a {
-  padding: 8px 12px; border-radius: 0; font-size: 13px; color: var(--muted);
-  border: 1px solid transparent;
+/* Menú del panel: grupos en columnas con etiqueta arriba (Ventas / Catálogo /
+   Importación / Sistema). Los links usan la misma pestaña de siempre. */
+.menu {
+  display: flex; align-items: stretch; flex-wrap: wrap;
+  padding: 8px 20px 10px; background: var(--bg);
+  border-bottom: 2px solid var(--border-bright);
+  position: sticky; top: 0; z-index: 1001;
 }
-.tabs a:hover { background: var(--panel-2); color: var(--brand); border-color: var(--border-bright); }
-.tabs a.active { background: var(--term-green-soft); color: var(--brand); font-weight: 700; border-color: var(--brand); }
+.menu-group {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 2px 18px; border-left: 1px solid var(--border);
+}
+.menu-group:first-child { border-left: none; padding-left: 0; }
+.menu-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--muted); font-weight: 600;
+}
+.menu-links { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.menu a {
+  padding: 5px 10px; border-radius: 0; font-size: 13px; font-weight: 600;
+  color: var(--text); border: 1px solid transparent; white-space: nowrap;
+}
+.menu a:hover { background: var(--panel-2); color: var(--brand); border-color: var(--border-bright); }
+.menu a.active { background: var(--term-green-soft); color: var(--brand); font-weight: 700; border-color: var(--brand); }
+.menu .tab-badge {
+  display: inline-block; min-width: 17px; text-align: center;
+  background: var(--term-amber); color: #241a02;
+  font-size: 10px; font-weight: 800; padding: 1px 5px; margin-left: 6px;
+}
+@media (max-width: 900px) {
+  .menu-group { padding: 2px 12px; }
+  .menu-links { gap: 4px; }
+  .menu a { padding: 5px 8px; font-size: 12px; }
+}
+@media (max-width: 640px) {
+  .menu { padding: 8px 12px 10px; }
+  .menu-group { padding: 2px 10px; }
+  .menu a { padding: 4px 7px; font-size: 11px; }
+}
 
 .login {
   min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px;
