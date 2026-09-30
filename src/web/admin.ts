@@ -623,6 +623,9 @@ async function viewProducts(statusFilter: "published" | "hidden" = "published"):
           ${chip("published", "Todos", publishedCount)}
           ${chip("hidden", "Sin stock", hiddenCount)}
         </div>
+        <input id="prod-search" type="search" placeholder="Buscar por título o código…" autocomplete="off"
+          style="max-width:240px; margin-left:10px"/>
+        <span class="muted" id="prod-search-count" hidden></span>
         <button class="btn btn-primary" id="new-product" style="margin-left:auto">+ Nuevo producto</button>
       </div>
       ${statusFilter === "hidden" ? `<p class="muted" style="margin:8px 0 0">No aparecen en el catálogo público porque la fuente ya no los trae (sin stock) o los ocultaste a mano. Si la fuente vuelve a traerlos, se re-publican solos.</p>
@@ -664,8 +667,28 @@ async function viewProducts(statusFilter: "published" | "hidden" = "published"):
   el.view.querySelectorAll<HTMLButtonElement>("[data-pf]").forEach((b) => {
     b.addEventListener("click", () => void viewProducts((b.dataset.pf as "published" | "hidden") ?? "published"));
   });
-  el.view.querySelector("#new-product")?.addEventListener("click", () => void openProductForm(null, categories));
-  el.view.querySelector("#new-product")?.addEventListener("click", () => void openProductForm(null, categories));
+  // ---- Buscador: filtra filas al tipear (título o código), sin recargar nada ----
+  const searchInput = el.view.querySelector("#prod-search") as HTMLInputElement | null;
+  const searchCount = el.view.querySelector("#prod-search-count") as HTMLElement | null;
+  const applySearch = (): void => {
+    const q = (searchInput?.value ?? "").trim().toLowerCase();
+    let shown = 0;
+    el.view.querySelectorAll<HTMLTableRowElement>("table.table tbody tr[data-id]").forEach((tr) => {
+      const title = tr.querySelector("td:nth-child(2)")?.textContent?.toLowerCase() ?? "";
+      const match = q === "" || title.includes(q);
+      tr.style.display = match ? "" : "none";
+      // Oculto también el checkbox para que la selección múltiple no cuente ocultos.
+      const cb = tr.querySelector<HTMLInputElement>(".prod-sel");
+      if (cb && !match) cb.checked = false;
+      if (match) shown++;
+    });
+    if (searchCount) {
+      const total = el.view.querySelectorAll("table.table tbody tr[data-id]").length;
+      searchCount.hidden = q === "";
+      searchCount.textContent = q === "" ? "" : `${shown} de ${total} coinciden`;
+    }
+  };
+  searchInput?.addEventListener("input", applySearch);
   el.view.querySelectorAll(".btn-edit").forEach((b) => {
     b.addEventListener("click", () => {
       const p = products.find((x) => x.id === (b as HTMLElement).dataset.id);
@@ -701,8 +724,14 @@ async function viewProducts(statusFilter: "published" | "hidden" = "published"):
     }
     if (selAll) selAll.checked = products.length > 0 && n === products.length;
   };
+  // "Marcar todos" respeta el filtro del buscador: solo marca las filas visibles.
   selAll?.addEventListener("change", () => {
-    el.view.querySelectorAll<HTMLInputElement>(".prod-sel").forEach((cb) => (cb.checked = selAll.checked));
+    el.view.querySelectorAll<HTMLTableRowElement>("table.table tbody tr[data-id]").forEach((tr) => {
+      if (tr.style.display !== "none") {
+        const cb = tr.querySelector<HTMLInputElement>(".prod-sel");
+        if (cb) cb.checked = selAll.checked;
+      }
+    });
     refreshBulk();
   });
   el.view.querySelectorAll(".prod-sel").forEach((cb) => cb.addEventListener("change", refreshBulk));

@@ -1,3 +1,9 @@
+## 2026-09-30 — Buscador en la pestaña Productos
+
+- Campo **"Buscar por título o código…"** junto a los chips de Productos: filtra las filas **mientras se tipea** (sin recargar la tabla de 979 productos), muestra "N de M coinciden" y "Marcar todos" pasa a marcar solo las filas visibles con el filtro activo
+- Busca por título y código de producto, sin distinguir mayúsculas; al borrar la búsqueda vuelven todas
+- Verificado en local: búsqueda con coincidencias (2 de 829), sin resultados ("0 de 829"), limpiar restaura todo, y selección múltiple respeta el filtro; typecheck ✅, build ✅
+
 ## 2026-09-30 — Operación: fuente "Hogar" re-sincronizada a mano
 
 - La auto-importación "Hogar" (hacetupedido) estaba atrasada >24h (última corrida 29/9 05:01 con el cron); se forzó su corrida manual por el modo seguro de una-fuente-por-request: **135 productos actualizados, 1 marcado sin stock, sin errores**, nueva corrida 30/9 05:37 y la pestaña quedó sin fuentes atrasadas
