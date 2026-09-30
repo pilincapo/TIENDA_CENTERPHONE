@@ -80,15 +80,27 @@ checkoutApp.post("/api/checkout", async (c) => {
   }
 
   const orderId = newId() + newId(); // 32 hex: intratable, es la credencial de la página /pedido/:id
+  // Recargo del pago online (configurable en el panel): se congela como ítem
+  // extra dentro de items_json y entra al total del pedido, para que lo que
+  // muestra /pedido/:id, el panel y la preferencia de MP sean SIEMPRE el mismo
+  // número. El descuento por transferencia es solo informativo (el cobro lo
+  // coordina el vendedor por WhatsApp fuera del sistema).
+  const surchargePercent = Math.min(50, Math.max(0, Math.round(Number(settings.mpSurchargePercent ?? 0))));
+  const baseItems = cart.items ?? [];
+  const baseTotal = cart.totalCents ?? 0;
+  const surchargeCents = surchargePercent > 0 && baseTotal > 0 ? Math.round((baseTotal * surchargePercent) / 100) : 0;
+  const items = surchargeCents > 0
+    ? [...baseItems, { id: "recargo-mp", title: `Recargo pago online (${surchargePercent}%)`, qty: 1, priceCents: surchargeCents }]
+    : baseItems;
   const order = {
     id: orderId,
     status: "pending" as const,
-    totalCents: cart.totalCents ?? 0,
+    totalCents: baseTotal + surchargeCents,
     currency: "ARS",
     buyerName: buyer.name,
     buyerPhone: buyer.phone,
     payerEmail: null,
-    items: cart.items ?? [],
+    items,
     mpPreferenceId: null,
     mpPaymentId: null,
     paidAt: null,
@@ -103,7 +115,7 @@ checkoutApp.post("/api/checkout", async (c) => {
   const pref = await createPreference({
     token,
     orderId,
-    items: order.items,
+    items: order.items, // incluye el ítem de recargo si está configurado
     buyerName: buyer.name,
     buyerPhone: buyer.phone,
     siteUrl,

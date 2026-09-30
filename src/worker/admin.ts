@@ -387,6 +387,12 @@ adminApp.get("/settings", async (c) => {
   return c.json({ settings: await getSettings(c.env.KV) });
 });
 
+/** Porcentaje entero para recargos/descuentos: 0-50, cualquier otra cosa = 0. */
+function clampPercent(v: unknown): number {
+  const n = Math.round(Number(v ?? 0));
+  return Number.isFinite(n) && n > 0 && n <= 50 ? n : 0;
+}
+
 adminApp.put("/settings", async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   if (!body) return c.json({ error: "Body inválido" }, 400);
@@ -409,6 +415,9 @@ adminApp.put("/settings", async (c) => {
     freshHours: Math.min(24 * 30, Math.max(0, Math.round(Number(body.freshHours ?? 48)))) ,
     paymentsEnabled: body.paymentsEnabled === true,
     checkoutNote: String(body.checkoutNote ?? "").slice(0, 300),
+    // Recargo/descuento en % entero, acotado a 0-50 (fuera de rango = 0).
+    mpSurchargePercent: clampPercent(body.mpSurchargePercent),
+    transferDiscountPercent: clampPercent(body.transferDiscountPercent),
   });
   return c.json({ settings });
 });

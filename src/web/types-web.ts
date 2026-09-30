@@ -18,4 +18,8 @@ export interface PublicSettings {
   paymentsEnabled: boolean;
   /** Nota de envío/retiro para el carrito y el pedido. */
   checkoutNote: string;
+  /** Recargo % del pago online por MercadoPago (0 = sin recargo). El total con recargo lo confirma el worker. */
+  mpSurchargePercent: number;
+  /** Descuento % por pagar con transferencia (0 = sin descuento); informativo para el cierre por WhatsApp. */
+  transferDiscountPercent: number;
 }

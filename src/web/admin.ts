@@ -1787,6 +1787,11 @@ async function viewSettings(): Promise<void> {
         </div>
         <div class="field"><label>Nota de envío/retiro (se muestra en el carrito y en la página del pedido)</label>
           <input name="checkoutNote" value="${esc(settings.checkoutNote)}" placeholder="Coordinamos envío o retiro por WhatsApp después del pago."/></div>
+        <div class="field"><label>Recargo por pagar con MercadoPago (%) — 0 = sin recargo</label>
+          <input name="mpSurchargePercent" type="number" min="0" max="50" step="1" value="${settings.mpSurchargePercent}" placeholder="0"/></div>
+        <div class="field"><label>Descuento por pagar con transferencia (%) — 0 = sin descuento</label>
+          <input name="transferDiscountPercent" type="number" min="0" max="50" step="1" value="${settings.transferDiscountPercent}" placeholder="0"/></div>
+        <p class="muted">El recargo se suma al total de MercadoPago al confirmar el pedido. El descuento por transferencia es informativo: se muestra en el carrito y en el cierre por WhatsApp (el cobro lo coordinás vos).</p>
         <p class="muted" id="payments-status">Verificando credenciales…</p>
         <p class="muted">El token <strong>no</strong> se configura acá: es un secret del worker.<br>
         • Local: agregá <code>MERCADOPAGO_ACCESS_TOKEN=TEST-…</code> a <code>.dev.vars</code>.<br>
@@ -1830,6 +1835,8 @@ async function viewSettings(): Promise<void> {
           freshHours: Number(fd.get("freshHours")),
           paymentsEnabled: (fd.get("paymentsEnabled") ?? "") === "on",
           checkoutNote: fd.get("checkoutNote"),
+          mpSurchargePercent: Number(fd.get("mpSurchargePercent") ?? 0),
+          transferDiscountPercent: Number(fd.get("transferDiscountPercent") ?? 0),
         }),
       });
       toast("Configuración guardada");

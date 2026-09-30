@@ -1,3 +1,11 @@
+## 2026-09-30 — Recargo por pago con MercadoPago y descuento por transferencia (configurables en el panel)
+
+- **Dos ajustes nuevos en Configuración → Pagos**: `mpSurchargePercent` (recargo % del pago online, se cobra de verdad) y `transferDiscountPercent` (descuento % por transferencia, informativo); ambos enteros 0-50, fuera de rango = 0 (`clampPercent`)
+- El recargo se **congela como ítem extra** (`recargo-mp`) dentro de `items_json` y entra al `total_cents` del pedido: /pedido/:id, el panel y la preferencia de MP muestran SIEMPRE el mismo número — y el % queda congelado al momento de comprar, aunque el vendedor lo cambie después
+- Carrito: muestra subtotal + "Total con pago online (incluye recargo de N%)" y una nota verde con el total con descuento por transferencia; el mensaje de WhatsApp de "Consultar este pedido" incluye la línea del descuento
+- El descuento NO lo cobra el sistema: es una herramienta de venta para el cierre por WhatsApp (el vendedor coordina el cobro)
+- Tests: nuevo caso del recargo server-side (ítem extra en la preferencia + total del pedido congelado) — **151 en total** ✅, typecheck ✅
+
 ## 2026-09-30 — Limpieza de la cola de pedidos de producción
 
 - El pedido de verificación `5aae15d9…` quedó cancelado (el vendedor lo canceló desde el panel); no hay pedidos `pending` en la D1 remota: solo 2 `paid` (el real de Valeria Pain vía webhook y uno marcado a mano) y 4 `cancelled` de pruebas

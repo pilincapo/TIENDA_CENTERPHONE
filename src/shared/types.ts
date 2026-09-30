@@ -88,6 +88,10 @@ export interface StoreSettings {
   paymentsEnabled: boolean;
   /** Nota de envío/retiro que se muestra en el carrito y en la página del pedido. */
   checkoutNote: string;
+  /** Recargo % que se suma al total cuando el pago es online por MercadoPago (0-50; 0 = sin recargo). Se cobra server-side en la preferencia. */
+  mpSurchargePercent: number;
+  /** Descuento % por pagar con transferencia (0-50; 0 = sin descuento). Informativo: se muestra en el carrito y en el cierre por WhatsApp. */
+  transferDiscountPercent: number;
   whatsappPhone: string;
   currencySymbol: string;
   syncUrl: string;
@@ -150,6 +154,8 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   freshHours: 48,
   paymentsEnabled: false,
   checkoutNote: "Coordinamos envío o retiro por WhatsApp después del pago. Envío gratis en la ciudad de Santa Fe.",
+  mpSurchargePercent: 0,
+  transferDiscountPercent: 0,
 };
 
 export const KV_SNAPSHOT_KEY = "catalog:snapshot:v1";

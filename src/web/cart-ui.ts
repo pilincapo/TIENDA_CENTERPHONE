@@ -201,9 +201,18 @@ function renderCart(): void {
         </div>
       </div>`;
   }).join("");
+  // El total a cobrar lo recalcula el worker: esto es solo anticipación visual.
+  const surchargePercent = Math.min(50, Math.max(0, Math.round(Number(init.settings.mpSurchargePercent ?? 0))));
+  const totalSurcharge = surchargePercent > 0 ? total + Math.round((total * surchargePercent) / 100) : total;
+  const discountPercent = Math.min(50, Math.max(0, Math.round(Number(init.settings.transferDiscountPercent ?? 0))));
+  const transferNote = discountPercent > 0
+    ? `<p class="cart-transfer">Pagando por transferencia tenés <b>${discountPercent}% de descuento</b>: total ${formatPrice(total - Math.round((total * discountPercent) / 100), symbol)}. Elegí "Consultar este pedido" y lo coordinamos por WhatsApp.</p>`
+    : "";
   body.innerHTML = `
     <div class="cart-lines">${rows}</div>
-    <div class="cart-total">Total <b>${formatPrice(total, symbol)}</b></div>
+    ${totalSurcharge > 0 ? `<div class="cart-total cart-total-sub">Subtotal <b>${formatPrice(total, symbol)}</b></div>
+    <div class="cart-total">Total con pago online <b>${formatPrice(totalSurcharge, symbol)}</b> <small class="muted">(incluye recargo de ${surchargePercent}%)</small></div>` : `<div class="cart-total">Total <b>${formatPrice(total, symbol)}</b></div>`}
+    ${transferNote}
     ${anyInvalid ? `<p class="cart-warn">Hay productos que ya no están disponibles: se quitarán al confirmar.</p>` : ""}
     ${consult}`;
   if (checkout) checkout.hidden = false;
@@ -258,7 +267,10 @@ function wireConsult(): void {
       const p = productById(l.id);
       return s + (p ? p.priceCents * l.qty : 0);
     }, 0);
-    const text = `Hola! Quiero comprar:\n${items}\nTotal: ${formatPrice(total, symbol)}`;
+    const discount = Math.min(50, Math.max(0, Math.round(Number(init.settings.transferDiscountPercent ?? 0))));
+    const transferTotal = discount > 0 ? total - Math.round((total * discount) / 100) : total;
+    const text = `Hola! Quiero comprar:\n${items}\nTotal: ${formatPrice(total, symbol)}`
+      + (discount > 0 ? `\nCon el ${discount}% de descuento por transferencia: ${formatPrice(transferTotal, symbol)}` : "");
     window.open(`https://wa.me/${wa}?text=${encodeURIComponent(text)}`, "_blank", "noopener");
   });
 }

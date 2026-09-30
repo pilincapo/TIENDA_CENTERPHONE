@@ -106,6 +106,8 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     freshHours: s.freshHours,
     paymentsEnabled: s.paymentsEnabled,
     checkoutNote: s.checkoutNote,
+    mpSurchargePercent: s.mpSurchargePercent,
+    transferDiscountPercent: s.transferDiscountPercent,
   };
 }
 

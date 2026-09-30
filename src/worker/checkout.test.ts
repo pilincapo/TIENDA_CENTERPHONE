@@ -53,9 +53,9 @@ function makeDb() {
 }
 
 // KV con settings mínimos; getSettings solo hace kv.get(key) y hace merge.
-function makeKv(paymentsEnabled: boolean) {
+function makeKv(paymentsEnabled: boolean, extra: Record<string, unknown> = {}) {
   return {
-    get: async (key: string) => (key === "config:settings:v1" ? JSON.stringify({ paymentsEnabled }) : null),
+    get: async (key: string) => (key === "config:settings:v1" ? JSON.stringify({ paymentsEnabled, ...extra }) : null),
   };
 }
 
@@ -193,6 +193,39 @@ describe("POST /api/checkout", () => {
     expect(row.mp_preference_id).toBe("pref-123"); // antes quedaba siempre NULL
     expect(row.status).toBe("pending");
     expect(row.total_cents).toBe(50_000_000); // precio de la base, no del cliente
+  });
+
+  it("cobra el recargo de MP como ítem extra de la preferencia, sin tocar el total base", async () => {
+    const { db, orders, products } = makeDb();
+    seedProduct(products);
+    const fetchMock = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ id: "pref-9", init_point: "https://mpago.la/9" }),
+      { status: 201 },
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await checkoutApp.request(
+      "/api/checkout",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+        body: JSON.stringify({ items: [{ id: "p1", qty: 1 }], name: "Juan", phone: "342 555 1234" }),
+      },
+      asEnv({ DB: db, KV: makeKv(true, { mpSurchargePercent: 10 }), MERCADOPAGO_ACCESS_TOKEN: "t" }),
+      asCtx([]),
+    );
+    expect(res.status).toBe(200);
+
+    const [, initReq] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const prefBody = JSON.parse(String(initReq.body)) as { items: { id: string; title: string; quantity: number; unit_price: number }[] };
+    expect(prefBody.items).toHaveLength(2);
+    expect(prefBody.items[1]).toEqual({ id: "recargo-mp", title: "Recargo pago online (10%)", quantity: 1, unit_price: 50000, currency_id: "ARS" });
+
+    // El pedido congela el ítem de recargo y su total es el final (base + recargo):
+    // /pedido/:id, el panel y MP muestran el mismo número.
+    const row = [...orders.values()][0]!;
+    expect(row.total_cents).toBe(55_000_000);
+    expect(row.items_json).toContain("recargo-mp");
   });
 
   it("responde 503 cuando el token de MP no está configurado", async () => {
