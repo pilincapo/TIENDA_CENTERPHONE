@@ -1,3 +1,10 @@
+## 2026-09-30 — Persistencia de payer_email y mp_preference_id desde el flujo de pagos
+
+- **`mp_preference_id` por fin se guarda**: existía `setOrderPreference` en `orders.ts` pero nadie la llamaba — ahora `POST /api/checkout` persiste el id de preferencia que devuelve MP (permite rastrear el checkout y asociar notificaciones futuras de MP)
+- **`payer_email` en el webhook**: `fetchPayment` ahora extrae `payer.email` de la re-consulta a la API de MP (con trim) y `updateOrderStatus` lo persiste junto con `mp_payment_id` — el email del pagador ya no queda solo en MP
+- **Fix colateral en `sameSiteOrigin`**: el header `Host` no está siempre disponible (undici lo filtra en tests); ahora cae al host de la URL del request, mismo resultado en producción y testeable en vitest
+- Tests nuevos en `checkout.test.ts` (4): webhook persiste email+payment id, no baja un pedido paid, pedido desconocido no toca nada, checkout guarda el preference id y recalcula el precio desde D1, y 503 sin token — **150 en total** ✅, typecheck ✅
+
 ## 2026-09-30 — Webhook de MercadoPago verificado con el pago real en producción
 
 - Cerrado el circuito E2E con el pago real del 2026-09-29: el pedido `57b79490f746a0ac461a4e69c4863c5e` (Valeria Pain, $840, Encendedor TAYO) quedó **`paid` con `mp_payment_id: 181520554414`** — dato que solo escribe el webhook al confirmar

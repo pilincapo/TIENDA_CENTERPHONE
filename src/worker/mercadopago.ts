@@ -26,6 +26,7 @@ interface MpPaymentResponse {
   external_reference?: string;
   test_mode?: boolean;
   transaction_amount?: number;
+  payer?: { email?: string };
 }
 
 /** Título acotado por ítem (MP tiene límites por descripción). */
@@ -102,19 +103,21 @@ export async function createPreference(opts: {
  * que descubra la URL podría POSTear un payload inventado; la única fuente de
  * verdad es un GET autenticado con el ACCESS_TOKEN).
  */
-export async function fetchPayment(token: string, paymentId: string): Promise<{ found: boolean; approved: boolean; externalReference: string | null; isTest: boolean }> {
-  const empty = { found: false, approved: false, externalReference: null as string | null, isTest: false };
+export async function fetchPayment(token: string, paymentId: string): Promise<{ found: boolean; approved: boolean; externalReference: string | null; isTest: boolean; payerEmail: string | null }> {
+  const empty = { found: false, approved: false, externalReference: null as string | null, isTest: false, payerEmail: null as string | null };
   try {
     const res = await fetch(`${MP_API}/v1/payments/${encodeURIComponent(paymentId)}`, {
       headers: { "Authorization": `Bearer ${token}` },
     });
     if (!res.ok) return empty;
     const p = (await res.json()) as MpPaymentResponse;
+    const email = typeof p.payer?.email === "string" ? p.payer.email.trim() : "";
     return {
       found: true,
       approved: p.status === "approved",
       externalReference: p.external_reference ?? null,
       isTest: p.test_mode === true,
+      payerEmail: email !== "" ? email : null,
     };
   } catch {
     return empty;

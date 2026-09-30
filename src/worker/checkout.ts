@@ -13,7 +13,7 @@ import { getSettings } from "./settings";
 import { listProducts } from "./db";
 import { newId } from "./settings";
 import {
-  getOrder, insertOrder, sanitizeBuyer, updateOrderStatus, validateCart, type CartInput,
+  getOrder, insertOrder, sanitizeBuyer, setOrderPreference, updateOrderStatus, validateCart, type CartInput,
 } from "./orders";
 import { createPreference, fetchPayment } from "./mercadopago";
 
@@ -34,11 +34,20 @@ function recordCheckoutAttempt(ip: string): void {
   else entry.count += 1;
 }
 
-function sameSiteOrigin(c: { req: { header: (n: string) => string | undefined } }): boolean {
+function sameSiteOrigin(c: { req: { header: (n: string) => string | undefined; url: string } }): boolean {
   // Igual que /api/track: se acepta también curl sin Origin en local.
   const origin = c.req.header("origin");
   const referer = c.req.header("referer");
-  const host = c.req.header("host") ?? "";
+  // El header Host no siempre está expuesto (undici lo filtra en tests):
+  // fallback al host de la URL del request, que es de donde sale en runtime.
+  let host = c.req.header("host") ?? "";
+  if (host === "") {
+    try {
+      host = new URL(c.req.url).host;
+    } catch {
+      return false;
+    }
+  }
   const raw = origin ?? referer ?? "";
   if (raw === "") return host === "" || host.startsWith("localhost") || host.startsWith("127.0.0.1");
   try {
@@ -104,6 +113,9 @@ checkoutApp.post("/api/checkout", async (c) => {
     // pagar. Se informa el motivo real para poder diagnosticar desde el panel.
     return c.json({ error: pref.error ?? "No se pudo iniciar el pago" }, 502);
   }
+  // Guardar el id de preferencia: permite rastrear el checkout de MP desde el
+  // pedido (y asociar notificaciones de MP que lleguen sin external_reference).
+  if (pref.preferenceId) await setOrderPreference(c.env.DB, orderId, pref.preferenceId);
   return c.json({ ok: true, orderId, initPoint: pref.initPoint });
 });
 
@@ -136,7 +148,8 @@ checkoutApp.post("/api/payments/webhook", async (c) => {
     if (orderId === "") return;
     const order = await getOrder(c.env.DB, orderId);
     if (!order || order.status === "paid") return; // desconocido o ya confirmado
-    await updateOrderStatus(c.env.DB, orderId, "paid", { mpPaymentId: id });
+    // El email lo informa MP en la re-consulta; si viene, queda persistido.
+    await updateOrderStatus(c.env.DB, orderId, "paid", { mpPaymentId: id, payerEmail: payment.payerEmail });
   })().catch(() => { /* el webhook nunca debe tirar excepción al waitUntil */ }));
 
   return c.json({ received: true });
