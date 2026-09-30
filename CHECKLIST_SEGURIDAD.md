@@ -192,7 +192,30 @@ curl -s -X POST http://127.0.0.1:8788/api/admin/import \
 | Fecha | Versión | Casos fallados | Notas |
 |---|---|---|---|
 | 2026-09-29 | `189fe0d4` (post-deploy A1+A2+M1+M3) | 1.4 beacon CF (corregido en `189fe0d4`), resto OK | CSP bloqueaba beacon de Cloudflare Analytics; agregado a la CSP |
-| | | | |
+| 2026-09-29 | `d2a57bd` (auditoría completa) | 3.2: sin 429 (esperado, ver nota) | Ver desglose abajo. Casos 4.1/4.3/4.4/5.1/7 requieren la contraseña real: pendientes del usuario |
+
+### Desglose de la auditoría 2026-09-29 (`d2a57bd`)
+
+| Caso | Resultado |
+|---|---|
+| 1.1 Cabeceras en `/` | ✅ 5 presentes, CSP con nonce + insights + frame-ancestors none |
+| 1.2 Cabeceras en `/admin/` | ✅ CSP + DENY + `Cache-Control: no-store` |
+| 1.3 Nonce `/seguimiento` | ✅ nonces distintos por request; sin hrefs inseguros |
+| 1.4 Navegador sin errores CSP | ✅ consola limpia, 20 productos, 0 imágenes rotas; beacon CF Analytics carga 200 |
+| 2.1 Track Origin externo | ✅ 403 |
+| 2.2 Track sin Origin (prod) | ✅ 403 |
+| 2.3 Track Origin propio | ✅ 204 |
+| 3.1 Password incorrecta | ✅ 401 |
+| 3.2 Rate limit (7 intentos) | ⚠️ sin 429 — cada request cayó en un isolate distinto (límite en memoria). Limitación conocida, no regression. Mitigación pendiente: regla WAF (fix B2) |
+| 3.3 Login sin body | ✅ 401 (no 500) |
+| 3.4 Rutas admin sin sesión (9 rutas) | ✅ todas 401, nada filtra datos |
+| 4.2 Cookie falsificada | ✅ 401 |
+| 4.2b Cookie con firma inválida | ✅ 401 |
+| 5.2 `/seguimiento` hrefs | ✅ todos https |
+| 7 parcial: login UI rechaza mal password | ✅ mensaje "Contraseña incorrecta" en el panel |
+| 4.1, 4.3, 4.4, 5.1, 7 completo | ⏳ requieren la contraseña real de producción (no está en el repo, por diseño) |
+
+**Conclusión**: todos los controles automatizables pasan. Los 429 del rate limit siguen siendo la única debilidad conocida (fix B2 con WAF, sin código). El login con la contraseña de producción no se probó por seguridad — hacerlo manualmente con la sección 4 del checklist.
 
 **Regla de oro**: si algo falla, NO revertir a lo rápido — consultar `INFORME_SEGURIDAD.md`
 y el changelog, que documentan por qué cada control existe.
