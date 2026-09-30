@@ -55,7 +55,11 @@ orderPageApp.get("/pedido/:id", async (c) => {
 
   const st = statusBadge(order.status);
   const itemsHtml = order.items
-    .map((i) => `<tr><td style="padding:8px 4px;text-align:left">${i.qty}x ${esc(i.title)}</td><td style="padding:8px 4px;text-align:right;white-space:nowrap">${formatPrice(i.priceCents * i.qty, symbol)}</td></tr>`)
+    .map((i) => {
+      const ajuste = i.priceCents < 0; // ítem de descuento transferencia congelado
+      const color = ajuste ? "color:#059669" : "";
+      return `<tr><td style="padding:8px 4px;text-align:left;${color}">${ajuste ? esc(i.title) : `${i.qty}x ${esc(i.title)}`}</td><td style="padding:8px 4px;text-align:right;white-space:nowrap;${color}">${formatPrice(i.priceCents * i.qty, symbol)}</td></tr>`;
+    })
     .join("");
   const note = settings.checkoutNote ? `<p style="color:#65676b;font-size:13px;margin:12px 0 0">${esc(settings.checkoutNote)}</p>` : "";
   const paidLine = order.status === "paid" && order.paidAt

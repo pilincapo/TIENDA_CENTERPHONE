@@ -90,8 +90,10 @@ export interface StoreSettings {
   checkoutNote: string;
   /** Recargo % que se suma al total cuando el pago es online por MercadoPago (0-50; 0 = sin recargo). Se cobra server-side en la preferencia. */
   mpSurchargePercent: number;
-  /** Descuento % por pagar con transferencia (0-50; 0 = sin descuento). Informativo: se muestra en el carrito y en el cierre por WhatsApp. */
+  /** Descuento % por pagar con transferencia (0-50; 0 = sin descuento). Se congela en los pedidos creados por "Coordinar por transferencia". */
   transferDiscountPercent: number;
+  /** CBU o alias para el cierre por transferencia (opcional; va pre-cargado en el mensaje de WhatsApp). */
+  transferCbu: string;
   whatsappPhone: string;
   currencySymbol: string;
   syncUrl: string;
@@ -156,6 +158,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   checkoutNote: "Coordinamos envío o retiro por WhatsApp después del pago. Envío gratis en la ciudad de Santa Fe.",
   mpSurchargePercent: 0,
   transferDiscountPercent: 0,
+  transferCbu: "",
 };
 
 export const KV_SNAPSHOT_KEY = "catalog:snapshot:v1";

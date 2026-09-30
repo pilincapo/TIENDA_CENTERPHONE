@@ -222,10 +222,110 @@ describe("POST /api/checkout", () => {
     expect(prefBody.items[1]).toEqual({ id: "recargo-mp", title: "Recargo pago online (10%)", quantity: 1, unit_price: 50000, currency_id: "ARS" });
 
     // El pedido congela el ítem de recargo y su total es el final (base + recargo):
-    // /pedido/:id, el panel y MP muestran el mismo número.
+    // /pedido/:id, el panel y MP muestran el mismo número. El descuento por
+    // transferencia NO aplica al pago por MP.
     const row = [...orders.values()][0]!;
     expect(row.total_cents).toBe(55_000_000);
     expect(row.items_json).toContain("recargo-mp");
+    expect(row.items_json).not.toContain("descuento-transferencia");
+  });
+
+  it("POST /api/orders/transfer crea el pedido con el descuento congelado y sin preferencia de MP", async () => {
+    const { db, orders, products } = makeDb();
+    seedProduct(products);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await checkoutApp.request(
+      "/api/orders/transfer",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+        body: JSON.stringify({ items: [{ id: "p1", qty: 1 }], name: "Juan Transfer", phone: "342 555 1234" }),
+      },
+      asEnv({ DB: db, KV: makeKv(true, { transferDiscountPercent: 10, transferCbu: " Alias: TIENDA.AR " }), MERCADOPAGO_ACCESS_TOKEN: "t" }),
+      asCtx([]),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok?: boolean; orderId?: string; totalCents?: number; discountPercent?: number; waHref?: string };
+    expect(body.ok).toBe(true);
+    expect(body.totalCents).toBe(45_000_000); // 50M - 10%
+    expect(body.discountPercent).toBe(10);
+    expect(fetchMock).not.toHaveBeenCalled(); // sin preferencia de MP
+
+    const row = orders.get(body.orderId!)!;
+    expect(row.status).toBe("pending");
+    expect(row.total_cents).toBe(45_000_000);
+    const items = JSON.parse(String(row.items_json)) as { id: string; priceCents: number }[];
+    expect(items).toHaveLength(2);
+    expect(items[1]).toMatchObject({ id: "descuento-transferencia", priceCents: -5_000_000 });
+
+    // El mensaje de WhatsApp trae el total final y el CBU recortado.
+    const wa = decodeURIComponent((body.waHref ?? "").split("text=")[1] ?? "");
+    expect(wa).toContain("Total a transferir: $450.000");
+    expect(wa).toContain("CBU/Alias: Alias: TIENDA.AR");
+  });
+
+  it("POST /api/orders/transfer sin descuento configurado no agrega ítem de ajuste", async () => {
+    const { db, orders, products } = makeDb();
+    seedProduct(products);
+    const res = await checkoutApp.request(
+      "/api/orders/transfer",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+        body: JSON.stringify({ items: [{ id: "p1", qty: 1 }], name: "Juan", phone: "342 555 1234" }),
+      },
+      asEnv({ DB: db, KV: makeKv(true, { transferDiscountPercent: 0 }), MERCADOPAGO_ACCESS_TOKEN: "t" }),
+      asCtx([]),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { totalCents?: number };
+    expect(body.totalCents).toBe(50_000_000);
+    const row = [...orders.values()][0]!;
+    const items = JSON.parse(String(row.items_json)) as unknown[];
+    expect(items).toHaveLength(1);
+  });
+
+  it("POST /api/orders/transfer respeta las validaciones del carrito y del comprador", async () => {
+    const { db, products } = makeDb();
+    seedProduct(products);
+    // Producto inexistente
+    const r1 = await checkoutApp.request(
+      "/api/orders/transfer",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+        body: JSON.stringify({ items: [{ id: "fantasma", qty: 1 }], name: "Juan", phone: "342 555 1234" }),
+      },
+      asEnv({ DB: db, KV: makeKv(true), MERCADOPAGO_ACCESS_TOKEN: "t" }),
+      asCtx([]),
+    );
+    expect(r1.status).toBe(400);
+    // Sin nombre
+    const r2 = await checkoutApp.request(
+      "/api/orders/transfer",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+        body: JSON.stringify({ items: [{ id: "p1", qty: 1 }], name: "", phone: "342 555 1234" }),
+      },
+      asEnv({ DB: db, KV: makeKv(true), MERCADOPAGO_ACCESS_TOKEN: "t" }),
+      asCtx([]),
+    );
+    expect(r2.status).toBe(400);
+    // Sin Origin (externo)
+    const r3 = await checkoutApp.request(
+      "/api/orders/transfer",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "https://malo.com", Host: "centerphone.com.ar" },
+        body: JSON.stringify({ items: [{ id: "p1", qty: 1 }], name: "Juan", phone: "342 555 1234" }),
+      },
+      asEnv({ DB: db, KV: makeKv(true), MERCADOPAGO_ACCESS_TOKEN: "t" }),
+      asCtx([]),
+    );
+    expect(r3.status).toBe(403);
   });
 
   it("responde 503 cuando el token de MP no está configurado", async () => {

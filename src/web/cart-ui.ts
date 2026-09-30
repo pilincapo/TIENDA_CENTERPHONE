@@ -70,6 +70,7 @@ function ensureModal(): void {
         </div>
         <p class="cart-error" id="cart-error" hidden></p>
         <button class="btn btn-primary cart-pay" id="cart-pay" type="button">Pagar con MercadoPago</button>
+        <button class="btn cart-transfer-btn" id="cart-transfer" type="button" hidden>Coordinar por transferencia</button>
         <p class="cart-secure">🔒 Pago procesado por MercadoPago. No guardamos datos de tarjeta.</p>
       </div>
     </div>`;
@@ -79,6 +80,7 @@ function ensureModal(): void {
     if (ev.target === modal) closeCart();
   });
   document.getElementById("cart-pay")?.addEventListener("click", () => void submitCheckout());
+  document.getElementById("cart-transfer")?.addEventListener("click", () => void submitTransfer());
 }
 
 function closeCart(): void {
@@ -142,6 +144,88 @@ async function submitCheckout(): Promise<void> {
     }
     paying = false;
   }
+}
+
+/**
+ * Checkout por transferencia: mismo formulario (nombre + WhatsApp), crea el
+ * pedido pending SIN pasar por MercadoPago y muestra los datos para transferir
+ * + WhatsApp pre-cargado. El vendedor lo cierra a mano desde el panel.
+ */
+async function submitTransfer(): Promise<void> {
+  if (paying) return;
+  const name = (document.getElementById("cart-name") as HTMLInputElement | null)?.value ?? "";
+  const phone = (document.getElementById("cart-phone") as HTMLInputElement | null)?.value ?? "";
+  const btn = document.getElementById("cart-transfer") as HTMLButtonElement | null;
+  const lines = cartLines();
+  if (lines.length === 0) return;
+  if (name.trim() === "" || phone.trim() === "") {
+    setPayError("Completá tu nombre y tu WhatsApp para coordinar la entrega.");
+    return;
+  }
+  setPayError("");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Registrando tu pedido…";
+  }
+  paying = true;
+  try {
+    const res = await fetch("/api/orders/transfer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: lines, name, phone }),
+    });
+    const data = (await res.json().catch(() => null)) as { ok?: boolean; orderId?: string; totalCents?: number; discountPercent?: number; waHref?: string | null; error?: string } | null;
+    if (!res.ok || !data?.ok || !data.orderId) {
+      setPayError(data?.error ?? "No se pudo registrar el pedido. Probá de nuevo.");
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Coordinar por transferencia";
+      }
+      paying = false;
+      return;
+    }
+    try {
+      sessionStorage.setItem("celu_last_order", data.orderId);
+      sessionStorage.setItem("celu_transfer_ok", JSON.stringify({ totalCents: data.totalCents ?? 0, discountPercent: data.discountPercent ?? 0, waHref: data.waHref ?? null }));
+    } catch { /* no-op */ }
+    cartClear();
+    updateBadge();
+    showTransferDone(data.orderId, data.totalCents ?? 0, data.discountPercent ?? 0, data.waHref ?? null);
+    paying = false;
+  } catch {
+    setPayError("Error de red. Verificá tu conexión y probá de nuevo.");
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Coordinar por transferencia";
+    }
+    paying = false;
+  }
+}
+
+/** Pantalla de éxito del pedido por transferencia (dentro del modal). */
+function showTransferDone(orderId: string, totalCents: number, discountPercent: number, waHref: string | null): void {
+  if (!init) return;
+  const symbol = init.settings.currencySymbol || "$";
+  const body = document.getElementById("cart-body");
+  const checkout = document.getElementById("cart-checkout");
+  const noteEl = document.getElementById("cart-note");
+  if (checkout) checkout.hidden = true;
+  if (noteEl) noteEl.textContent = "";
+  if (!body) return;
+  const waBtn = waHref !== "" && waHref
+    ? `<a class="btn btn-primary cart-pay" id="transfer-wa" href="${esc(waHref)}" target="_blank" rel="noopener">💬 Avisar por WhatsApp y coordinar</a>`
+    : "";
+  const link = `${location.origin}/pedido/${esc(orderId)}`;
+  body.innerHTML = `
+    <div class="transfer-done">
+      <div class="transfer-done-emoji">📝</div>
+      <h3 class="transfer-done-title">¡Pedido registrado!</h3>
+      <p class="transfer-done-sub">Pasalo a nombre de quien hace la transferencia y avisá con el botón de abajo. Te confirmamos stock y datos de la cuenta.</p>
+      <div class="transfer-done-total">Total a transferir <b>${formatPrice(totalCents, symbol)}</b>${discountPercent > 0 ? ` <small class="muted">(ya con el ${discountPercent}% de descuento)</small>` : ""}</div>
+      ${waBtn}
+      <a class="btn cart-transfer-btn" href="${link}">Ver el estado de mi pedido</a>
+      <p class="cart-secure">Te damos el CBU/alias por WhatsApp. El pedido queda en lista hasta que se acredite la transferencia.</p>
+    </div>`;
 }
 
 function updateBadge(): void {
@@ -210,7 +294,7 @@ function renderCart(): void {
     : "";
   body.innerHTML = `
     <div class="cart-lines">${rows}</div>
-    ${totalSurcharge > 0 ? `<div class="cart-total cart-total-sub">Subtotal <b>${formatPrice(total, symbol)}</b></div>
+    ${surchargePercent > 0 ? `<div class="cart-total cart-total-sub">Subtotal <b>${formatPrice(total, symbol)}</b></div>
     <div class="cart-total">Total con pago online <b>${formatPrice(totalSurcharge, symbol)}</b> <small class="muted">(incluye recargo de ${surchargePercent}%)</small></div>` : `<div class="cart-total">Total <b>${formatPrice(total, symbol)}</b></div>`}
     ${transferNote}
     ${anyInvalid ? `<p class="cart-warn">Hay productos que ya no están disponibles: se quitarán al confirmar.</p>` : ""}
@@ -219,6 +303,10 @@ function renderCart(): void {
   const noteEl = document.getElementById("cart-note");
   if (noteEl) noteEl.textContent = init.settings.checkoutNote ?? "";
   wireConsult();
+  // "Coordinar por transferencia" solo tiene sentido con descuento cargado:
+  // si no hay descuento, transferir = pagar lo mismo sin el flujo del panel.
+  const transferBtn = document.getElementById("cart-transfer") as HTMLButtonElement | null;
+  if (transferBtn) transferBtn.hidden = discountPercent === 0;
   body.querySelectorAll<HTMLButtonElement>("[data-inc]").forEach((b) =>
     b.addEventListener("click", () => {
       const id = b.dataset.inc ?? "";

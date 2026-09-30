@@ -1791,6 +1791,8 @@ async function viewSettings(): Promise<void> {
           <input name="mpSurchargePercent" type="number" min="0" max="50" step="1" value="${settings.mpSurchargePercent}" placeholder="0"/></div>
         <div class="field"><label>Descuento por pagar con transferencia (%) — 0 = sin descuento</label>
           <input name="transferDiscountPercent" type="number" min="0" max="50" step="1" value="${settings.transferDiscountPercent}" placeholder="0"/></div>
+        <div class="field"><label>CBU / alias para transferencias (opcional; va pre-cargado en el mensaje del pedido por transferencia)</label>
+          <input name="transferCbu" value="${esc(settings.transferCbu ?? "")}" maxlength="120" placeholder="Alias: CENTERPHONE.AR"/></div>
         <p class="muted">El recargo se suma al total de MercadoPago al confirmar el pedido. El descuento por transferencia es informativo: se muestra en el carrito y en el cierre por WhatsApp (el cobro lo coordinás vos).</p>
         <p class="muted" id="payments-status">Verificando credenciales…</p>
         <p class="muted">El token <strong>no</strong> se configura acá: es un secret del worker.<br>
@@ -1837,6 +1839,7 @@ async function viewSettings(): Promise<void> {
           checkoutNote: fd.get("checkoutNote"),
           mpSurchargePercent: Number(fd.get("mpSurchargePercent") ?? 0),
           transferDiscountPercent: Number(fd.get("transferDiscountPercent") ?? 0),
+          transferCbu: fd.get("transferCbu"),
         }),
       });
       toast("Configuración guardada");

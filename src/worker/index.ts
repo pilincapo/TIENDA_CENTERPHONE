@@ -108,6 +108,7 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     checkoutNote: s.checkoutNote,
     mpSurchargePercent: s.mpSurchargePercent,
     transferDiscountPercent: s.transferDiscountPercent,
+    transferCbu: s.transferCbu,
   };
 }
 

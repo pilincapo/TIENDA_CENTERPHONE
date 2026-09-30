@@ -26,7 +26,10 @@ export function rowToOrder(row: Dict): Order {
           id: String((i as OrderItem).id ?? ""),
           title: String((i as OrderItem).title ?? ""),
           qty: Math.max(1, Math.round(Number((i as OrderItem).qty ?? 1))),
-          priceCents: Math.max(0, Math.round(Number((i as OrderItem).priceCents ?? 0))),
+          // Puede ser negativo: es el ítem de ajuste "descuento-transferencia"
+          // que se congela al crear el pedido (items_json lo escribe solo el
+          // servidor, nunca el cliente).
+          priceCents: Math.round(Number((i as OrderItem).priceCents ?? 0)),
         }))
         .filter((i) => i.id !== "");
     }

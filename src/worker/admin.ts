@@ -418,6 +418,7 @@ adminApp.put("/settings", async (c) => {
     // Recargo/descuento en % entero, acotado a 0-50 (fuera de rango = 0).
     mpSurchargePercent: clampPercent(body.mpSurchargePercent),
     transferDiscountPercent: clampPercent(body.transferDiscountPercent),
+    transferCbu: String(body.transferCbu ?? "").slice(0, 120),
   });
   return c.json({ settings });
 });

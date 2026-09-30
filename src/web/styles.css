@@ -797,3 +797,12 @@ a.topnav-btn {
 /* Recargo MP / descuento transferencia en el carrito */
 .cart-total-sub { margin-top: 6px; font-size: 13px; color: #65676b; }
 .cart-transfer { color: #059669; font-size: 13px; margin: 8px 0 0; }
+
+/* Checkout por transferencia */
+.cart-transfer-btn { margin-top: 8px; width: 100%; background: #e7f6ee; color: #059669; border: 1px solid #b5e3c9; }
+.transfer-done { text-align: center; padding: 8px 4px; }
+.transfer-done-emoji { font-size: 40px; }
+.transfer-done-title { margin: 8px 0 4px; font-size: 18px; }
+.transfer-done-sub { color: #65676b; font-size: 13px; margin: 0 0 12px; }
+.transfer-done-total { font-size: 15px; margin: 0 0 14px; }
+.transfer-done .cart-pay { display: block; width: 100%; text-decoration: none; text-align: center; }

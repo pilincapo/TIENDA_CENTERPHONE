@@ -1,3 +1,26 @@
+## 2026-09-30 — Botón "Coordinar por transferencia" en el carrito (pedido sin pasar por MercadoPago)
+
+- **Nueva ruta `POST /api/orders/transfer`**: mismas validaciones, rate limit y anti-fraude que `/api/checkout` (recalcula todo desde D1, `sameSiteOrigin`), pero SIN preferencia de MP; descuenta el descuento configurado y congela el ajuste como ítem `descuento-transferencia` (negativo) en `items_json`
+- **Refactor**: `finalizeOrder(c, settings, mode)` comparte validación+persistencia entre ambos checkouts; el modo `mp` suma el recargo y `transfer` resta el descuento — un solo INSERT por pedido (eliminado el intento de `updateOrderTotals`)
+- **Carrito**: botón verde "Coordinar por transferencia" (visible solo con descuento > 0) bajo "Pagar con MercadoPago"; crea el pedido y muestra pantalla de éxito con el total a transferir, el link `/pedido/:id` y el botón WhatsApp con el mensaje pre-cargado (ítems, descuento, total final y CBU/alias configurable nuevo `transferCbu`)
+- **Fix**: `formatPrice` ahora maneja negativos ("-$294") y `rowToOrder` ya no aplasta los precios negativos a 0 (el clamp defensivo rompía el ítem de descuento)
+- **Panel**: campo CBU/alias en Configuración → Pagos
+- Tests: 3 nuevos de `/api/orders/transfer` (descuento congelado sin tocar MP, sin ajuste con descuento 0, validaciones/403) — **154 en total** ✅, typecheck ✅
+- Verificado E2E en local: pedido `3fadbca8…` pending con total $2.646 (de $2.940, 10% off), página del pedido mostrando "-$294" y el vendedor lo cierra igual que cualquier otro
+
+## 2026-09-30 — E2E del flujo de transferencia: consulta → pedido → pagado a mano → aviso
+
+- Flujo completo probado en local (mismo código en producción): la nota del carrito muestra el total con descuento ($3.360 → $3.024) y el mensaje de "Consultar este pedido" sale con la línea "Con el 10% de descuento por transferencia: $3.024"
+- Detalle del flujo real descubierto: la consulta por WhatsApp no crea pedido (texto libre); para que el vendedor lo tenga en el panel el comprador completa el checkout de MP pero no lo paga — el pedido queda `pending` y se cierra a mano con la transferencia
+- Panel: "✓ Pagado" pasó el pedido a `paid` (apareció "💬 Ya avisé"), cuyo click abrió WhatsApp al comprador (texto pre-cargado) y marcó `notified_wa=1` — verificado en D1 y con /pedido/:id en "✅ Pago confirmado"
+
+## 2026-09-30 — Deploy y configuración del recargo/descuento en producción
+
+- Deploys `e69ccaab` (feature) y `3ced5b0a` (fix de UI) con el recargo MP y el descuento por transferencia; el panel de producción sirve el bundle con los campos nuevos
+- **Configuración aplicada en la KV remota** (escritura directa preservando las 20 keys): `mpSurchargePercent: 0` (sin recargo — decisión del vendedor) y `transferDiscountPercent: 10` (incentivo a transferir)
+- Verificado en producción con el carrito real: producto de $68.160 muestra la nota "Pagando por transferencia tenés 10% de descuento: total $61.344" y el mensaje de WhatsApp incluye la línea del descuento; con recargo 0% el total se muestra simple (fix de condición `surchargePercent > 0` en vez de monto)
+- `/api/public/settings` refleja los valores; los campos quedan editables desde Configuración → Pagos del panel
+
 ## 2026-09-30 — Recargo por pago con MercadoPago y descuento por transferencia (configurables en el panel)
 
 - **Dos ajustes nuevos en Configuración → Pagos**: `mpSurchargePercent` (recargo % del pago online, se cobra de verdad) y `transferDiscountPercent` (descuento % por transferencia, informativo); ambos enteros 0-50, fuera de rango = 0 (`clampPercent`)

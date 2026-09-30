@@ -20,6 +20,8 @@ export interface PublicSettings {
   checkoutNote: string;
   /** Recargo % del pago online por MercadoPago (0 = sin recargo). El total con recargo lo confirma el worker. */
   mpSurchargePercent: number;
-  /** Descuento % por pagar con transferencia (0 = sin descuento); informativo para el cierre por WhatsApp. */
+  /** Descuento % por pagar con transferencia (0 = sin descuento); se congela en los pedidos por transferencia. */
   transferDiscountPercent: number;
+  /** CBU/alias para el cierre por transferencia (opcional). */
+  transferCbu: string;
 }

@@ -19,7 +19,9 @@ function numberFormat(symbol: string): Intl.NumberFormat {
 
 export function formatPrice(cents: number, symbol: string): string {
   const value = Math.round(cents / 100);
-  return `${symbol}${numberFormat(symbol).format(value)}`;
+  // Los ítems de ajuste (ej. descuento por transferencia) pueden ser negativos.
+  const sign = value < 0 ? "-" : "";
+  return `${sign}${symbol}${numberFormat(symbol).format(Math.abs(value))}`;
 }
 
 export function availabilityLabel(a: Availability): string {
