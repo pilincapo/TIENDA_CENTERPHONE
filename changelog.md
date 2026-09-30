@@ -1,3 +1,10 @@
+## 2026-09-30 — Importar: casilla "Repetir automáticamente"
+
+- Al analizar un link en la pestaña Importar, aparece la casilla **"Repetir automáticamente todos los días"** al pie del resultado (con o sin productos): al marcarla se despliega nombre opcional, grilla de horarios (hora Argentina, pre-cargada 09:00 y 21:00, tope 3) y el botón "Guardar repetición diaria"
+- Crea la auto-importación con la **misma regla de precio elegida en Importar** vía POST /auto-imports (normalización https incluida); aviso final con los horarios elegidos y link a la pestaña Auto-importaciones, donde el link queda listado y editable
+- La grilla de horarios del modal de Auto-importaciones ahora comparte código con el box (un solo lugar para los 24 botones y el tope de 3)
+- E2E verificado en local: box generado, tope de 3 respetado, guardado real → fila persistida en D1 (URL, label, horarios, regla), visible/editable en Auto-importaciones y luego eliminada. Build ✅, typecheck ✅, 158/158 tests ✅
+
 ## 2026-09-30 — Dashboard resumido y en lenguaje cotidiano
 
 - El Dashboard del panel deja de repetir avisos: los textos "se actualiza solo cada 15 segundos" de Estado por fuente e Historial se quitaron (la auto-actualización se mantiene igual), y la fila "Error —" ya solo aparece cuando hay un error real
