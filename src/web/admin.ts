@@ -1680,7 +1680,7 @@ async function viewOrders(statusFilter = ""): Promise<void> {
       <td>${esc(o.buyerName)}<br><small class="muted">${esc(o.buyerPhone)}</small>${o.payerEmail ? `<br><small class="muted">${esc(o.payerEmail)}</small>` : ""}</td>
       <td class="ord-items" title="${esc(items)}">${items}</td>
       <td class="num"><b>${formatPrice(o.totalCents, symbol)}</b></td>
-      <td><span class="ord-badge ${meta.cls}">${meta.label}</span>${o.mpPaymentId ? `<br><small class="muted">MP ${esc(o.mpPaymentId)}</small>` : ""}</td>
+      <td><span class="ord-badge ${meta.cls}">${meta.label}</span>${o.mpPaymentId ? `<br><small class="muted">MP ${esc(o.mpPaymentId)}</small>` : ""}${o.mpPreferenceId ? `<br><small class="ord-meta" title="${esc(o.mpPreferenceId)}">Pref ${esc(o.mpPreferenceId.length > 22 ? `${o.mpPreferenceId.slice(0, 22)}…` : o.mpPreferenceId)}</small>` : ""}</td>
       <td class="ord-actions">
         ${o.status === "pending" ? `<button class="btn" data-ord-pay="${esc(o.id)}" title="Marcar pagado (verificado fuera de la web)">✓ Pagado</button>` : ""}
         ${o.status !== "cancelled" && o.status !== "paid" ? `<button class="btn" data-ord-cancel="${esc(o.id)}">✕ Cancelar</button>` : ""}

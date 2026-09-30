@@ -1,3 +1,9 @@
+## 2026-09-30 — Panel de Pedidos: preferencia de MP visible junto al estado
+
+- La celda de Estado de la pestaña Pedidos ahora también muestra el id de preferencia de MP (`Pref …`), truncado a 22 caracteres con el id completo en el tooltip; se suma al `MP <payment_id>` existente y al email del pagador bajo el comprador
+- Los pedidos anteriores al deploy de la persistencia no tienen esos datos en D1: las celdas se muestran solo cuando el pedido los tiene
+- 150/150 tests ✅, typecheck ✅
+
 ## 2026-09-30 — Persistencia de payer_email y mp_preference_id desde el flujo de pagos
 
 - **`mp_preference_id` por fin se guarda**: existía `setOrderPreference` en `orders.ts` pero nadie la llamaba — ahora `POST /api/checkout` persiste el id de preferencia que devuelve MP (permite rastrear el checkout y asociar notificaciones futuras de MP)

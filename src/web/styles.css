@@ -780,6 +780,7 @@ a.topnav-btn {
 /* ===== Panel: pestaña Pedidos ===== */
 .ord-table td { vertical-align: top; }
 .ord-id { font-family: var(--font-mono, monospace); font-size: 12px; }
+.ord-meta { font-family: var(--font-mono, monospace); font-size: 11px; }
 .ord-items { max-width: 320px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ord-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .ord-actions .btn { padding: 5px 9px; font-size: 12px; }
