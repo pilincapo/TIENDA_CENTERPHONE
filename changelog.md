@@ -1,3 +1,10 @@
+## 2026-09-30 — Deploy a producción: persistencia de datos de MP + panel de Pedidos
+
+- Deploy `9a07ccc7-1122-4735-9864-c283d5d036ec` (sucesor de `bd1c4a85`) con la persistencia y la mejora del panel; el `/admin/` sirve el bundle nuevo (`admin-BQtVfl_N.js`)
+- **Verificado en producción**: `POST /api/checkout` real creó el pedido `5aae15d9…` ($840) con `mp_preference_id` guardado en D1 remota por primera vez (antes quedaba siempre NULL)
+- Smoke post-deploy OK: home 200. El `payer_email` se llenará con el próximo pago real vía webhook
+- Cancelar el pedido de verificación quedó como tarea pendiente del vendedor (o lo usa para probar el flujo de pago completo)
+
 ## 2026-09-30 — Panel de Pedidos: preferencia de MP visible junto al estado
 
 - La celda de Estado de la pestaña Pedidos ahora también muestra el id de preferencia de MP (`Pref …`), truncado a 22 caracteres con el id completo en el tooltip; se suma al `MP <payment_id>` existente y al email del pagador bajo el comprador
