@@ -1,3 +1,17 @@
+## 2026-09-30 — Modo mantenimiento: cerrar el catálogo sin perder a los clientes
+
+- **Toggle + mensaje en Configuración** (`maintenanceMode` / `maintenanceMessage`): al activarlo, todo el sitio público responde **503** con una página del worker (🛠️, mensaje configurable, botón grande de **WhatsApp** y links a **Instagram/Facebook** del panel); `Retry-After` y `no-store` para que no quede cacheada ni indexada
+- **Excepciones pensadas para operar**: panel (`/admin`, `/api/admin`) para poder desactivarlo, seguimiento de pedidos (`/pedido/:id`, `/api/orders/:id`) para compradores que ya pagaron, `/api/payments/webhook` (que MP no reciba 503) y `/seguimiento`; los estáticos (assets, favicon, 404) también pasan. `/api/orders/transfer` NO está exenta: es una ruta de compra (la detectó el test)
+- Checkout por MP y por transferencia quedan bloqueados (no se pueden crear pedidos que nadie va a cerrar mientras el catálogo está cerrado); el webhook sigue procesando pagos pendientes de antes
+- Implementado como middleware en `maintenance.ts` montado antes de todas las rutas; CSP sin scripts (`script-src 'none'`, la página es HTML/CSS puro)
+- Tests nuevos (exentas/bloqueadas/HTML) — **158 en total** ✅, typecheck ✅
+- E2E en local: tienda cerrada con WhatsApp/redes visibles (verificado por curl y screenshot), panel 200, pedido real visible, webhook 200; desactivado por API vuelve el 200
+
+## 2026-09-30 — Deploy del botón de transferencia
+
+- Deploy `9d97c1e4-fb67-47b0-b6f4-cf695c582e75` con `POST /api/orders/transfer` vivo en producción (400 sin body = validación activa) y el bundle nuevo con el botón
+- Settings de producción correctos: descuento 10% activo, recargo MP 0%, CBU vacío (cargarlo desde Configuración → Pagos)
+
 ## 2026-09-30 — Botón "Coordinar por transferencia" en el carrito (pedido sin pasar por MercadoPago)
 
 - **Nueva ruta `POST /api/orders/transfer`**: mismas validaciones, rate limit y anti-fraude que `/api/checkout` (recalcula todo desde D1, `sameSiteOrigin`), pero SIN preferencia de MP; descuenta el descuento configurado y congela el ajuste como ítem `descuento-transferencia` (negativo) en `items_json`

@@ -1795,6 +1795,12 @@ async function viewSettings(): Promise<void> {
           <input name="transferCbu" value="${esc(settings.transferCbu ?? "")}" maxlength="120" placeholder="Alias: CENTERPHONE.AR"/></div>
         <p class="muted">El recargo se suma al total de MercadoPago al confirmar el pedido. El descuento por transferencia es informativo: se muestra en el carrito y en el cierre por WhatsApp (el cobro lo coordinás vos).</p>
         <p class="muted" id="payments-status">Verificando credenciales…</p>
+        <h2 style="margin-top:24px">Modo mantenimiento</h2>
+        <div class="field field--check">
+          <label><input type="checkbox" name="maintenanceMode" ${settings.maintenanceMode ? "checked" : ""}/> Cerrar el catálogo al público (pantalla con WhatsApp y redes); el panel y los pedidos siguen funcionando</label>
+        </div>
+        <div class="field"><label>Mensaje para los clientes (opcional)</label>
+          <input name="maintenanceMessage" value="${esc(settings.maintenanceMessage ?? "")}" maxlength="300" placeholder="Estamos actualizando la tienda para atenderte mejor. En un rato volvemos 🙌"/></div>
         <p class="muted">El token <strong>no</strong> se configura acá: es un secret del worker.<br>
         • Local: agregá <code>MERCADOPAGO_ACCESS_TOKEN=TEST-…</code> a <code>.dev.vars</code>.<br>
         • Producción: <code>npx wrangler secret put MERCADOPAGO_ACCESS_TOKEN</code>.<br>
@@ -1840,6 +1846,8 @@ async function viewSettings(): Promise<void> {
           mpSurchargePercent: Number(fd.get("mpSurchargePercent") ?? 0),
           transferDiscountPercent: Number(fd.get("transferDiscountPercent") ?? 0),
           transferCbu: fd.get("transferCbu"),
+          maintenanceMode: (fd.get("maintenanceMode") ?? "") === "on",
+          maintenanceMessage: fd.get("maintenanceMessage"),
         }),
       });
       toast("Configuración guardada");

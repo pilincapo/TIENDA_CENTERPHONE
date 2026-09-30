@@ -115,6 +115,10 @@ export interface StoreSettings {
   howPickupNote: string;
   // Ventana del badge "Nuevo" automático, en horas (0 = badge desactivado).
   freshHours: number;
+  // Modo mantenimiento: cierra el catálogo público (503) mostrando WhatsApp y
+  // redes; el panel, los pedidos y el webhook siguen funcionando.
+  maintenanceMode: boolean;
+  maintenanceMessage: string;
 }
 
 export const TAGS: Tag[] = ["new", "featured", "offer"];
@@ -159,6 +163,8 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   mpSurchargePercent: 0,
   transferDiscountPercent: 0,
   transferCbu: "",
+  maintenanceMode: false,
+  maintenanceMessage: "",
 };
 
 export const KV_SNAPSHOT_KEY = "catalog:snapshot:v1";

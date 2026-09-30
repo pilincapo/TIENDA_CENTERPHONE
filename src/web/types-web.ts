@@ -24,4 +24,6 @@ export interface PublicSettings {
   transferDiscountPercent: number;
   /** CBU/alias para el cierre por transferencia (opcional). */
   transferCbu: string;
+  /** Modo mantenimiento activo: el catálogo muestra la página de contacto. */
+  maintenanceMode: boolean;
 }

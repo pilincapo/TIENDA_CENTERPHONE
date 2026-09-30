@@ -14,6 +14,7 @@ import { isValidPhone } from "../shared/whatsapp";
 import { applySecurityHeaders, isAllowedTrackOrigin, newNonce } from "./security";
 import { checkoutApp } from "./checkout";
 import { orderPageApp } from "./orders-page";
+import { maintenanceMiddleware } from "./maintenance";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -33,6 +34,10 @@ app.use("*", async (c, next) => {
     applySecurityHeaders(c);
   }
 });
+
+// Modo mantenimiento: antes de todas las rutas públicas. Excepciones dentro
+// (panel, pedidos, webhook de MP) en maintenance.ts.
+app.use("*", maintenanceMiddleware());
 
 app.route("/api/admin", adminApp);
 app.route("/", checkoutApp);
@@ -109,6 +114,7 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     mpSurchargePercent: s.mpSurchargePercent,
     transferDiscountPercent: s.transferDiscountPercent,
     transferCbu: s.transferCbu,
+    maintenanceMode: s.maintenanceMode,
   };
 }
 

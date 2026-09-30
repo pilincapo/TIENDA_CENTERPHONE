@@ -419,6 +419,8 @@ adminApp.put("/settings", async (c) => {
     mpSurchargePercent: clampPercent(body.mpSurchargePercent),
     transferDiscountPercent: clampPercent(body.transferDiscountPercent),
     transferCbu: String(body.transferCbu ?? "").slice(0, 120),
+    maintenanceMode: body.maintenanceMode === true,
+    maintenanceMessage: String(body.maintenanceMessage ?? "").slice(0, 300),
   });
   return c.json({ settings });
 });
