@@ -1,3 +1,9 @@
+## 2026-09-30 — Deploy: arrastre de pasos + aviso sin guardar
+
+- Push `8cdd290..c88c90b` a `pilincapo/TIENDA_CENTERPHONE` y deploy a producción: versión **`2bf68866-8cd7-4309-9898-322ba26a9370`** (cron `0 * * * *` intacto)
+- Suben las 2 mejoras: reordenar pasos de "Cómo comprar" arrastrándolos (manija ⠿) y aviso de "cambios sin guardar" al cambiar de pestaña en Configuración
+- Smoke en producción: home 200 con 40 tarjetas y modal "Cómo comprar" con los 5 pasos reales; `/admin/` 200 sirviendo bundle nuevo (`admin-RFRH24Ez.js` con `how-grip`/`dragstart`/aviso sin guardar, CSS `format-COtO7oYA.css` con `.how-grip`/`.drop-before`/`.dragging`); login rechaza contraseña falsa (401), seguimiento 200, pedido inexistente 404
+
 ## 2026-09-30 — Aviso de "cambios sin guardar" en Configuración
 
 - Al tocar cualquier campo de Configuración queda "marcado" que hay cambios: si cambiás de pestaña del menú, pregunta **"Hay cambios sin guardar… ¿Querés salir igual?"** — quedarse conserva la edición y re-alinea el menú con la pestaña; salir descarta y navega normal
