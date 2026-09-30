@@ -1,3 +1,11 @@
+## 2026-09-30 — Aviso de "cambios sin guardar" en Configuración
+
+- Al tocar cualquier campo de Configuración queda "marcado" que hay cambios: si cambiás de pestaña del menú, pregunta **"Hay cambios sin guardar… ¿Querés salir igual?"** — quedarse conserva la edición y re-alinea el menú con la pestaña; salir descarta y navega normal
+- No molesta de más: si volvés a los valores originales (des-hacés a mano) el aviso se desarma, y después de guardar bien ya sale sin preguntar; si no tocaste nada, tampoco pregunta
+- Incluye al editor de pasos: escribir/borrar/reordenar filas también dispara el aviso (agregar una fila vacía no, porque no cambia nada guardado)
+- Corregidos en el camino dos tropiezos propios: un falso positivo (el aviso aparecía apenas abrir la pestaña, porque el estado base se capturaba antes de que el editor llenara el campo oculto) y un error de inicialización que dejaba la vista en blanco
+- Verificados los 6 casos en local (sin cambios/sale, con cambios/se queda, con cambios/sale, des-hacer sale sin aviso, editar pasos avisa, guardar desarma); typecheck ✅, build ✅, 158/158 tests ✅
+
 ## 2026-09-30 — "Cómo comprar": reordenar pasos arrastrándolos
 
 - Cada paso del editor tiene ahora una **manija ⠿**: se arrastra la fila y se suelta donde se la quiera (marca verde en la zona de destino, mitad superior = antes, mitad inferior = después); lo tipeado entra al reorden sin perderse

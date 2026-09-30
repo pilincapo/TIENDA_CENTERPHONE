@@ -78,7 +78,26 @@ function route(): string {
   return location.hash.replace("#", "") || "dashboard";
 }
 
+// Guardia de edición: true cuando hay cambios sin guardar en Configuración.
+// Se arma al tocar un campo, se desarma al guardar bien o al volver a los valores originales.
+let dirtyGuardArmed = false;
+
 async function render(): Promise<void> {
+  // Aviso de cambios sin guardar: solo si la vista anterior era Configuración
+  // (si el usuario ya confirmó o el DOM cambió, se deja ir sin preguntar).
+  if (dirtyGuardArmed && el.view.querySelector("#s-form")) {
+    const seguir = confirm("Hay cambios sin guardar en Configuración. Si cambiás de pestaña ahora, se pierden.\n\n¿Querés salir igual?");
+    if (!seguir) {
+      // La URL quedó en la pestaña elegida pero la vista sigue en Configuración:
+      // se re-alinea el hash para que queden coherentes.
+      if (route() !== "settings") {
+        history.replaceState(null, "", "#settings");
+        setTabHighlight("settings");
+      }
+      return;
+    }
+    dirtyGuardArmed = false;
+  }
   const tab = route();
   setTabHighlight(tab);
   el.view.innerHTML = `<div class="state"><div class="spinner"></div></div>`;
@@ -1974,10 +1993,20 @@ async function viewSettings(): Promise<void> {
         }),
       });
       toast("Configuración guardada");
+      dirtyGuardArmed = false; // guardado OK: salir de la pestaña ya no avisa
     } catch (e) {
       toast(e instanceof Error ? e.message : "Error", false);
     }
   });
+
+  // Guardia de cambios sin guardar: compara el formulario contra cómo cargó.
+  // Volviendo a los valores originales también se desarma (no molesta de más).
+  const valoresForm = (): string => JSON.stringify([...new FormData(form).entries()]);
+  // Se llena después del primer render del editor (abajo): el campo oculto howSteps
+  // nace vacío en la plantilla y el editor lo llena; capturarlo antes marcaba
+  // "cambios sin guardar" apenas se abría la pestaña.
+  let valoresBase = "";
+  form.addEventListener("input", () => { dirtyGuardArmed = valoresBase !== "" && valoresForm() !== valoresBase; });
 
   // Editor visual de "Cómo comprar": filas reordenables con vista previa.
   // Guarda el mismo formato de siempre (una línea por paso, **negrita** opcional)
@@ -2007,6 +2036,8 @@ async function viewSettings(): Promise<void> {
   const refreshHow = (): void => {
     howHidden.value = howSteps.filter((s) => s !== "").join("\n");
     howPreview.innerHTML = howSteps.map((s) => `<li>${boldHtml(s) || '<span class="muted">—</span>'}</li>`).join("");
+    // El editor toca campos por código (que FormData sí ve): comparar contra el base.
+    dirtyGuardArmed = valoresForm() !== valoresBase;
   };
   // Mientras se tipea NO se re-dibuja la fila (perdería el foco): solo preview + valor.
   howList.addEventListener("input", (ev) => {
@@ -2087,6 +2118,8 @@ async function viewSettings(): Promise<void> {
   });
   renderHow();
   refreshHow();
+  valoresBase = valoresForm(); // el hidden howSteps ya está lleno acá
+  dirtyGuardArmed = false;     // recién cargado: ningún cambio todavía
 
   // Indicador de credenciales de pago (configurado sí/no, sin exponer nada).
   void api<{ configured: boolean; enabled: boolean }>("/payments/status").then((st) => {
