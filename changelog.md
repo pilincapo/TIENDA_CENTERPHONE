@@ -1,3 +1,8 @@
+## 2026-09-30 — Operación: fuente "Hogar" re-sincronizada a mano
+
+- La auto-importación "Hogar" (hacetupedido) estaba atrasada >24h (última corrida 29/9 05:01 con el cron); se forzó su corrida manual por el modo seguro de una-fuente-por-request: **135 productos actualizados, 1 marcado sin stock, sin errores**, nueva corrida 30/9 05:37 y la pestaña quedó sin fuentes atrasadas
+- De paso se confirmó que "Ejecutar ahora" de la pestaña Auto-importaciones fuerza TODAS las fuentes en un solo request (riesgo del límite de CPU del plan gratis); el modo seguro por-job ya existía para "Sincronizar ahora"
+
 ## 2026-09-30 — Deploy: arrastre de pasos + aviso sin guardar
 
 - Push `8cdd290..c88c90b` a `pilincapo/TIENDA_CENTERPHONE` y deploy a producción: versión **`2bf68866-8cd7-4309-9898-322ba26a9370`** (cron `0 * * * *` intacto)

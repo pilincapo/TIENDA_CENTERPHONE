@@ -2007,6 +2007,16 @@ async function viewSettings(): Promise<void> {
   // "cambios sin guardar" apenas se abría la pestaña.
   let valoresBase = "";
   form.addEventListener("input", () => { dirtyGuardArmed = valoresBase !== "" && valoresForm() !== valoresBase; });
+  // WhatsApp: al pegar/tipear se limpia al vuelo (solo dígitos, sin + ni espacios).
+  const waInput = form.querySelector<HTMLInputElement>('[name="whatsappPhone"]');
+  waInput?.addEventListener("input", () => {
+    const limpio = waInput.value.replace(/\D/g, "").slice(0, 15);
+    if (waInput.value !== limpio) {
+      const pos = Math.min(waInput.selectionStart ?? limpio.length, limpio.length);
+      waInput.value = limpio;
+      waInput.setSelectionRange(pos, pos);
+    }
+  });
 
   // Editor visual de "Cómo comprar": filas reordenables con vista previa.
   // Guarda el mismo formato de siempre (una línea por paso, **negrita** opcional)

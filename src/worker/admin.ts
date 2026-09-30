@@ -393,11 +393,18 @@ function clampPercent(v: unknown): number {
   return Number.isFinite(n) && n > 0 && n <= 50 ? n : 0;
 }
 
+/** Número de WhatsApp normalizado: solo dígitos (sin +, espacios ni guiones).
+ *  wa.me necesita el número puro; se normaliza al guardar para que el valor
+ *  guardado siempre cumpla lo que el propio panel le pide al usuario. */
+function normalizeWaPhone(v: unknown): string {
+  return String(v ?? "").replace(/\D/g, "").slice(0, 15);
+}
+
 adminApp.put("/settings", async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   if (!body) return c.json({ error: "Body inválido" }, 400);
   const settings = await saveSettings(c.env.KV, {
-    whatsappPhone: String(body.whatsappPhone ?? "").replace(/[^0-9+]/g, ""),
+    whatsappPhone: normalizeWaPhone(body.whatsappPhone),
     currencySymbol: String(body.currencySymbol ?? "$").slice(0, 3) || "$",
     syncUrl: forceHttpsUrl(body.syncUrl, 500),
     syncIntervalMinutes: Math.max(15, Math.round(Number(body.syncIntervalMinutes ?? 60))),
