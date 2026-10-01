@@ -1,3 +1,16 @@
+## 2026-10-01 — Log de seguridad: login, logout sin sesión y webhook de pagos
+
+- El worker ahora deja registro (Workers Logs, retención corta del plan gratis) de: login fallido, login bloqueado por rate-limit, login OK, logout sin sesión (401) y cada webhook de MercadoPago con id real — recepción, confirmación de pago de pedido, pagos no encontrados (sondeos) y pagos aprobados sin pedido válido
+- Sin datos sensibles en los logs: nunca contraseñas ni cookies — solo el evento, la IP de origen y los ids de pago/pedido (prefijo `seguridad:` para filtrar rápido)
+- Se activó `observability` en wrangler.jsonc: sin eso los logs del worker no se capturan (por eso celu-store no aparecía en el dashboard mientras que repairpro sí)
+- Tests nuevos: registro en login fallido/OK/logout sin sesión y en el webhook (recepción, confirmación, sondeo); typecheck ✅, 172/172 tests ✅
+
+## 2026-10-01 — Revisión de logs del worker (sin hallazgos)
+
+- Se revisaron los logs de producción del worker buscando llamadas sospechosas al login, logout y webhook de pagos: el worker no guarda log por request (solo errores) y en 7 días **cero errores y cero warnings** — ninguna excepción ni fallo interno
+- Métricas de 14 días vía API de Cloudflare: 46.675 requests, 0 errores de ejecución, tráfico diario estable (197–6.473/día) sin picos anómalos típicos de escaneo o ataque
+- Limitación conocida: los 401 de clave incorrecta y los 429 del rate-limit no quedan registrados (el worker no los loguea, por diseño y privacidad); si algún día hace falta rastrear intentos, habría que agregar un log mínimo de seguridad
+
 ## 2026-10-01 — Deploy: auditoría de accesos sin sesión en producción
 
 - Push `6dd31a7..2ddc5b4` a `pilincapo/TIENDA_CENTERPHONE` y deploy: versión **`4be43a51-15f5-4fb8-94ba-48e5dff01b89`** (cron `0 * * * *` intacto)
