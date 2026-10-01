@@ -1840,6 +1840,7 @@ const ORDER_STATUS_META: Record<string, { label: string; cls: string }> = {
   paid: { label: "Pagado", cls: "ord-paid" },
   cancelled: { label: "Cancelado", cls: "ord-cancelled" },
   rejected: { label: "Rechazado", cls: "ord-rejected" },
+  archived: { label: "Archivados", cls: "ord-archived" },
 };
 
 interface OrdersPage {
@@ -1854,6 +1855,8 @@ interface OrdersPage {
 // Estado que sobrevive a los re-renders: filtrar o buscar no te manda a la página 1
 // (a menos que cambies el chip de estado, que sí reinicia la página).
 const ordState = { status: "" as "" | OrderStatus, page: 1, q: "" };
+// Ids seleccionados para la accion masiva de archivar (se limpia al cambiar de vista/filtro)
+const ordSelected = new Set<string>();
 
 async function viewOrders(statusFilter = ""): Promise<void> {
   // Cambiar de chip de estado siempre reinicia a la página 1 (y borra búsqueda).
@@ -1883,8 +1886,8 @@ async function viewOrders(statusFilter = ""): Promise<void> {
   const symbol = settings.currencySymbol || "$";
   // Counter de la pestaña: pedidos pendientes (de los totales del servidor, sin request extra).
   updatePendingBadge(data.counts.pending ?? 0);
-  const chips = ["", "pending", "paid", "cancelled", "rejected"];
-  const chipLabels: Record<string, string> = { "": "Todos", pending: "Pendientes", paid: "Pagados", cancelled: "Cancelados", rejected: "Rechazados" };
+  const chips = ["", "pending", "paid", "cancelled", "rejected", "archived"];
+  const chipLabels: Record<string, string> = { "": "Todos", pending: "Pendientes", paid: "Pagados", cancelled: "Cancelados", rejected: "Rechazados", archived: "Archivados" };
   const chip = (s: string, label: string, n: number): string =>
     `<button class="chip ${s === ordState.status ? "on" : ""}" data-ord-filter="${s}">${label} <span class="muted">${n}</span></button>`;
   const totalAll = (data.counts.pending ?? 0) + (data.counts.paid ?? 0) + (data.counts.cancelled ?? 0) + (data.counts.rejected ?? 0);
@@ -1899,12 +1902,15 @@ async function viewOrders(statusFilter = ""): Promise<void> {
       <td>${esc(o.buyerName)}<br><small class="muted">${esc(o.buyerPhone)}</small>${o.payerEmail ? `<br><small class="muted">${esc(o.payerEmail)}</small>` : ""}</td>
       <td class="ord-items" title="${esc(items)}">${items}</td>
       <td class="num"><b>${formatPrice(o.totalCents, symbol)}</b></td>
-      <td><span class="ord-badge ${meta.cls}">${meta.label}</span>${o.mpPaymentId ? `<br><small class="muted">MP ${esc(o.mpPaymentId)}</small>` : ""}${o.mpPreferenceId ? `<br><small class="ord-meta" title="${esc(o.mpPreferenceId)}">Pref ${esc(o.mpPreferenceId.length > 22 ? `${o.mpPreferenceId.slice(0, 22)}…` : o.mpPreferenceId)}</small>` : ""}</td>
+      <td><span class="ord-badge ${meta.cls}">${meta.label}</span>${o.status === "archived" && o.archiveNote ? `<br><small class="muted" title="Motivo del archivo">📝 ${esc(o.archiveNote)}</small>` : ""}${o.mpPaymentId ? `<br><small class="muted">MP ${esc(o.mpPaymentId)}</small>` : ""}${o.mpPreferenceId ? `<br><small class="ord-meta" title="${esc(o.mpPreferenceId)}">Pref ${esc(o.mpPreferenceId.length > 22 ? `${o.mpPreferenceId.slice(0, 22)}…` : o.mpPreferenceId)}</small>` : ""}</td>
       <td class="ord-actions">
         ${o.status === "pending" ? `<button class="btn" data-ord-pay="${esc(o.id)}" title="Marcar pagado (verificado fuera de la web)">✓ Pagado</button>` : ""}
-        ${o.status !== "cancelled" && o.status !== "paid" ? `<button class="btn" data-ord-cancel="${esc(o.id)}">✕ Cancelar</button>` : ""}
+        ${o.status !== "cancelled" && o.status !== "paid" && o.status !== "archived" ? `<button class="btn" data-ord-cancel="${esc(o.id)}">✕ Cancelar</button>` : ""}
         ${o.status === "paid" && !o.notifiedWa ? `<button class="btn" data-ord-wa="${esc(o.id)}" data-wa-phone="${esc(o.buyerPhone)}">💬 Ya avisé</button>` : ""}
         <a class="btn" href="/pedido/${esc(o.id)}" target="_blank" rel="noopener">Ver</a>
+        ${o.status === "archived"
+          ? `<button class="btn" data-ord-archive="${esc(o.id)}" title="Restaurar a la lista de pedidos">↩ Restaurar</button>`
+          : `<button class="btn btn-archive" data-ord-archive="${esc(o.id)}" title="Archivar este pedido">🗂️ Archivar</button>`}
       </td>
     </tr>`;
   }).join("");
@@ -1921,6 +1927,7 @@ async function viewOrders(statusFilter = ""): Promise<void> {
         <input id="ord-search" type="search" placeholder="Buscar por nombre de comprador o id de pedido…" autocomplete="off"
           value="${esc(ordState.q)}" style="max-width:260px"/>
         <span class="muted" id="ord-search-count" ${ordState.q !== "" ? "" : "hidden"}>${ordState.q !== "" ? `${data.total} coincidencia${data.total !== 1 ? "s" : ""} en ${data.total} pedido${data.total !== 1 ? "s" : ""} (de ${totalAll})` : ""}</span>
+        <button class="btn" id="ord-bulk" style="margin-left:auto" hidden>🗂️ Archivar seleccionados</button>
       </div>
       ${payments.configured && payments.enabled
         ? `<p class="muted">Pago online activo: MercadoPago confirma solo vía webhook.</p>`
@@ -1939,7 +1946,10 @@ async function viewOrders(statusFilter = ""): Promise<void> {
       </div>` : ""}
     </div>`;
   el.view.querySelectorAll<HTMLButtonElement>("button[data-ord-filter]").forEach((b) => {
-    b.addEventListener("click", () => void viewOrders(b.dataset.ordFilter ?? ""));
+    b.addEventListener("click", () => {
+      ordSelected.clear(); // la seleccion de otra vista no debe colarse
+      void viewOrders(b.dataset.ordFilter ?? "");
+    });
   });
   // ---- Paginación: cambia de página sin recargar el resto del panel ----
   el.view.querySelector("#pg-prev")?.addEventListener("click", () => {
@@ -1997,6 +2007,74 @@ async function viewOrders(statusFilter = ""): Promise<void> {
   // mismo estilo que el de la página /pedido/:id: saludo por nombre, tienda,
   // detalle del pedido y total — cero texto genérico.
   el.view.querySelectorAll<HTMLButtonElement>("button[data-ord-wa]").forEach((b) => {
+
+  // Botón "🗂️ Archivar": con confirmación. Si el pedido ya está archivado,
+  // restaurar (sin confirmación).
+  el.view.querySelectorAll<HTMLButtonElement>("button[data-ord-archive]").forEach((b) => {
+    b.addEventListener("click", async () => {
+      const id = b.dataset.ordArchive;
+      if (!id) return;
+      // Determinar el estado actual del pedido
+      const row = orders.find((o: { id: string }) => o.id === id);
+      const archived = row?.status === "archived";
+      if (archived) {
+        // Restaurar: sin confirmación, directo.
+        try {
+          await api(`/orders/${encodeURIComponent(id)}/unarchive`, { method: "POST" });
+          toast("Pedido restaurado");
+          void viewOrders(ordState.status);
+        } catch (e) { toast(e instanceof Error ? e.message : "Error", false); }
+        return;
+      }
+      // Abrir modal de confirmación para archivar.
+      const modal = openModal(`
+        <div class="modal-card" style="max-width:400px">
+          <h3 id="a-title">Archivar pedido</h3>
+          <p id="a-msg" class="muted" style="margin:8px 0">
+            ¿Archivar este pedido? Se guardará en el historial y no aparecerá en la tabla principal de pedidos.
+          </p>
+          <p id="a-info" class="muted" style="margin:8px 0 12px">
+            ID del pedido: <code id="a-id">${esc(id)}</code>
+          </p>
+          <div class="field" style="margin:0 0 4px">
+            <label for="a-note">Motivo (opcional, queda en el historial)</label>
+            <textarea id="a-note" rows="2" maxlength="200"
+              placeholder="Ej.: pedido de prueba, error de carga, cliente pidió cancelar…"></textarea>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn btn-archive-ok" id="a-ok" style="margin-right:8px">Archivar</button>
+            <button class="btn btn-cancel" id="a-cancel">Cancelar</button>
+          </div>
+        </div>
+      `);
+      const okBtn = modal.querySelector("#a-ok") as HTMLButtonElement;
+      const cancelBtn = modal.querySelector("#a-cancel") as HTMLButtonElement;
+      cancelBtn.addEventListener("click", () => {
+        // Si se cancela, verificar que el pedido no esté en otro estado
+        if (okBtn) { okBtn.textContent = "Archivar"; }
+        modal.remove();
+      });
+      okBtn.addEventListener("click", async () => {
+        okBtn.disabled = true;
+        okBtn.textContent = "Archivando…";
+        const note = (modal.querySelector("#a-note") as HTMLTextAreaElement | null)?.value.trim() ?? "";
+        try {
+          await api(`/orders/${encodeURIComponent(id)}/archive`, {
+            method: "POST",
+            body: JSON.stringify({ note: note === "" ? null : note }),
+          });
+          toast("Pedido archivado");
+          modal.remove();
+          void viewOrders(ordState.status);
+        } catch (e) {
+          okBtn.disabled = false;
+          okBtn.textContent = "Archivar";
+          toast(e instanceof Error ? e.message : "Error", false);
+        }
+      });
+    });
+  });
+
     b.addEventListener("click", () => {
       const phone = (b.dataset.waPhone ?? "").replace(/\D/g, "");
       const dest = phone.length > 0 ? (phone.startsWith("54") || phone.startsWith("9") ? phone : `549${phone}`) : "";
@@ -2017,6 +2095,81 @@ async function viewOrders(statusFilter = ""): Promise<void> {
         .catch(() => { /* no crítico */ });
     });
   });
+
+  // ---- Seleccion masiva: archivar varios pedidos con una sola confirmacion ----
+  const bulkBtn = el.view.querySelector("#ord-bulk") as HTMLButtonElement | null;
+  const refreshBulk = (): void => {
+    const n = ordSelected.size;
+    if (bulkBtn) {
+      bulkBtn.hidden = n === 0;
+      bulkBtn.textContent = `🗂️ Archivar seleccionados (${n})`;
+    }
+    const selAll = el.view.querySelector("#ord-sel-all") as HTMLInputElement | null;
+    const visibles = [...el.view.querySelectorAll<HTMLInputElement>(".ord-sel")];
+    if (selAll) selAll.checked = visibles.length > 0 && visibles.every((cb) => cb.checked);
+  };
+  el.view.querySelectorAll<HTMLInputElement>(".ord-sel").forEach((cb) => {
+    const id = cb.dataset.id ?? "";
+    cb.checked = ordSelected.has(id);
+    cb.addEventListener("change", () => {
+      if (cb.checked) ordSelected.add(id);
+      else ordSelected.delete(id);
+      refreshBulk();
+    });
+  });
+  (el.view.querySelector("#ord-sel-all") as HTMLInputElement | null)?.addEventListener("change", (ev) => {
+    const on = (ev.target as HTMLInputElement).checked;
+    el.view.querySelectorAll<HTMLInputElement>(".ord-sel").forEach((cb) => {
+      cb.checked = on;
+      const id = cb.dataset.id ?? "";
+      if (on) ordSelected.add(id);
+      else ordSelected.delete(id);
+    });
+    refreshBulk();
+  });
+  bulkBtn?.addEventListener("click", () => {
+    if (ordSelected.size === 0) return;
+    const n = ordSelected.size;
+    // UNA sola confirmacion para todo el lote, con motivo opcional compartido.
+    const modal = openModal(`
+      <div class="modal-card" style="max-width:440px">
+        <h3>Archivar ${n} pedido${n !== 1 ? "s" : ""}</h3>
+        <p class="muted" style="margin:8px 0">Se guardarán en el historial con el mismo motivo y dejarán de aparecer en la tabla principal. Después podés restaurarlos desde el chip «Archivados».</p>
+        <div class="field" style="margin:0 0 4px">
+          <label for="ab-note">Motivo (opcional, queda en el historial)</label>
+          <textarea id="ab-note" rows="2" maxlength="200" placeholder="Ej.: pedidos de prueba, error de carga…"></textarea>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn btn-archive-ok" id="ab-ok" style="margin-right:8px">Archivar ${n}</button>
+          <button class="btn btn-cancel" id="ab-cancel">Cancelar</button>
+        </div>
+      </div>`);
+    const okBtn = modal.querySelector("#ab-ok") as HTMLButtonElement;
+    modal.querySelector("#ab-cancel")?.addEventListener("click", () => modal.remove());
+    okBtn.addEventListener("click", async () => {
+      okBtn.disabled = true;
+      okBtn.textContent = "Archivando…";
+      const note = (modal.querySelector("#ab-note") as HTMLTextAreaElement | null)?.value.trim() ?? "";
+      try {
+        const r = await api<{ archived: number; notFound: number }>("/orders/archive-bulk", {
+          method: "POST",
+          body: JSON.stringify({ ids: [...ordSelected], note: note === "" ? null : note }),
+        });
+        toast(
+          `${r.archived} pedido${r.archived !== 1 ? "s" : ""} archivado${r.archived !== 1 ? "s" : ""}` +
+          (r.notFound > 0 ? ` · ${r.notFound} no encontrado${r.notFound !== 1 ? "s" : ""}` : ""),
+        );
+        ordSelected.clear();
+        modal.remove();
+        void viewOrders(ordState.status);
+      } catch (e) {
+        okBtn.disabled = false;
+        okBtn.textContent = `Archivar ${n}`;
+        toast(e instanceof Error ? e.message : "Error", false);
+      }
+    });
+  });
+  refreshBulk();
 }
 
 async function viewSettings(): Promise<void> {

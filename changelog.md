@@ -1,3 +1,45 @@
+## 2026-10-01 — Archivo masivo de pedidos (una sola confirmación)
+
+- Checkbox en el encabezado de la tabla de pedidos (**seleccionar todo la página**) y checkbox por fila (los archivados quedan sin checkbox); los ids elegidos sobreviven a paginar y se limpian al cambiar de chip o de vista
+- Botón **🗂️ Archivar seleccionados** junto al buscador (contador de seleccionados); abre **un único modal** con nota opcional compartida y al confirmar archiva todo de una vez
+- Nuevo endpoint `POST /api/admin/orders/archive-bulk` (sesión admin): recibe `{ ids[], note? }`, máximo 100 por lote, dedupe + ids vacíos ignorados, responde `{ ok, requested, archived, notFound }`
+- Tests: 3 nuevos en `orders-patch.test.ts` (lote con nota compartida, dedupe/basura/notFound, 400/401) — **234/234** ✅, typecheck ✅, build ✅
+- Fix: faltaba la declaración de `ordSelected` en `src/web/admin.ts` (error TS2304)
+
+## 2026-10-01 — Motivo opcional al archivar pedidos
+
+- El modal de archivar ahora incluye un campo **«Motivo (opcional, queda en el historial)»** (textarea, máx. 200 caracteres); se puede archivar sin escribir nada
+- El motivo se guarda en la nueva columna `archive_note` y aparece en la pestaña Pedidos bajo el badge de estado de los archivados: `📝 <motivo>`
+- Al **restaurar** el pedido, el motivo se limpia junto con `archived_at`/`archived_by`
+- Backend: `adminSetOrderArchive` acepta `note` (trim + acote a 200, vacío → null), el endpoint `POST /api/admin/orders/:id/archive` la recibe del body, `rowToOrder` expone `archiveNote`
+- Migración `db/migrations/009-orders-archive-note.sql` (+ `schema.sql`) — **pendiente aplicar a D1 remota al próximo deploy**
+- Tests: 3 nuevos en `orders-patch.test.ts` (guardado + limpieza al restaurar, vacío/ausente → null, acote a 200) — **231/231** ✅, typecheck ✅, build ✅
+
+## 2026-10-01 — Deploy: archivo de pedidos + fix del filtro «Nuevo»
+
+- **Migración 008 aplicada a D1 remota**: columnas `archived_at` y `archived_by` en `orders` (verificadas con `PRAGMA table_info`)
+- Deploy versión **`e00e1a04-f299-428d-b360-908bfbf89a04`** (cron `0 * * * *` intacto; bindings KV/EMAIL/DB/ASSETS/CF_ACCOUNT_ID/CF_SITE_ORIGIN presentes)
+- Sube: archivar/restaurar pedidos (botón con modal de confirmación, chip «Archivados», endpoints `/api/admin/orders/:id/archive` y `/unarchive`) + fix del filtro «Nuevo» del catálogo (tag o fresco)
+- Smoke de producción: home `200`, `/admin/` `200`, `/api/admin/orders` sin sesión `401`, `POST .../archive` sin sesión `401`, bundle `catalog-2Afgiw5t.js` `200` con la lógica del filtro nuevo verificada en el JS servido
+- 228/228 tests ✅, typecheck web + worker ✅, build ✅
+
+## 2026-10-01 — Fix: el filtro «Nuevo» del catálogo no mostraba los productos nuevos
+
+- El chip «Nuevo» del catálogo solo buscaba el **tag** `new` (poco usado: los productos importados casi nunca lo traen), pero el badge «Nuevo» de las tarjetas es el **automático por frescura** (`created_at` dentro de `freshHours`, 48 h por defecto) — por eso el filtro devolvía vacío mientras las tarjetas mostraban badges
+- Fix en `src/web/catalog.ts` (`applyFilters`): el tag `new` ahora matchea **tag a mano O producto fresco** (`isFresh` con el `freshHours` de las settings), respetando «Desactivado» (0 h) cuando está configurado así
+- El filtro ahora devuelve exactamente lo mismo que se ve en las tarjetas; `featured`/`offer` quedan igual
+- 228/228 tests ✅, typecheck ✅, build ✅
+
+## 2026-10-01 — Archivar pedidos (historial de cancelados y pruebas)
+
+- Nuevo estado `archived` en pedidos: botón **🗂️ Archivar** en cada fila con **confirmación en modal** («¿Archivar este pedido? Se guardará en el historial...») y botón **↩ Restaurar** para deshacer
+- Chip **Archivados** en la pestaña Pedidos: muestra el historial (fecha de archivo y quién lo archivó); el filtro «Todos» **excluye** los archivados para no ensuciar la vista operativa
+- Endpoints `POST /api/admin/orders/:id/archive` y `/unarchive` (sesión admin): archivo idempotente (no pisa la fecha original) y restauración a `paid` si tenía `paid_at`, o a `pending` si no
+- Migración `db/migrations/008-orders-archived.sql` (+ `schema.sql`): columnas `archived_at` y `archived_by` en `orders` — **pendiente aplicar con `wrangler d1 execute` al desplegar**
+- `OrderStatus` suma `archived`; `rowToOrder` expone `archivedAt`/`archivedBy`; `counts` del endpoint incluye `archived` para el chip
+- Tests: 11 en `orders-patch.test.ts` (PATCH con login + archive/unarchive con confirmación, idempotencia, restauración a paid/pending, 401/404/400) y 6 en `orders-pagination.test.ts` (paginación con el filtro `status=archived` y exclusión de archivados en «Todos»)
+- **228/228 tests** ✅, typecheck web + worker ✅
+
 ## 2026-10-01 — Fix de convergencia tienda → centerphone.com.ar
 
 - `sync.ts`: el fallback de `purgeCatalogEdgeCache` cambió de `celu-store.pilin123.workers.dev` a `https://centerphone.com.ar` (en producción el origin del request ya era correcto; el fallback sólo afecta al purgado de caché cuando se activan CF_ZONE_ID/CF_API_TOKEN)

@@ -1,0 +1,70 @@
+# .dev.vars.example — plantilla de variables de entorno para desarrollo local.
+#
+# Copiá este archivo a `.dev.vars` y completá los valores (o dejá los que
+# vienen por defecto). NO se committea: es ignorado por git.
+#
+#   cp .dev.vars.example .dev.vars
+#
+# Nota: este proyecto es 100% gratuito (Cloudflare Workers + D1 + KV gratuitos)
+# y funciona sin ninguna variable obligatoria. El catálogo + WhatsApp funcionan
+# con los valores por defecto. Lo siguiente solo es necesario si:
+#   • quiere probar pagos online por MercadoPago → MERCADOPAGO_ACCESS_TOKEN
+#   • quiere probar el panel /admin → ADMIN_PASSWORD, ADMIN_SESSION_SECRET
+#   • quiere ver la pestaña Seguridad del panel → CF_ACCOUNT_ID (+secret CF_LOGS_TOKEN)
+#   • quiere validar la purga de caché edge → CF_ZONE_ID + CF_API_TOKEN
+
+# -------------------------------------------------
+# 1. Secretos (solo si se van a probar las funcionalidades que los usan)
+# -------------------------------------------------
+
+# Token de MercadoPago (secreto del worker). Vacío = pagos deshabilitados en el
+# catálogo + WhatsApp, pero el panel sigue funcionando y se puede activar el
+# toggle de pagos. Solo se usa en /api/checkout y /api/payments/webhook.
+# Opcional: para probar sin tarjeta real, usar el modo test de MercadoPago.
+MERCADOPAGO_ACCESS_TOKEN=
+
+# Contraseña de administrador (obsolescencia de la contraseña por defecto).
+# Se guarda como hash en KV (no se muestra en plaintext) y se rotan con el
+# botón "Cambiar contraseña" del panel.
+ADMIN_PASSWORD=
+
+# Secret de sesión del panel (se rota con el mismo botón). Generar con:
+#   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# o /dev/urandom en linux/macOS.
+ADMIN_SESSION_SECRET=
+
+# Optional: token de los Workers Logs de Cloudflare para la pestaña Seguridad.
+# Crear un "API Token" con permiso "Read Workers Logs" en el dashboard de
+# Cloudflare para la cuenta, y guardarlo como secret (no var):
+#   npx wrangler secret put CF_LOGS_TOKEN
+# Solo se usa en /api/admin/security-events.
+CF_LOGS_TOKEN=
+
+# -------------------------------------------------
+# 2. Vars (no secretos, leídos por el worker)
+# -------------------------------------------------
+
+# ID de la cuenta de Cloudflare (no se puede leer desde el worker, se necesita
+# aquí para la pestaña Seguridad). Buscar el "Account ID" en miaccount →
+# "API Tokens & Keys" (es un GUID).
+CF_ACCOUNT_ID=
+
+# Opcional: para purgar la caché edge del catálogo cuando se regenere el
+# snapshot. Solo se ejecuta purgeCatalogEdgeCache si CF_ZONE_ID Y
+# CF_API_TOKEN están ambos presentes. CF_SITE_ORIGIN solo se usa en ese
+# escenario, pero también se recomienda para las back_urls de MercadoPago.
+CF_ZONE_ID=
+CF_API_TOKEN=
+CF_SITE_ORIGIN=https://centerphone.com.ar
+
+# -------------------------------------------------
+# 3. Seed de D1 / KV (solo por si se quiere despegar localmente)
+# -------------------------------------------------
+
+# Ninguna variable de env here is required to run the project. The worker
+# works with:
+#   • DB = D1 "celu-store-db" (decimal ID, configured in wrangler.jsonc)
+#   • KV = KV "CELU_KV" (configured in wrangler.jsonc)
+#   • ASSETS = ./public (assets del deploy)
+#   • ADMIN_PASSWORD / ADMIN_SESSION_SECRET (opcionales, por defecto son
+#     cada uno una cadena aleatoria)

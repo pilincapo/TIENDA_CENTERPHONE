@@ -5,7 +5,7 @@ import type { Category, OrderStatus, Product, SyncLogEntry } from "../shared/typ
 import { ORDER_STATUSES } from "../shared/types";
 import type { AutoImport } from "../shared/autoimport";
 import { TAGS } from "../shared/types";
-import type { Env } from "./db";
+import type { Dict, Env } from "./db";
 import {
   countProducts, countProductsByCategory, countProductsByStatus, deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct,
   getAutoImportByUrl, getProduct, insertSyncLog, lastSyncLogByDetail, listAutoImports, listCategories, listPriceRules,
@@ -20,7 +20,7 @@ import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { extractFromUrl } from "./extract";
 import { forceHttpsUrl, getSettings, newId, nowMs, saveSettings } from "./settings";
 import { configProblem, fetchSecurityEvents } from "./security-log";
-import { adminSetOrderStatus, countOrders, countOrdersByStatus, listOrdersPaged, setOrderNotifiedWa } from "./orders";
+import { adminSetOrderStatus, adminSetOrderArchive, adminSetOrderUnarchive, countOrders, countOrdersByStatus, listOrdersPaged, setOrderNotifiedWa } from "./orders";
 import {
   clearSessionCookieHeader, createSessionToken, readSessionCookie,
   SESSION_TTL_MS, sessionCookieHeader, verifySessionToken,
@@ -437,7 +437,7 @@ adminApp.get("/orders", async (c) => {
     page,
     pages: Math.max(1, Math.ceil(total / limit)),
     limit,
-    counts: { pending: counts.pending, paid: counts.paid, cancelled: counts.cancelled, rejected: counts.rejected },
+    counts: { pending: counts.pending, paid: counts.paid, cancelled: counts.cancelled, rejected: counts.rejected, archived: counts.archived },
   });
 });
 
@@ -455,6 +455,60 @@ adminApp.patch("/orders/:id", async (c) => {
 adminApp.post("/orders/:id/notified", async (c) => {
   await setOrderNotifiedWa(c.env.DB, c.req.param("id"));
   return c.json({ ok: true });
+});
+
+// Archivar un pedido: lo mueve a estado 'archived' con nota y fecha.
+// La pestaña de pedidos lo excluye; se ve solo en la vista de histórico.
+adminApp.post("/orders/:id/archive", async (c) => {
+  const id = c.req.param("id");
+  const existing = await c.env.DB.prepare("SELECT id FROM orders WHERE id = ?1")
+    .bind(id).first<Dict>();
+  if (!existing) return c.json({ error: "Pedido no encontrado" }, 404);
+  const archivedBy = String(c.req.header("CF-Connecting-IP") ?? "panel");
+  // Motivo opcional del archivo: se guarda en el historial (acotado a 200).
+  const body = await c.req.json<{ note?: unknown }>().catch(() => null);
+  const rawNote = body?.note;
+  const note = rawNote == null ? null : String(rawNote).trim().slice(0, 200) || null;
+  const order = await adminSetOrderArchive(c.env.DB, id, { archivedBy, note });
+  return c.json({ ok: true, archived: true, order });
+});
+
+// Archivo masivo: archiva varios pedidos con una sola confirmacion y un mismo
+// motivo (confirmacion unica en el panel). Idempotente: los que ya estaban
+// archivados no se tocan (no pisan fecha ni motivo originales).
+adminApp.post("/orders/archive-bulk", async (c) => {
+  const body = await c.req.json<{ ids?: unknown; note?: unknown }>().catch(() => null);
+  if (!Array.isArray(body?.ids)) return c.json({ error: "Falta la lista de ids" }, 400);
+  const ids = [...new Set(
+    body.ids
+      .filter((x): x is string => typeof x === "string" && x.trim() !== "")
+      .map((x) => x.trim()),
+  )].slice(0, 100);
+  if (ids.length === 0) return c.json({ error: "Sin pedidos seleccionados" }, 400);
+  const rawNote = body?.note;
+  const note = rawNote == null ? null : String(rawNote).trim().slice(0, 200) || null;
+  const archivedBy = String(c.req.header("CF-Connecting-IP") ?? "panel");
+  let archived = 0;
+  let notFound = 0;
+  for (const id of ids) {
+    const order = await adminSetOrderArchive(c.env.DB, id, { archivedBy, note });
+    if (order?.status === "archived") archived++;
+    else notFound++;
+  }
+  return c.json({ ok: true, requested: ids.length, archived, notFound });
+});
+
+// Restaurar un pedido archivado a su estado anterior (pending o paid).
+adminApp.post("/orders/:id/unarchive", async (c) => {
+  const id = c.req.param("id");
+  const existing = await c.env.DB.prepare("SELECT status FROM orders WHERE id = ?1")
+    .bind(id).first<Dict>();
+  if (!existing) return c.json({ error: "Pedido no encontrado" }, 404);
+  if (String(existing.status) !== "archived") {
+    return c.json({ error: "Este pedido no está archivado" }, 400);
+  }
+  const order = await adminSetOrderUnarchive(c.env.DB, id);
+  return c.json({ ok: true, archived: false, order });
 });
 
 // Indicador del panel: hay token configurado y toggle activado (no expone nada).

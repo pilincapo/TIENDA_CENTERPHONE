@@ -85,6 +85,9 @@ CREATE TABLE IF NOT EXISTS orders (
   mp_payment_id      TEXT,
   paid_at            INTEGER,
   notified_wa        INTEGER NOT NULL DEFAULT 0,
+  archived_at        INTEGER,                           -- fecha del archivo (epoch ms)
+  archived_by        TEXT,                              -- IP del panel que archivo
+  archive_note       TEXT,                              -- motivo opcional del archivo
   created_at         INTEGER NOT NULL,
   updated_at         INTEGER NOT NULL
 );

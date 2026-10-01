@@ -57,7 +57,7 @@ export interface SyncLogEntry {
 
 // ---- Pedidos con pago online (MercadoPago) ----
 
-export type OrderStatus = "pending" | "paid" | "cancelled" | "rejected";
+export type OrderStatus = "pending" | "paid" | "cancelled" | "rejected" | "archived";
 
 export interface OrderItem {
   id: string;
@@ -79,6 +79,12 @@ export interface Order {
   mpPaymentId: string | null;
   paidAt: number | null;
   notifiedWa: boolean;
+  /** Fecha del archivo (epoch ms). Solo con status = "archived". */
+  archivedAt?: number | null;
+  /** Quien archivo (IP del panel o "panel"). Solo con status = "archived". */
+  archivedBy?: string | null;
+  /** Motivo opcional del archivo, guardado en el historial. */
+  archiveNote?: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -171,4 +177,4 @@ export const KV_SNAPSHOT_KEY = "catalog:snapshot:v1";
 export const KV_SETTINGS_KEY = "config:settings:v1";
 export const KV_SYNC_STATE_KEY = "config:syncstate:v1";
 // Pedidos: solo se marca "notificado por WhatsApp" del lado del panel.
-export const ORDER_STATUSES: OrderStatus[] = ["pending", "paid", "cancelled", "rejected"];
+export const ORDER_STATUSES: OrderStatus[] = ["pending", "paid", "cancelled", "rejected", "archived"];

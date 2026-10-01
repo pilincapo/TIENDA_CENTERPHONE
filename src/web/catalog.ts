@@ -276,11 +276,19 @@ function collectCategoryIds(): Set<string> {
 function applyFilters(products: Product[]): Product[] {
   const term = state.search.trim().toLowerCase();
   const catIds = collectCategoryIds();
+  const freshHours = state.settings?.freshHours ?? 48;
   return products.filter((p) => {
     if (term !== "" && !`${p.title} ${p.description}`.toLowerCase().includes(term)) return false;
     if (catIds.size > 0 && (!p.categoryId || !catIds.has(p.categoryId))) return false;
     for (const t of state.tags) {
-      if (!p.tags.includes(t)) return false;
+      // "new" matchea el tag a mano O el badge "Nuevo" automatico (fresco):
+      // los productos importados casi nunca traen el tag, pero si muestran el
+      // badge en la tarjeta — el filtro devuelve lo mismo que se ve.
+      if (t === "new") {
+        if (!p.tags.includes("new") && !isFresh(p, freshHours)) return false;
+      } else if (!p.tags.includes(t)) {
+        return false;
+      }
     }
     return true;
   });
