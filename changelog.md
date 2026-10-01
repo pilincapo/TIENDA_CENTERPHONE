@@ -1,3 +1,9 @@
+## 2026-10-01 — Deploy: paginación de Productos en producción
+
+- Push `8f45c3c..86cec33` a `pilincapo/TIENDA_CENTERPHONE` y deploy: versión **`86b90a6d-fef8-4817-88d5-95680cb33830`** (cron `0 * * * *` intacto; bindings KV/EMAIL/DB/ASSETS/CF_ACCOUNT_ID presentes)
+- Smoke de producción: home `200`, `/admin/` `200` sirviendo el bundle nuevo (`assets/admin-Dp-LNw3C.js`), `/api/admin/products` sin sesión `401`, `/api/admin/security-events` `401`, `www.centerphone.com.ar` → `301` a dominio sin www
+- La tienda pública sigue igual (catálogo + WhatsApp + carrito); el cambio es solo del panel: ahora Productos carga 50 por página con paginador, búsqueda server-side y recarga de la misma página al borrar/editar — 199/199 tests ✅, typecheck ✅
+
 ## 2026-10-01 — Paginación en la vista de Productos del panel
 
 - La pestaña Productos ya no carga los 830 productos de una: ahora pide de a **50 por página** (paginador «‹ Anterior / Página X de Y / Siguiente ›» abajo de la tabla)
