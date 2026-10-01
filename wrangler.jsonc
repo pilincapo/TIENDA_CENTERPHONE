@@ -31,6 +31,12 @@
       "id": "71875a431359487e954c86f15edf54ae"
     }
   ],
+  // Cuenta de Cloudflare (no es secreto): la usa la pestaña Seguridad del panel
+  // para leer los eventos de seguridad del worker vía API. El API token va
+  // aparte como secret (CF_LOGS_TOKEN, con permiso de lectura de Workers Logs).
+  "vars": {
+    "CF_ACCOUNT_ID": "0bb717edbda5f33508dc01f1d194a00b"
+  },
   // Workers Logs: guarda los console.* del worker (retención corta en el plan
   // gratis). Sin esto los eventos de seguridad no se capturan — los otros
   // workers del negocio (repairpro) ya lo tenían activo.

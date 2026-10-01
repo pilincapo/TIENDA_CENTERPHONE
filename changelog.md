@@ -1,3 +1,11 @@
+## 2026-10-01 — Pestaña "Seguridad" en el panel
+
+- Nueva pestaña **Seguridad** en el grupo Sistema: muestra los últimos eventos `seguridad:` del worker (24 h) leídos del Workers Logs de Cloudflare vía su API — intentos de login fallidos/OK, salidas sin sesión y avisos del webhook de pago — con hora, badge ⚠/ℹ y botón Actualizar
+- Endpoint `GET /api/admin/security-events` protegido por sesión (agregado a la guardia `admin-guard`): sin `CF_LOGS_TOKEN` responde `configured:false` y la pestaña muestra los 2 pasos para configurarlo; con la misma filosofía que MercadoPago, sin token el resto del panel funciona igual
+- Configuración: `CF_ACCOUNT_ID` ya queda como var en `wrangler.jsonc`; falta crear el API token (permiso Account · Workers Observability · Read) y guardarlo con `npx wrangler secret put CF_LOGS_TOKEN` — hasta entonces la pestaña muestra las instrucciones (los eventos igual se están grabando)
+- Nuevo módulo `src/worker/security-log.ts` (consulta con timeout, normaliza y ordena más-nuevos-primero, sin exponer secretos) + 11 tests nuevos: typecheck ✅, **183/183 tests** ✅, build ✅
+- Verificado en local con el dev server: pestaña en el menú, login del panel OK, sin token muestra instrucciones, y la vista con eventos renderiza bien (demo estática con datos de ejemplo, borrada después)
+
 ## 2026-10-01 — Log de seguridad: login, logout sin sesión y webhook de pagos
 
 - El worker ahora deja registro (Workers Logs, retención corta del plan gratis) de: login fallido, login bloqueado por rate-limit, login OK, logout sin sesión (401) y cada webhook de MercadoPago con id real — recepción, confirmación de pago de pedido, pagos no encontrados (sondeos) y pagos aprobados sin pedido válido

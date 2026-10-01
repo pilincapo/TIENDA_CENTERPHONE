@@ -21,6 +21,12 @@ export interface Env {
   CF_ZONE_ID?: string;
   CF_API_TOKEN?: string;
   CF_SITE_ORIGIN?: string;
+  // Opcional: lectura de eventos de seguridad (pestaña Seguridad del panel).
+  // CF_ACCOUNT_ID es una var (en wrangler.jsonc); CF_LOGS_TOKEN es un secret
+  // (API token con permiso de lectura de Workers Logs). Sin token, la pestaña
+  // muestra las instrucciones y el resto del panel funciona igual.
+  CF_ACCOUNT_ID?: string;
+  CF_LOGS_TOKEN?: string;
 }
 
 function num(v: unknown): number {

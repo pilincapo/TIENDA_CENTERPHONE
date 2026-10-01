@@ -19,6 +19,7 @@ import { applyRuleSet, roundToPeso, type PriceRule } from "../shared/pricing";
 import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { extractFromUrl } from "./extract";
 import { forceHttpsUrl, getSettings, newId, nowMs, saveSettings } from "./settings";
+import { configProblem, fetchSecurityEvents } from "./security-log";
 import { adminSetOrderStatus, listOrders, setOrderNotifiedWa } from "./orders";
 import {
   clearSessionCookieHeader, createSessionToken, readSessionCookie,
@@ -123,6 +124,18 @@ adminApp.get("/changelog", async (c) => {
   const res = await c.env.ASSETS.fetch(new Request(new URL("/changelog.md", c.req.url)));
   if (!res.ok) return c.json({ error: "Changelog no disponible" }, 404);
   return c.json({ markdown: await res.text() });
+});
+
+// Últimos eventos de seguridad (login, logout sin sesión, webhook de pagos)
+// leídos del Workers Logs de Cloudflare. Como /changelog: DESPUÉS del
+// middleware de sesión. Sin CF_LOGS_TOKEN responde configured:false y el
+// panel muestra cómo configurarlo (el resto del panel no se ve afectado).
+adminApp.get("/security-events", async (c) => {
+  const accountId = c.env.CF_ACCOUNT_ID ?? "";
+  const token = c.env.CF_LOGS_TOKEN ?? "";
+  const problema = configProblem(accountId, token);
+  if (problema) return c.json({ configured: false, events: [], hint: problema });
+  return c.json(await fetchSecurityEvents(accountId, token));
 });
 
 // Cambio de contraseña: pide la actual y la nueva (mínimo 8 caracteres).

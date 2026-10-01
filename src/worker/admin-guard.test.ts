@@ -27,6 +27,7 @@ describe("Guardia: /api/admin exige sesión", () => {
   const rutas: [string, RequestInit][] = [
     ["/logout", { method: "POST" }],
     ["/changelog", {}],
+    ["/security-events", {}],
     ["/settings", {}],
     ["/orders", {}],
     ["/products", {}],
