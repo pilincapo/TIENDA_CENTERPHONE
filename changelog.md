@@ -1,3 +1,16 @@
+## 2026-10-01 — Deploy: pestaña "Seguridad" en producción
+
+- Push `7130d27..0ce86b7` a `pilincapo/TIENDA_CENTERPHONE` y deploy: versión **`5d085448-b58f-4514-9819-6d5b13dd8ce7`** (cron `0 * * * *` intacto; la var `CF_ACCOUNT_ID` quedó ligada)
+- Smoke de producción: home 200, `/admin/` 200 con el bundle nuevo (pestaña Seguridad presente), `/api/admin/security-events` sin sesión → 401, `/changelog.md` → 401, login falso 401
+- La pestaña muestra las instrucciones de configuración hasta crear el token de Cloudflare (`wrangler secret put CF_LOGS_TOKEN`); después se llena sola
+
+## 2026-10-01 — Revisión de logs de repairpro y otros workers (sin filtraciones)
+
+- Auditoría de los otros workers de la cuenta (repairpro, repairpro-clon, repairpro-vivo, liga-amateur) buscando actividad sospechosa: 2.000 eventos en 7 días, casi todo uso legítimo desde Argentina (la IP de casa/oficina concentra ~1.020 consultas del panel)
+- **Sondas de escáner detectadas y contenidas**: `/.env`, `/api/.env`, `/api/v1/.env`, `/api/staging/.env`, `/wp-login.php`, `wlwmanifest.xml` desde IPs de hosting extranjeras (Holanda y EE.UU.) — las que apuntan a la API quedaron en **401** y las estáticas devolvieron el HTML de la app (fallback de SPA), verificado cuerpo incluido: 0 secretos expuestos
+- Los 401 en serie de `/api/users/…/settings/profile` salen de la IP propia con sesión vencida del panel (ruido normal, no ataque); un solo intento de login con curl, sin fuerza bruta
+- Sin errores 5xx, sin inundaciones de 404, sin tráfico anómalo por volumen; el 200 del `/.env` estático es cosmético (sería más limpio un 404) — anotado como mejora opcional
+
 ## 2026-10-01 — Pestaña "Seguridad" en el panel
 
 - Nueva pestaña **Seguridad** en el grupo Sistema: muestra los últimos eventos `seguridad:` del worker (24 h) leídos del Workers Logs de Cloudflare vía su API — intentos de login fallidos/OK, salidas sin sesión y avisos del webhook de pago — con hora, badge ⚠/ℹ y botón Actualizar
