@@ -43,7 +43,7 @@ async function purgeCatalogEdgeCache(env: Env): Promise<void> {
   const apiToken = env.CF_API_TOKEN;
   if (!zoneId || !apiToken) return;
   try {
-    const origin = env.CF_SITE_ORIGIN ?? "https://celu-store.pilin123.workers.dev";
+    const origin = env.CF_SITE_ORIGIN ?? "https://centerphone.com.ar";
     const res = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${apiToken}`, "Content-Type": "application/json" },

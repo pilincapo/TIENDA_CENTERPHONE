@@ -20,7 +20,7 @@ import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { extractFromUrl } from "./extract";
 import { forceHttpsUrl, getSettings, newId, nowMs, saveSettings } from "./settings";
 import { configProblem, fetchSecurityEvents } from "./security-log";
-import { adminSetOrderStatus, listOrders, setOrderNotifiedWa } from "./orders";
+import { adminSetOrderStatus, countOrders, countOrdersByStatus, listOrdersPaged, setOrderNotifiedWa } from "./orders";
 import {
   clearSessionCookieHeader, createSessionToken, readSessionCookie,
   SESSION_TTL_MS, sessionCookieHeader, verifySessionToken,
@@ -420,9 +420,25 @@ adminApp.post("/snapshot", async (c) => {
 // ---- Pedidos (pago online) ----
 
 adminApp.get("/orders", async (c) => {
-  const status = c.req.query("status") ?? "";
-  const limit = Number(c.req.query("limit") ?? 100);
-  return c.json({ orders: await listOrders(c.env.DB, status, Number.isFinite(limit) ? limit : 100) });
+  const q = (c.req.query("q") ?? "").trim().slice(0, 100);
+  const statusParam = c.req.query("status");
+  const status: "" | OrderStatus =
+    statusParam && ORDER_STATUSES.includes(statusParam as OrderStatus) ? statusParam as OrderStatus : "";
+  const page = Math.max(1, Math.min(500, Math.trunc(Number(c.req.query("page") ?? 1)) || 1));
+  const limit = Math.max(1, Math.min(200, Math.trunc(Number(c.req.query("limit") ?? 50)) || 50));
+  const [orders, total, counts] = await Promise.all([
+    listOrdersPaged(c.env.DB, { status, q, limit, offset: (page - 1) * limit }),
+    countOrders(c.env.DB, { status, q }),
+    countOrdersByStatus(c.env.DB),
+  ]);
+  return c.json({
+    orders,
+    total,
+    page,
+    pages: Math.max(1, Math.ceil(total / limit)),
+    limit,
+    counts: { pending: counts.pending, paid: counts.paid, cancelled: counts.cancelled, rejected: counts.rejected },
+  });
 });
 
 // Cambio manual de estado (Plan B si MP no avisa por webhook, o corrección).

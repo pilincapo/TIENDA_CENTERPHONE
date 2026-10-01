@@ -1,3 +1,17 @@
+## 2026-10-01 — Fix de convergencia tienda → centerphone.com.ar
+
+- `sync.ts`: el fallback de `purgeCatalogEdgeCache` cambió de `celu-store.pilin123.workers.dev` a `https://centerphone.com.ar` (en producción el origin del request ya era correcto; el fallback sólo afecta al purgado de caché cuando se activan CF_ZONE_ID/CF_API_TOKEN)
+- `wrangler.jsonc`: agregada var `CF_SITE_ORIGIN=https://centerphone.com.ar` (antes caía al `url.origin` del request; ahora es explícito en producción para las `back_urls` de MercadoPago y la purga de caché)
+- Validación de la tienda: el dashboard converge a `centerphone.com.ar` ✅ — WhatsApp usando `whatsappPhone` configurable desde el panel, carrito envía sólo `{id,qty}` (precios recalculados server-side desde D1), checkout MP usa `CF_SITE_ORIGIN` para `back_urls` y responde 200 rápido + verificación async del webhook, redirect 301 www→dominio sin www activo, canonical y Open Graph apuntando al dominio correcto, tracking protegido con `ALLOWED_TRACK_HOSTS = {centerphone.com.ar, www.centerphone.com.ar}`
+
+## 2026-10-01 — Tests de la paginación de Pedidos (espejo de Productos)
+
+- Nuevo `src/worker/orders-page.test.ts`: 5 tests del endpoint paginado `GET /api/admin/orders` (espejo de `products-page.test.ts`)
+- Mock de D1 mínimo pero fiel: filtra por status/q (LIKE con ESCAPE '\\') y pagina con LIMIT/OFFSET; los totales por estado (COUNT(*) GROUP BY) no cargan filas
+- Cubierto: 401 sin sesión, primera página con default 50 + counts por estado, paginación limit=2/page=2, búsqueda server-side por nombre/id (q=perez → 2), filter por status=paid
+- 6 pedidos de prueba (pending/paid/cancelled/rejected) con precios congelados y datos de MP; datos ASCII para búsqueda case-insensitive fiable
+- No se pudo ejecutar la suite (sin shell/node en el host): los tests se validan tipológicamente contra la misma firma que los tests de productos que ya pasan
+
 ## 2026-10-01 — Deploy: paginación de Productos en producción
 
 - Push `8f45c3c..86cec33` a `pilincapo/TIENDA_CENTERPHONE` y deploy: versión **`86b90a6d-fef8-4817-88d5-95680cb33830`** (cron `0 * * * *` intacto; bindings KV/EMAIL/DB/ASSETS/CF_ACCOUNT_ID presentes)

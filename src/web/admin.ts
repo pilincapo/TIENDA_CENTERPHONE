@@ -1,6 +1,6 @@
 // SPA del panel de administración.
 
-import type { Category, Order, Product, StoreSettings, SyncLogEntry } from "../shared/types";
+import type { Category, Order, OrderStatus, Product, StoreSettings, SyncLogEntry } from "../shared/types";
 import { formatPrice } from "../shared/format";
 import type { AutoImport } from "../shared/autoimport";
 import type { PriceRule } from "../shared/pricing";
@@ -1842,18 +1842,52 @@ const ORDER_STATUS_META: Record<string, { label: string; cls: string }> = {
   rejected: { label: "Rechazado", cls: "ord-rejected" },
 };
 
+interface OrdersPage {
+  orders: Order[];
+  total: number;
+  page: number;
+  pages: number;
+  limit: number;
+  counts: Record<string, number>;
+}
+
+// Estado que sobrevive a los re-renders: filtrar o buscar no te manda a la página 1
+// (a menos que cambies el chip de estado, que sí reinicia la página).
+const ordState = { status: "" as "" | OrderStatus, page: 1, q: "" };
+
 async function viewOrders(statusFilter = ""): Promise<void> {
-  const [{ orders }, payments, { settings }, pending] = await Promise.all([
-    api<{ orders: Order[] }>(`/orders${statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : ""}`),
+  // Cambiar de chip de estado siempre reinicia a la página 1 (y borra búsqueda).
+  if (statusFilter !== ordState.status) {
+    ordState.status = statusFilter as "" | OrderStatus;
+    ordState.page = 1;
+    ordState.q = "";
+  }
+  el.view.innerHTML = `<div class="panel"><h2>🧾 Pedidos</h2><p class="muted">Cargando…</p></div>`;
+  const fetchPage = async (): Promise<OrdersPage> => {
+    const params = new URLSearchParams({ page: String(ordState.page), limit: "50", status: ordState.status });
+    if (ordState.q !== "") params.set("q", ordState.q);
+    return api<OrdersPage>(`/orders?${params.toString()}`);
+  };
+  let data = await fetchPage();
+  // Si la página quedó vacía (borré el último de la página 3, por ejemplo), retrocedo.
+  let guard = 0;
+  while (data.orders.length === 0 && ordState.page > 1 && guard++ < 3) {
+    ordState.page = Math.max(1, Math.min(ordState.page - 1, data.pages));
+    data = await fetchPage();
+  }
+  const orders = data.orders;
+  const [payments, { settings }] = await Promise.all([
     api<{ configured: boolean; enabled: boolean }>("/payments/status").catch(() => ({ configured: false, enabled: false })),
     api<{ settings: StoreSettings }>("/settings"),
-    // Contador del menú: pedidos pendientes (independiente del filtro en pantalla).
-    api<{ orders: Order[] }>("/orders?status=pending&limit=200").catch(() => ({ orders: [] as Order[] })),
   ]);
   const symbol = settings.currencySymbol || "$";
-  updatePendingBadge(pending.orders.length);
+  // Counter de la pestaña: pedidos pendientes (de los totales del servidor, sin request extra).
+  updatePendingBadge(data.counts.pending ?? 0);
   const chips = ["", "pending", "paid", "cancelled", "rejected"];
   const chipLabels: Record<string, string> = { "": "Todos", pending: "Pendientes", paid: "Pagados", cancelled: "Cancelados", rejected: "Rechazados" };
+  const chip = (s: string, label: string, n: number): string =>
+    `<button class="chip ${s === ordState.status ? "on" : ""}" data-ord-filter="${s}">${label} <span class="muted">${n}</span></button>`;
+  const totalAll = (data.counts.pending ?? 0) + (data.counts.paid ?? 0) + (data.counts.cancelled ?? 0) + (data.counts.rejected ?? 0);
   const rows = orders.map((o) => {
     const meta = ORDER_STATUS_META[o.status] ?? ORDER_STATUS_META["pending"]!;
     const items = o.items.map((i) => `${i.qty}x ${esc(i.title)}`).join(" · ");
@@ -1879,28 +1913,73 @@ async function viewOrders(statusFilter = ""): Promise<void> {
       <div class="stats-head">
         <h2>🧾 Pedidos</h2>
         <div class="stats-range">
-          ${chips.map((s) => `<button class="chip ${s === statusFilter ? "on" : ""}" data-ord-filter="${s}">${chipLabels[s] ?? s}</button>`).join("")}
+          ${chip("", "Todos", totalAll)}
+          ${chips.slice(1).map((s) => chip(s, chipLabels[s] ?? s, data.counts[s] ?? 0)).join("")}
         </div>
+      </div>
+      <div class="row" style="margin-top:10px; align-items:center">
+        <input id="ord-search" type="search" placeholder="Buscar por nombre de comprador o id de pedido…" autocomplete="off"
+          value="${esc(ordState.q)}" style="max-width:260px"/>
+        <span class="muted" id="ord-search-count" ${ordState.q !== "" ? "" : "hidden"}>${ordState.q !== "" ? `${data.total} coincidencia${data.total !== 1 ? "s" : ""} en ${data.total} pedido${data.total !== 1 ? "s" : ""} (de ${totalAll})` : ""}</span>
       </div>
       ${payments.configured && payments.enabled
         ? `<p class="muted">Pago online activo: MercadoPago confirma solo vía webhook.</p>`
         : `<p class="muted">Pago online ${payments.configured ? "configurado pero <b>desactivado</b> en Configuración → Pagos" : "<b>sin token</b>: configurá el secret <code>MERCADOPAGO_ACCESS_TOKEN</code> (ver Configuración → Pagos)"}. Los pedidos que veas acá se confirman a mano.</p>`}
       ${orders.length === 0
-        ? `<p class="muted">Todavía no hay pedidos${statusFilter ? " con este estado" : ""}.</p>`
+        ? `<p class="muted">Todavía no hay pedidos${ordState.status !== "" ? " con este estado" : ""}${ordState.q !== "" ? ` buscando "${esc(ordState.q)}"` : ""}.</p>`
         : `<table class="table ord-table">
             <thead><tr><th>Pedido</th><th>Comprador</th><th>Productos</th><th class="num">Total</th><th>Estado</th><th></th></tr></thead>
             <tbody>${rows}</tbody>
           </table>`}
+      ${orders.length > 0 ? `
+      <div class="pager">
+        <button class="btn" id="pg-prev" ${data.page <= 1 ? "disabled" : ""}>‹ Anterior</button>
+        <span class="muted">Página ${data.page} de ${data.pages} — ${data.total} pedido${data.total !== 1 ? "s" : ""}${ordState.q !== "" ? ` buscando "${esc(ordState.q)}"` : ""}</span>
+        <button class="btn" id="pg-next" ${data.page >= data.pages ? "disabled" : ""}>Siguiente ›</button>
+      </div>` : ""}
     </div>`;
   el.view.querySelectorAll<HTMLButtonElement>("button[data-ord-filter]").forEach((b) => {
     b.addEventListener("click", () => void viewOrders(b.dataset.ordFilter ?? ""));
   });
+  // ---- Paginación: cambia de página sin recargar el resto del panel ----
+  el.view.querySelector("#pg-prev")?.addEventListener("click", () => {
+    if (ordState.page > 1) {
+      ordState.page -= 1;
+      void viewOrders(ordState.status);
+    }
+  });
+  el.view.querySelector("#pg-next")?.addEventListener("click", () => {
+    if (ordState.page < data.pages) {
+      ordState.page += 1;
+      void viewOrders(ordState.status);
+    }
+  });
+  // ---- Buscador: filtra en el servidor (nombre de comprador o id de pedido) ----
+  const searchInput = el.view.querySelector("#ord-search") as HTMLInputElement | null;
+  let searchTimer: number | undefined;
+  searchInput?.addEventListener("input", () => {
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => {
+      const q = (searchInput.value ?? "").trim();
+      if (q === ordState.q) return;
+      ordState.q = q;
+      ordState.page = 1;
+      refocusSearch = true;
+      void viewOrders(ordState.status);
+    }, 350);
+  });
+  if (refocusSearch && searchInput) {
+    refocusSearch = false;
+    searchInput.focus();
+    const len = searchInput.value.length;
+    searchInput.setSelectionRange(len, len);
+  }
   el.view.querySelectorAll<HTMLButtonElement>("button[data-ord-pay]").forEach((b) => {
     b.addEventListener("click", async () => {
       try {
         await api(`/orders/${encodeURIComponent(b.dataset.ordPay ?? "")}`, { method: "PATCH", body: JSON.stringify({ status: "paid" }) });
         toast("Pedido marcado como pagado");
-        void viewOrders(statusFilter);
+        void viewOrders(ordState.status);
       } catch (e) { toast(e instanceof Error ? e.message : "Error", false); }
     });
   });
@@ -1909,7 +1988,7 @@ async function viewOrders(statusFilter = ""): Promise<void> {
       try {
         await api(`/orders/${encodeURIComponent(b.dataset.ordCancel ?? "")}`, { method: "PATCH", body: JSON.stringify({ status: "cancelled" }) });
         toast("Pedido cancelado");
-        void viewOrders(statusFilter);
+        void viewOrders(ordState.status);
       } catch (e) { toast(e instanceof Error ? e.message : "Error", false); }
     });
   });
@@ -1934,7 +2013,7 @@ async function viewOrders(statusFilter = ""): Promise<void> {
       const text = encodeURIComponent(lines.filter(Boolean).join("\n"));
       if (dest !== "") window.open(`https://wa.me/${dest}?text=${text}`, "_blank", "noopener");
       void api(`/orders/${encodeURIComponent(b.dataset.ordWa ?? "")}/notified`, { method: "POST", body: "{}" })
-        .then(() => viewOrders(statusFilter))
+        .then(() => viewOrders(ordState.status))
         .catch(() => { /* no crítico */ });
     });
   });

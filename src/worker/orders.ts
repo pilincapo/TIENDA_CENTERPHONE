@@ -76,13 +76,75 @@ export async function getOrder(db: D1Database, id: string): Promise<Order | null
   return row ? rowToOrder(row) : null;
 }
 
-/** Pedidos para el panel. status vacío = todos (más nuevos primero). */
+/** Pedidos para el panel (listado completo, más nuevos primero). */
 export async function listOrders(db: D1Database, status: string, limit = 100): Promise<Order[]> {
   const capped = Math.min(Math.max(1, limit), 200);
   const { results } = status !== "" && ORDER_STATUSES.includes(status as OrderStatus)
     ? await db.prepare("SELECT * FROM orders WHERE status = ?1 ORDER BY created_at DESC LIMIT ?2").bind(status, capped).all<Dict>()
     : await db.prepare("SELECT * FROM orders ORDER BY created_at DESC LIMIT ?1").bind(capped).all<Dict>();
   return (results ?? []).map(rowToOrder);
+}
+
+// ---- Paginación para el panel (Orders no carga todos de una) ----
+
+export interface OrderPageFilter {
+  status?: "" | OrderStatus; // "" = todos
+  q?: string; // búsqueda por nombre de comprador o id de pedido
+  limit?: number;
+  offset?: number;
+}
+
+// Escapa los comodines de LIKE del texto del usuario (búsqueda literal).
+function orderLikePattern(q: string): string {
+  return `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+}
+
+function orderWhere(status: string, q: string): { sql: string; args: string[] } {
+  const conds: string[] = [];
+  const args: string[] = [];
+  if (status !== "" && ORDER_STATUSES.includes(status as OrderStatus)) {
+    conds.push("status = ?");
+    args.push(status);
+  }
+  if (q !== "") {
+    const pat = orderLikePattern(q);
+    conds.push("(buyer_name LIKE ? ESCAPE '\' OR id LIKE ? ESCAPE '\')");
+    args.push(pat, pat);
+  }
+  return { sql: conds.length > 0 ? `WHERE ${conds.join(" AND ")}` : "", args };
+}
+
+/** Una página de pedidos (todos los estados según filtro), para el panel. */
+export async function listOrdersPaged(db: D1Database, f: OrderPageFilter): Promise<Order[]> {
+  const { sql, args } = orderWhere(f.status ?? "", f.q ?? "");
+  const limit = Math.max(1, Math.min(200, f.limit ?? 50));
+  const offset = Math.max(0, f.offset ?? 0);
+  const { results } = await db
+    .prepare(`SELECT * FROM orders ${sql} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+    .bind(...args, limit, offset)
+    .all<Dict>();
+  return (results ?? []).map(rowToOrder);
+}
+
+/** Cantidad de pedidos que devuelve el mismo filtro (para las páginas). */
+export async function countOrders(db: D1Database, f: Pick<OrderPageFilter, "status" | "q">): Promise<number> {
+  const { sql, args } = orderWhere(f.status ?? "", f.q ?? "");
+  const row = await db.prepare(`SELECT COUNT(*) AS n FROM orders ${sql}`).bind(...args).first<Dict>();
+  return Number(row?.n ?? 0);
+}
+
+/** Totales por estado (para los chips sin cargar filas). */
+export async function countOrdersByStatus(db: D1Database): Promise<Record<OrderStatus, number>> {
+  const { results } = await db
+    .prepare("SELECT status AS st, COUNT(*) AS n FROM orders GROUP BY status")
+    .all<Dict>();
+  const counts: Record<OrderStatus, number> = { pending: 0, paid: 0, cancelled: 0, rejected: 0 };
+  for (const r of results ?? []) {
+    if (ORDER_STATUSES.includes(String(r.st) as OrderStatus)) {
+      counts[String(r.st) as OrderStatus] = Number(r.n ?? 0);
+    }
+  }
+  return counts;
 }
 
 /** Marca de estado (panel o webhook). Idempotente: paid sólo escribe una vez. */

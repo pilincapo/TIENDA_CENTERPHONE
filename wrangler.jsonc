@@ -35,7 +35,10 @@
   // para leer los eventos de seguridad del worker vía API. El API token va
   // aparte como secret (CF_LOGS_TOKEN, con permiso de lectura de Workers Logs).
   "vars": {
-    "CF_ACCOUNT_ID": "0bb717edbda5f33508dc01f1d194a00b"
+    "CF_ACCOUNT_ID": "0bb717edbda5f33508dc01f1d194a00b",
+    // Origen del sitio para back_urls de MercadoPago y purga de caché:
+    // en producción apunta a centerphone.com.ar (el worker valida www → no-www).
+    "CF_SITE_ORIGIN": "https://centerphone.com.ar"
   },
   // Workers Logs: guarda los console.* del worker (retención corta en el plan
   // gratis). Sin esto los eventos de seguridad no se capturan — los otros
