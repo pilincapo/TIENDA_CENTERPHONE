@@ -1,3 +1,10 @@
+## 2026-09-30 — Pestaña "Cambios" en el panel (changelog del sitio)
+
+- Nueva pestaña **Cambios** en el grupo Sistema del panel: muestra todas las entradas de este changelog (188 al día de hoy) como tarjetas plegables, la más nueva abierta por defecto, con negritas y código renderizados; se actualiza sola con cada deploy (lee el changelog.md del repo, copiado a los assets por el build)
+- **Privacidad**: el changelog es documentación interna, así que el archivo ya no es público — pedir `/changelog.md` directamente responde 401; el panel lo lee autenticado vía `/api/admin/changelog`
+- Ajuste técnico del paso: el asset `/` ahora se pide con su URL original desde el worker (con la nueva configuración, pedir `/index.html` internamente devolvía 404)
+- Verificado en local: pestaña en el menú, 188 entradas renderizadas, abrir/cerrar, sin HTML crudo inyectado; typecheck ✅, build ✅, 158/158 tests ✅
+
 ## 2026-09-30 — Pedido de prueba cancelado
 
 - El pedido de prueba del CBU (`2e21452f…`, "Prueba CBU producción") quedó cancelado en producción: badge "Cancelado" en el panel (sin botón de cancelar restante) y la página pública del pedido muestra el estado cancelado; quedan 4 pedidos pendientes reales sin tocar

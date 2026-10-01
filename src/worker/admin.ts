@@ -28,6 +28,16 @@ import { changeAdminPassword, getRevocationEpoch, getSessionSecret, revokeActive
 
 export const adminApp = new Hono<{ Bindings: Env }>();
 
+// Historial de cambios del sitio: el changelog.md del repo viaja dentro de los
+// assets del deploy (tools/build-web.js lo copia a public/) y el panel lo lee
+// desde acá para mostrar la pestaña Changelog. Sin datos de clientes: es texto
+// de documentación que se actualiza con cada deploy.
+adminApp.get("/changelog", async (c) => {
+  const res = await c.env.ASSETS.fetch(new Request(new URL("/changelog.md", c.req.url)));
+  if (!res.ok) return c.json({ error: "Changelog no disponible" }, 404);
+  return c.json({ markdown: await res.text() });
+});
+
 // Rate-limit de login en memoria (por isolate): 5 intentos fallidos por minuto por IP.
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 

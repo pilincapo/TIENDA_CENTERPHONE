@@ -8,9 +8,10 @@
     "directory": "./public",
     "binding": "ASSETS",
     // El home (/) pasa primero por el worker: necesario para el redirect 301 de
-    // www → dominio sin www. El resto de assets se sirve directo (más rápido) y
-    // recibe las cabeceras de seguridad vía el archivo public/_headers.
-    "run_worker_first": ["/"]
+    // www → dominio sin www. /changelog.md también: es documentación interna y
+    // solo se sirve autenticado vía /api/admin/changelog (el asset suelto queda
+    // bloqueado). El resto de assets se sirve directo (más rápido).
+    "run_worker_first": ["/", "/changelog.md"]
   },
   "triggers": {
     // Despierta cada 15 min; el worker decide si corresponde sincronizar

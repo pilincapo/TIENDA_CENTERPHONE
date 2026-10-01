@@ -887,6 +887,16 @@ a.topnav-btn {
   margin-bottom: 20px;
 }
 
+/* Pestaña "Cambios" (changelog del sitio) */
+.cl-entries { margin-top: 14px; }
+.cl-entry .cfg-body { line-height: 1.55; }
+.cl-title { margin: 0 0 10px; font-size: 14px; color: var(--brand); }
+.cl-list { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 8px; }
+.cl-list li { color: var(--muted); font-size: 13px; line-height: 1.55; }
+.cl-list strong { color: var(--text); }
+.cl-list code, .cl-p code { background: var(--panel); border: 1px solid var(--border); padding: 1px 5px; font-size: 12px; color: var(--brand); }
+.cl-p { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+
 /* Box "Repetir automáticamente" en Importar */
 .imp-repeat-toggle { margin: 16px 0 10px; padding: 10px 12px; background: var(--panel-2); border: 1px dashed var(--border-bright); }
 .imp-repeat-toggle label { cursor: pointer; font-size: 14px; }

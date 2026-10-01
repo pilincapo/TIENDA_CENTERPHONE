@@ -22,6 +22,11 @@ for (const f of ["favicon.png", "logo.jpg"]) {
 }
 console.log("✔ favicon.png y logo.jpg copiados a public/");
 
+// Historial de cambios del sitio: se copia a assets para que el panel lo muestre
+// (pestaña Changelog). Se sirve como asset estático en /api/admin/changelog.md.
+copyFileSync("changelog.md", join(dist, "changelog.md"));
+console.log("✔ public/changelog.md copiado a public/");
+
 // Cabeceras de seguridad para los assets estáticos (Workers Assets las aplica
 // al servir directo). El archivo vive en la raíz del repo porque vite limpia
 // public/ en cada build.

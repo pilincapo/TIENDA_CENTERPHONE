@@ -167,11 +167,16 @@ app.use("*", async (c, next) => {
 // Rutas de página: / (home, explícito porque el montaje de seoApp en la raíz
 // consume el path y el fallback * no lo alcanzaría); /producto/* sirve el shell
 // de ficha; /admin sin slash redirige.
-app.get("/", (c) => c.env.ASSETS.fetch(new Request(new URL("/index.html", c.req.url))));
+app.get("/", (c) => c.env.ASSETS.fetch(new Request(c.req.url)));
+// (se pide la URL original: con run_worker_first en "/", pedir "/index.html"
+// dentro del worker devuelve 404 porque ese asset ya no pasa por el worker)
 app.get("/producto/*", (c) =>
   c.env.ASSETS.fetch(new Request(new URL("/product.html", c.req.url)))
 );
 app.get("/admin", (c) => c.redirect("/admin/", 301));
+// /changelog.md es documentación interna (el panel la lee vía /api/admin/changelog,
+// autenticado): el asset directo queda bloqueado con una respuesta vacía.
+app.get("/changelog.md", (c) => c.text("No autorizado", 401));
 // Atajo a la página de seguimiento de envíos: redirige a la URL configurada
 // en el panel (302 temporal, así siempre respeta el valor actual) con fallback
 // al track-lite de RepairPro si el campo está vacío.
