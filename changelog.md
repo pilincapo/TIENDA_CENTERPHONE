@@ -1,3 +1,11 @@
+## 2026-10-01 — Deploy: guardia de repairpro versionada + resumen semanal conectado
+
+- Push `7b81a4b..6dd126c` a `pilincapo/TIENDA_CENTERPHONE` y deploy: versión **`9415c8e9-8a8b-4236-a2d1-a18932e7e190`** (cron `0 * * * *` intacto; binding `env.EMAIL (pilin123@gmail.com)` activo)
+- Suben: copia versionada del guardia de repairpro (`tools/repairpro-guard.js`), módulo del resumen semanal (`digest.ts`) y binding de envío restringido a pilin123@gmail.com
+- Smoke de producción: tienda (home/admin 200, `security-events` 401 sin sesión, changelog 401, login falso 401) y guardia de repairpro (`.env`/`wp-login.php` → 404, `/` → 200, `/api/auth/me` → 401)
+- Verificado el circuito completo del resumen: los escaneos bloqueados quedan registrados como `seguridad: escaneo bloqueado (404) {path}` en Workers Logs (comprobado en vivo con 2 sondas)
+- Único paso pendiente para que el email salga: crear el secret `CF_LOGS_TOKEN` (API token con permiso Account · Workers Observability · Read)
+
 ## 2026-10-01 — Guardia en repairpro: 404 para rutas de escáneres
 
 - Los escáneres que pedían `/.env`, `/api/.env`, `wp-login.php`, `wlwmanifest.xml`, etc. recibían el HTML de la app (fallback del SPA); ahora reciben **404**
