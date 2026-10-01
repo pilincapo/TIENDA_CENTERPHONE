@@ -1,3 +1,11 @@
+## 2026-10-01 — Deploy: archivo masivo de pedidos + motivo opcional
+
+- **Migración 009 aplicada a D1 remota**: columna `archive_note` en `orders` (verificada con un SELECT directo)
+- Deploy versión **`8af7fca6-bab9-482b-a02a-1bde22fa858f`** (cron `0 * * * *` intacto; bindings KV/EMAIL/DB/ASSETS/CF_ACCOUNT_ID/CF_SITE_ORIGIN presentes)
+- Sube: acción masiva de archivar (checkbox por fila + seleccionar todo, una sola confirmación con nota compartida, `POST /api/admin/orders/archive-bulk`), motivo opcional en el archivo individual y fix del TS2304 de `ordSelected`
+- Smoke de producción: home `200`, `/admin/` `200`, `GET /api/admin/orders` sin sesión `401`, `POST .../archive-bulk` sin sesión `401`, bundle `admin-CPItkUBm.js` `200` con `archive-bulk` presente en el JS servido
+- Commit `0098984` pushado a `main`
+
 ## 2026-10-01 — Archivo masivo de pedidos (una sola confirmación)
 
 - Checkbox en el encabezado de la tabla de pedidos (**seleccionar todo la página**) y checkbox por fila (los archivados quedan sin checkbox); los ids elegidos sobreviven a paginar y se limpian al cambiar de chip o de vista
