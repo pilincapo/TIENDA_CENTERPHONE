@@ -1,3 +1,9 @@
+## 2026-09-30 — Deploy: CBU/Alias en el cierre por transferencia
+
+- Deploy a producción: versión **`d4dd2f00-c948-4da2-8c29-ddce276d8aa4`** (commit `c50065a`; cron `0 * * * *` intacto)
+- Smoke: home 200, `/admin/` 200, bundle del catálogo (`catalog-BKg8GKHh.js`) con el bloque nuevo (`cbu-box`, `cbu-copy`, "CBU / Alias para transferir"), pedido inexistente 404, seguimiento 200, login rechaza clave falsa (401)
+- En producción ya hay CBU/Alias cargado (`CENTERPHONE.MP`, visible en `/api/public/settings`): la caja aparece con datos reales desde ya; WhatsApp y pagos verificados (`whatsappOk: true`)
+
 ## 2026-09-30 — CBU/Alias visible al cerrar una compra por transferencia
 
 - La pantalla "¡Pedido registrado!" del flujo por transferencia muestra ahora una **caja con el CBU/Alias y un botón "Copiar"** (uno toca = "✓ Copiado"; si el navegador bloquea el portapapeles, lo selecciona para copiar a mano), ubicada entre el total y el botón de WhatsApp: el cliente ve total → copia CBU → transfiere → avisa, sin tener que preguntar por los datos de la cuenta
