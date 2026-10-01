@@ -832,6 +832,13 @@ a.topnav-btn {
 
 /* Checkout por transferencia */
 .cart-transfer-btn { margin-top: 8px; width: 100%; background: #e7f6ee; color: #059669; border: 1px solid #b5e3c9; }
+
+/* CBU/alias visible en el cierre por transferencia */
+.cbu-box { margin: 12px 0 0; padding: 12px 14px; background: var(--panel-2); border: 1px dashed var(--brand); text-align: left; }
+.cbu-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+.cbu-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cbu-value { flex: 1; min-width: 0; font-family: var(--font-mono, monospace); font-size: 14px; font-weight: 700; color: var(--brand); word-break: break-all; }
+.cbu-copy { padding: 6px 12px; font-size: 12px; }
 .transfer-done { text-align: center; padding: 8px 4px; }
 .transfer-done-emoji { font-size: 40px; }
 .transfer-done-title { margin: 8px 0 4px; font-size: 18px; }

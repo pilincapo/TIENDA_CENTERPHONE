@@ -1,3 +1,10 @@
+## 2026-09-30 — CBU/Alias visible al cerrar una compra por transferencia
+
+- La pantalla "¡Pedido registrado!" del flujo por transferencia muestra ahora una **caja con el CBU/Alias y un botón "Copiar"** (uno toca = "✓ Copiado"; si el navegador bloquea el portapapeles, lo selecciona para copiar a mano), ubicada entre el total y el botón de WhatsApp: el cliente ve total → copia CBU → transfiere → avisa, sin tener que preguntar por los datos de la cuenta
+- El dato sale del CBU/Alias configurado en el panel (ya llegaba al frontend; solo faltaba mostrarlo); **si no hay CBU cargado, la caja no aparece** y queda el aviso de que se lo pasan por WhatsApp, igual que antes — nada se bloquea
+- Textos del cierre actualizados en consecuencia ("Transferí el total de abajo y avisá con el botón de WhatsApp…"); el mensaje de WhatsApp del worker sigue trayendo el CBU pre-cargado (sin cambios ahí)
+- E2E en local: pedido por transferencia real con la caja mostrando "Alias: CENTERPHONE.AR", copiado verificado (portapapeles interceptado → "✓ Copiado"), orden visual correcto (total → CBU → WhatsApp → ver pedido) y link al pedido funcionando; typecheck ✅, build ✅, 158/158 tests ✅
+
 ## 2026-09-30 — Deploy: buscador de Productos + WhatsApp normalizado
 
 - Deploy a producción: versión **`2d7aeaa6-d32a-4a3e-9558-0918f918c2f3`** (commits `4b8023a` y `bd2ee38`, push pendiente de orden explícita; cron `0 * * * *` intacto)

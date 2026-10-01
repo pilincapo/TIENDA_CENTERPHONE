@@ -216,16 +216,46 @@ function showTransferDone(orderId: string, totalCents: number, discountPercent: 
     ? `<a class="btn btn-primary cart-pay" id="transfer-wa" href="${esc(waHref)}" target="_blank" rel="noopener">💬 Avisar por WhatsApp y coordinar</a>`
     : "";
   const link = `${location.origin}/pedido/${esc(orderId)}`;
+  const cbu = (init.settings.transferCbu ?? "").trim();
+  const cbuBlock = cbu !== ""
+    ? `<div class="cbu-box">
+        <div class="cbu-label">CBU / Alias para transferir</div>
+        <div class="cbu-row">
+          <code class="cbu-value">${esc(cbu)}</code>
+          <button type="button" class="btn cbu-copy" id="cbu-copy">Copiar</button>
+        </div>
+      </div>`
+    : `<p class="cart-secure">Te pasamos el CBU/alias por WhatsApp al avisar tu pago.</p>`;
   body.innerHTML = `
     <div class="transfer-done">
       <div class="transfer-done-emoji">📝</div>
       <h3 class="transfer-done-title">¡Pedido registrado!</h3>
-      <p class="transfer-done-sub">Pasalo a nombre de quien hace la transferencia y avisá con el botón de abajo. Te confirmamos stock y datos de la cuenta.</p>
+      <p class="transfer-done-sub">Transferí el total de abajo y avisá con el botón de WhatsApp. Pasalo a nombre de quien hace la transferencia.</p>
       <div class="transfer-done-total">Total a transferir <b>${formatPrice(totalCents, symbol)}</b>${discountPercent > 0 ? ` <small class="muted">(ya con el ${discountPercent}% de descuento)</small>` : ""}</div>
+      ${cbuBlock}
       ${waBtn}
       <a class="btn cart-transfer-btn" href="${link}">Ver el estado de mi pedido</a>
-      <p class="cart-secure">Te damos el CBU/alias por WhatsApp. El pedido queda en lista hasta que se acredite la transferencia.</p>
+      <p class="cart-secure">Transferí con el CBU/alias de arriba y avisá con el botón. El pedido queda en lista hasta que se acredite.</p>
     </div>`;
+
+  // Copiar CBU/alias al portapapeles (con fallback de selección manual).
+  document.getElementById("cbu-copy")?.addEventListener("click", async () => {
+    const btn = document.getElementById("cbu-copy") as HTMLButtonElement | null;
+    const codeEl = document.querySelector(".cbu-value");
+    if (!btn || !codeEl) return;
+    try {
+      await navigator.clipboard.writeText(cbu);
+      btn.textContent = "✓ Copiado";
+    } catch {
+      const range = document.createRange();
+      range.selectNodeContents(codeEl);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+      btn.textContent = "Seleccionalo y copialo";
+    }
+    setTimeout(() => { btn.textContent = "Copiar"; }, 2500);
+  });
 }
 
 function updateBadge(): void {
