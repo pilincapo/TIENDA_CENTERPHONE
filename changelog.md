@@ -1,3 +1,9 @@
+## 2026-09-30 — Deploy: CBU en transferencia + carrito con títulos largos
+
+- Push `cb76401..3fdda8f` a `pilincapo/TIENDA_CENTERPHONE` (4 commits) y deploy: versión **`fbd7dde4-4393-41ce-ac05-3632caa5f9be`** (cron `0 * * * *` intacto)
+- Suben: CBU/Alias visible con copiar en el cierre por transferencia, y el carrito que ya no se rompe con títulos largos (2 líneas + compactado en celular)
+- Smoke: home 200, `/admin/` 200, CSS nuevo (`format-jw180wUx.css`) con `line-clamp`, `break-word`, `@media(max-width:480px)` y `cbu-box`/`cbu-copy`; pedido inexistente 404, seguimiento 200, login rechaza clave falsa (401)
+
 ## 2026-09-30 — Carrito: los títulos largos ya no rompen el modal
 
 - Con un producto de nombre largo ("Cargador SIMPLE regulable de pilas AA AAA 18650 16340 14500 26650 en caja (HD-8990)") el modal del carrito se desarmaba: el título forzado a una sola línea empujaba la fila completa y aparecía **scroll horizontal** (el total y los botones quedaban afuera, con barra de desplazamiento lateral)
