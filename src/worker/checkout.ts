@@ -220,8 +220,26 @@ checkoutApp.post("/api/payments/webhook", async (c) => {
 
 // Estado del pedido para la página /pedido/:id (público: el id de 32 hex es
 // la única credencial; no expone datos de pago, solo estado e ítems).
+// Estado del pedido para la página /pedido/:id (público: el id de 32 hex es
+// la única credencial). Se sirve una versión recortada del pedido: solo estado,
+// ítems y total — SIN buyerPhone, payerEmail ni ids internos de MP, que no
+// hacen falta para mostrar la página y no deben viajar por una API pública
+// (el link puede compartirse por error o quedar en un historial).
+function publicOrder(order: Order) {
+  return {
+    id: order.id,
+    status: order.status,
+    totalCents: order.totalCents,
+    currency: order.currency,
+    items: order.items,
+    buyerName: order.buyerName,
+    paidAt: order.paidAt,
+    createdAt: order.createdAt,
+  };
+}
+
 checkoutApp.get("/api/orders/:id", async (c) => {
   const order = await getOrder(c.env.DB, c.req.param("id"));
   if (!order) return c.json({ error: "Pedido no encontrado" }, 404);
-  return c.json({ order });
+  return c.json({ order: publicOrder(order) });
 });

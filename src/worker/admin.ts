@@ -64,14 +64,6 @@ adminApp.post("/login", async (c) => {
   return c.json({ ok: true });
 });
 
-// Logout: borra la cookie Y revoca la sesión en KV (fix M4). Si alguien copió
-// la cookie (máquina compartida), muere acá — no sigue válida hasta expirar.
-adminApp.post("/logout", async (c) => {
-  await revokeActiveSessions(c.env);
-  c.header("Set-Cookie", clearSessionCookieHeader());
-  return c.json({ ok: true });
-});
-
 adminApp.use("*", async (c, next) => {
   if (c.req.path === "/api/admin/login") return next();
   const token = readSessionCookie(c.req.raw);
@@ -90,6 +82,17 @@ adminApp.use("*", async (c, next) => {
 });
 
 adminApp.get("/session", (c) => c.json({ ok: true }));
+
+// Logout: borra la cookie Y revoca la sesión en KV (fix M4). Si alguien copió
+// la cookie (máquina compartida), muere acá — no sigue válida hasta expirar.
+// Va DESPUÉS del middleware de sesión (igual que el resto): sin sesión no
+// puede revocar nada, así nadie puede desloguear al admin ni quemar la cuota
+// de escritura de KV llamando a este endpoint sin login.
+adminApp.post("/logout", async (c) => {
+  await revokeActiveSessions(c.env);
+  c.header("Set-Cookie", clearSessionCookieHeader());
+  return c.json({ ok: true });
+});
 
 // Historial de cambios del sitio: el changelog.md del repo viaja dentro de los
 // assets del deploy (tools/build-web.js lo copia a public/) y el panel lo lee

@@ -1,3 +1,12 @@
+## 2026-10-01 — Auditoría de accesos sin sesión: 2 agujeros corregidos
+
+- Se revisó **todos** los endpoints del worker (admin, checkout, pedidos, SEO, settings públicos) buscando rutas que respondan sin login, como pasó con el changelog. Dos hallazgos y corrección:
+- **`/api/admin/logout` exigía sesión (ahora sí)**: sin login, cualquiera podía desloguear al admin (mata todas las sesiones activas) y quemar la cuota de escritura de KV del free tier con llamadas repetidas; el endpoint se movió a la zona protegida, y el panel ya tolera la respuesta 401 si la sesión venció
+- **`/api/orders/:id` expone menos datos**: la API pública de la página del pedido devolvía el pedido completo (incluidos teléfono del comprador, email del pagador de MP e ids internos de MP); ahora responde solo lo que la página necesita — estado, ítems, total, nombre, fecha — el teléfono y el email ya no viajan (el link del pedido puede compartirse por error)
+- Nueva guardia automática `admin-guard.test.ts`: prueba que TODAS las rutas del panel respondan 401 sin sesión (login/logout flujo feliz incluido), para que el bug del changelog no se repita al agregar endpoints; tests de privacidad del pedido en `checkout.test.ts`
+- Auditoría sin hallazgos (todo correcto): `/api/catalog`, `/api/products/:id` y `/api/public/settings` (sin tokens ni URLs de sync), webhook de MP (re-consulta la API antes de marcar pagado), `/pedido/:id` (credencial de 32 hex, muestra nombre/ítems pero no contacto), sitemap/robots (solo productos publicados), beacon `/api/track` (rechaza orígenes externos)
+- Verificado: typecheck ✅, **170/170 tests** ✅, local: logout sin cookie 401, flujo login→logout OK, pedido público sin datos de contacto ✅
+
 ## 2026-10-01 — Deploy: pestaña "Cambios" en producción
 
 - Push `33bc0bb..4e432f2` a `pilincapo/TIENDA_CENTERPHONE` (pestaña Cambios + fix de seguridad) y deploy: versión **`2f8a4b52-bee6-4c42-bde6-2afca1813732`** (cron `0 * * * *` intacto)

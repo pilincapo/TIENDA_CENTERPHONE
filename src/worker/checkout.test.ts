@@ -345,4 +345,41 @@ describe("POST /api/checkout", () => {
     expect(res.status).toBe(503);
     expect(((await res.json()) as { error: string }).error).toContain("pago online");
   });
+
+  it("GET /api/orders/:id no expone datos personales ni ids internos de MP", async () => {
+    const { db, products } = makeDb();
+    seedProduct(products);
+    const created = await checkoutApp.request(
+      "/api/orders/transfer",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost", "CF-Connecting-IP": "9.9.9.9" },
+        body: JSON.stringify({ items: [{ id: "p1", qty: 1 }], name: "Juan Privacidad", phone: "342 555 9876" }),
+      },
+      asEnv({ DB: db, KV: makeKv(true, { transferDiscountPercent: 0 }), MERCADOPAGO_ACCESS_TOKEN: "t" }),
+      asCtx([]),
+    );
+    expect(created.status).toBe(200);
+    const { orderId } = (await created.json()) as { orderId?: string };
+    expect(orderId).toBeTruthy();
+
+    const res = await checkoutApp.request(`/api/orders/${orderId}`, {}, asEnv({ DB: db, KV: makeKv(true) }), asCtx([]));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { order: Record<string, unknown> };
+    // Lo que la página /pedido/:id sí necesita:
+    expect(body.order).toMatchObject({ id: orderId, status: "pending", buyerName: "Juan Privacidad" });
+    expect(Array.isArray(body.order.items)).toBe(true);
+    // Lo que NO debe viajar por una API pública (link compartible):
+    expect(body.order).not.toHaveProperty("buyerPhone");
+    expect(body.order).not.toHaveProperty("payerEmail");
+    expect(body.order).not.toHaveProperty("mpPaymentId");
+    expect(body.order).not.toHaveProperty("mpPreferenceId");
+    expect(body.order).not.toHaveProperty("notifiedWa");
+  });
+
+  it("GET /api/orders/inexistente responde 404", async () => {
+    const { db } = makeDb();
+    const res = await checkoutApp.request("/api/orders/no-existe", {}, asEnv({ DB: db, KV: makeKv(true) }), asCtx([]));
+    expect(res.status).toBe(404);
+  });
 });
