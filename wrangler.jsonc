@@ -43,5 +43,15 @@
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
-  }
+  },
+  // Envío de email (resumen semanal de seguridad, ver src/worker/digest.ts).
+  // Restringido a una sola casilla: el worker no puede mandar a ninguna otra.
+  // Requiere Email Routing activo en centerphone.com.ar (ya habilitado) y la
+  // casilla verificada en la cuenta (ya verificado).
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "destination_address": "pilin123@gmail.com"
+    }
+  ]
 }

@@ -1,3 +1,19 @@
+## 2026-10-01 — Guardia en repairpro: 404 para rutas de escáneres
+
+- Los escáneres que pedían `/.env`, `/api/.env`, `wp-login.php`, `wlwmanifest.xml`, etc. recibían el HTML de la app (fallback del SPA); ahora reciben **404**
+- Implementación: worker `repairpro-guard` (sin estado, sin bindings) puesto DELANTE de repairpro mediante la ruta `repairpro.centerphone.com.ar/*` — patrón de encadenado ruta→custom-domain de Cloudflare; responde 404 a los fragmentos sospechosos (`.env`, `.git`, `.php`, `wp-*`, `wlwmanifest`, `xmlrpc`, `phpmyadmin`) y pasa el resto al worker original con `fetch(request)`
+- Con observability activada: cada bloqueo queda registrado como `seguridad: escaneo bloqueado (404) {path}` — el resumen semanal lo va a mostrar
+- Verificado en producción: 9/9 rutas sospechosas → 404; legítimas intactas (`/` 200, `/track-lite` 200, `/api/auth/me` 401, `/favicon.ico` 200); tienda y miplantel sin tocar
+- Revertible en segundos borrando la ruta; repair2.centerphone.com.ar (el clon) sigue sin guardia — misma receta cuando quiera
+
+## 2026-10-01 — Resumen semanal de seguridad por email (preparado, pendiente de configuración)
+
+- El worker ahora incluye `runWeeklyDigest()`: los lunes a las 9:00 de Argentina consulta los logs de TODOS los workers de la cuenta y envía un email de texto con: eventos de seguridad (login fallidos/OK, salidas sin sesión, webhooks) y respuestas 4xx/5xx por worker (rutas más rechazadas, IPs, escaneos bloqueados)
+- Idempotente: 1 envío por semana (marca en KV); si la API de logs falla no envía ni marca (se reintenta la hora siguiente)
+- Configuración lista: **Email Routing habilitado** en centerphone.com.ar (el dominio no recibía correo: 0 MX; ahora "ready" con MX de Cloudflare), casilla destino **pilin123@gmail.com** agregada y ya verificada en la cuenta, binding `send_email` restringido a esa única casilla en wrangler.jsonc (validado con `wrangler deploy --dry-run`: `env.EMAIL (pilin123@gmail.com)`)
+- **Falta solo**: el secret `CF_LOGS_TOKEN` (API token con permiso Account · Workers Observability · Read) y el deploy para activar todo; sin token, el resumen se saltea sin romper nada
+- Typecheck ✅, **194/194 tests** ✅ (7 nuevos: huso horario argentino UTC-3, armado del texto, sin config no hace nada, idempotencia, fallo de API sin marcar semana)
+
 ## 2026-10-01 — Deploy: pestaña "Seguridad" en producción
 
 - Push `7130d27..0ce86b7` a `pilincapo/TIENDA_CENTERPHONE` y deploy: versión **`5d085448-b58f-4514-9819-6d5b13dd8ce7`** (cron `0 * * * *` intacto; la var `CF_ACCOUNT_ID` quedó ligada)

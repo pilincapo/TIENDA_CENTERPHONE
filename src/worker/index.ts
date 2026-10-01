@@ -15,6 +15,7 @@ import { applySecurityHeaders, isAllowedTrackOrigin, newNonce } from "./security
 import { checkoutApp } from "./checkout";
 import { orderPageApp } from "./orders-page";
 import { maintenanceMiddleware } from "./maintenance";
+import { runWeeklyDigest } from "./digest";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -280,6 +281,11 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(runAutoImports(env));
     ctx.waitUntil(pruneStats(env));
+    // Resumen semanal de seguridad por email (lunes 9:00 AR): si falta el
+    // token de logs o el binding de email, se salta sin romper nada.
+    ctx.waitUntil(
+      runWeeklyDigest(env, Date.now()).catch((e) => console.error("seguridad: resumen semanal falló:", e)),
+    );
     const settings = await getSettings(env.KV);
     if (settings.syncUrl === "") return;
     if (!(await isSyncDue(env.KV, settings))) return;

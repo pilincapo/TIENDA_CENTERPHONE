@@ -27,6 +27,10 @@ export interface Env {
   // muestra las instrucciones y el resto del panel funciona igual.
   CF_ACCOUNT_ID?: string;
   CF_LOGS_TOKEN?: string;
+  // Opcional: envío de email (resumen semanal de seguridad, ver digest.ts).
+  // Binding send_email de Cloudflare Email Routing; requiere Email Routing
+  // activo y la casilla destino verificada. Sin él, el resumen se salta.
+  EMAIL?: SendEmail;
 }
 
 function num(v: unknown): number {
