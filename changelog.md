@@ -1,3 +1,8 @@
+## 2026-09-30 — Prueba real del CBU en producción
+
+- Pedido de prueba en producción con 2 productos ($61.200 → $55.080 con el 10%): la pantalla mostró la caja **"CBU / Alias para transferir — CENTERPHONE.MP"** con botón Copiar (verificado: copia al portapapeles y pasa a "✓ Copiado"), orden correcto (total → CBU → WhatsApp → ver pedido)
+- Pedido de prueba `2e21452f9750459373faa9551076f929` quedó en producción (pendiente, sin pago); se puede cancelar o borrar desde el panel si molesta en el listado
+
 ## 2026-09-30 — Deploy: CBU/Alias en el cierre por transferencia
 
 - Deploy a producción: versión **`d4dd2f00-c948-4da2-8c29-ddce276d8aa4`** (commit `c50065a`; cron `0 * * * *` intacto)
