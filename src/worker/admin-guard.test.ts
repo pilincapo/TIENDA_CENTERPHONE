@@ -2,7 +2,7 @@
 // /login (y el /session que se consulta con sesión). El bug del changelog
 // (ruta registrada antes del middleware use() en Hono) es fácil de repetir
 // al agregar un endpoint al final del archivo: estos tests lo hacen explotar.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { adminApp } from "./admin";
 import type { Env } from "./db";
 
@@ -71,5 +71,37 @@ describe("Guardia: /api/admin exige sesión", () => {
     expect(kv._map.get("admin:sessions-revoked-before")).toBeTruthy();
     // Nota: un token emitido hace <5s sobrevive por diseño (margen de reloj,
     // ver session-revoke.test.ts); por eso acá no se espera 401 inmediato.
+  });
+
+  it("deja registro de seguridad: login fallido, login OK y logout sin sesión", async () => {
+    const warns: string[] = [];
+    const spy = vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
+      warns.push(args.map(String).join(" "));
+    });
+    try {
+      const env = mockEnv(mockKV());
+      const mala = await adminApp.request(
+        "/login",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: "clave-incorrecta" }) },
+        env,
+      );
+      expect(mala.status).toBe(401);
+
+      const buena = await adminApp.request(
+        "/login",
+        { method: "POST", headers: { "Content-Type": "application/json", "CF-Connecting-IP": "203.0.113.5" }, body: JSON.stringify({ password: "pass-de-test" }) },
+        env,
+      );
+      expect(buena.status).toBe(200);
+
+      const fuera = await adminApp.request("/logout", { method: "POST", headers: { "CF-Connecting-IP": "203.0.113.5" } }, env);
+      expect(fuera.status).toBe(401);
+
+      expect(warns.some((w) => w.includes("seguridad: login fallido"))).toBe(true);
+      expect(warns.some((w) => w.includes("seguridad: login OK"))).toBe(true);
+      expect(warns.some((w) => w.includes("seguridad: logout sin sesión"))).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

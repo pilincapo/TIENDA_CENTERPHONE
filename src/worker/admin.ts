@@ -48,19 +48,30 @@ function recordLoginFailure(ip: string): void {
   }
 }
 
+// Log de seguridad (visible en Workers Logs, retención corta): intentos de
+// login fallidos/bloqueados, login OK y logout sin sesión. Sin contraseñas ni
+// cookies — solo el evento y la IP de origen. Prefijo "seguridad:" para
+// filtrar rápido en el dashboard de logs.
+function logSeguridad(evento: string, ip: string, extra: Record<string, string> = {}): void {
+  console.warn(`seguridad: ${evento}`, JSON.stringify({ ip, ...extra }));
+}
+
 adminApp.post("/login", async (c) => {
   const ip = c.req.header("CF-Connecting-IP") ?? "local";
   if (loginBlocked(ip)) {
+    logSeguridad("login bloqueado por rate-limit", ip);
     return c.json({ error: "Demasiados intentos. Probá en un minuto." }, 429);
   }
   const body = await c.req.json<{ password?: string }>().catch(() => null);
   const password = body?.password ?? "";
   if (!(await verifyAdminPassword(c.env, password))) {
     recordLoginFailure(ip);
+    logSeguridad("login fallido (clave incorrecta)", ip);
     return c.json({ error: "Contraseña incorrecta" }, 401);
   }
   const token = await createSessionToken(await getSessionSecret(c.env));
   c.header("Set-Cookie", sessionCookieHeader(token));
+  logSeguridad("login OK", ip);
   return c.json({ ok: true });
 });
 
@@ -68,7 +79,16 @@ adminApp.use("*", async (c, next) => {
   if (c.req.path === "/api/admin/login") return next();
   const token = readSessionCookie(c.req.raw);
   const ok = await verifySessionToken(await getSessionSecret(c.env), token, await getRevocationEpoch(c.env));
-  if (!ok) return c.json({ error: "No autorizado" }, 401);
+  if (!ok) {
+    // Solo logout sin sesión se loguea: es la señal de sondeo (alguien tocando
+    // el botón salir sin estar adentro). Las demás rutas con sesión vencida
+    // son ruido normal del panel y no se registran. endsWith porque el path
+    // llega completo (/api/admin/logout) montado y relativo (/logout) en tests.
+    if (c.req.path.endsWith("/logout")) {
+      logSeguridad("logout sin sesión (401)", c.req.header("CF-Connecting-IP") ?? "local");
+    }
+    return c.json({ error: "No autorizado" }, 401);
+  }
   // Sliding session: si la sesión ya corre más de la mitad de su TTL, se renueva
   // (nueva cookie con 1h fresca). Así, mientras haya uso activo no se corta;
   // con más de 1h SIN actividad, el token vence y hay que volver a entrar.

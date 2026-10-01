@@ -162,6 +162,49 @@ describe("POST /api/payments/webhook", () => {
     await Promise.all(promises2);
     expect(orders.size).toBe(1);
   });
+
+  it("deja registro de seguridad: recepción, confirmación y sondeos", async () => {
+    const { db, orders } = makeDb();
+    seedPendingOrder(orders, ORDER_ID);
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+      logs.push(args.map(String).join(" "));
+    });
+    try {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+        JSON.stringify({ id: 555, status: "approved", external_reference: ORDER_ID, test_mode: false }),
+        { status: 200 },
+      )));
+      const promises: Promise<unknown>[] = [];
+      const res = await checkoutApp.request(
+        "/api/payments/webhook?type=payment&data.id=555",
+        { method: "POST" },
+        asEnv({ DB: db, KV: makeKv(true), MERCADOPAGO_ACCESS_TOKEN: "t" }),
+        asCtx(promises),
+      );
+      expect(res.status).toBe(200);
+      await Promise.all(promises);
+      expect(logs.some((l) => l.includes("seguridad: webhook mp recibido (payment 555)"))).toBe(true);
+      expect(logs.some((l) => l.includes(`seguridad: webhook mp confirmó pago del pedido ${ORDER_ID}`))).toBe(true);
+
+      // Sondeo con id inexistente en MP: queda registrado, sin explotar.
+      logs.length = 0;
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 404 })));
+      const promises2: Promise<unknown>[] = [];
+      const res2 = await checkoutApp.request(
+        "/api/payments/webhook?type=payment&data.id=999",
+        { method: "POST" },
+        asEnv({ DB: db, KV: makeKv(true), MERCADOPAGO_ACCESS_TOKEN: "t" }),
+        asCtx(promises2),
+      );
+      expect(res2.status).toBe(200);
+      await Promise.all(promises2);
+      expect(logs.some((l) => l.includes("seguridad: webhook mp: pago 999 no encontrado"))).toBe(true);
+    } finally {
+      spy.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
 });
 
 describe("POST /api/checkout", () => {

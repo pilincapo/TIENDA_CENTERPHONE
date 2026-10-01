@@ -201,18 +201,27 @@ checkoutApp.post("/api/payments/webhook", async (c) => {
   if (type !== "" && !/payment/i.test(type)) return c.json({ received: true });
   if (id === "") return c.json({ received: true }); // latido vacío de MP: no procesar
 
+  // Log de seguridad (Workers Logs): cada notificación con id real queda
+  // registrada, sin datos del comprador — solo ids y el resultado.
+  console.log(`seguridad: webhook mp recibido (payment ${id})`);
+
   const token = c.env.MERCADOPAGO_ACCESS_TOKEN ?? "";
   if (token === "") return c.json({ received: true });
 
   c.executionCtx.waitUntil((async () => {
     const payment = await fetchPayment(token, id);
+    if (!payment.found) console.log(`seguridad: webhook mp: pago ${id} no encontrado en la API de MP (¿sondeo?)`);
     if (!payment.found || !payment.approved || payment.isTest) return;
     const orderId = payment.externalReference ?? "";
-    if (orderId === "") return;
-    const order = await getOrder(c.env.DB, orderId);
-    if (!order || order.status === "paid") return; // desconocido o ya confirmado
+    const order = orderId === "" ? null : await getOrder(c.env.DB, orderId);
+    if (!order) {
+      console.log(`seguridad: webhook mp: pago ${id} aprobado pero sin pedido válido (${orderId || "sin referencia"})`);
+      return;
+    }
+    if (order.status === "paid") return; // ya confirmado
     // El email lo informa MP en la re-consulta; si viene, queda persistido.
     await updateOrderStatus(c.env.DB, orderId, "paid", { mpPaymentId: id, payerEmail: payment.payerEmail });
+    console.log(`seguridad: webhook mp confirmó pago del pedido ${orderId} (payment ${id})`);
   })().catch(() => { /* el webhook nunca debe tirar excepción al waitUntil */ }));
 
   return c.json({ received: true });

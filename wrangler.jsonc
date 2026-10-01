@@ -30,5 +30,12 @@
       "binding": "KV",
       "id": "71875a431359487e954c86f15edf54ae"
     }
-  ]
+  ],
+  // Workers Logs: guarda los console.* del worker (retención corta en el plan
+  // gratis). Sin esto los eventos de seguridad no se capturan — los otros
+  // workers del negocio (repairpro) ya lo tenían activo.
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
 }
