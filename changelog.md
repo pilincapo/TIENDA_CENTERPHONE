@@ -1,3 +1,7 @@
+## 2026-09-30 — Pedido de prueba cancelado
+
+- El pedido de prueba del CBU (`2e21452f…`, "Prueba CBU producción") quedó cancelado en producción: badge "Cancelado" en el panel (sin botón de cancelar restante) y la página pública del pedido muestra el estado cancelado; quedan 4 pedidos pendientes reales sin tocar
+
 ## 2026-09-30 — Deploy: CBU en transferencia + carrito con títulos largos
 
 - Push `cb76401..3fdda8f` a `pilincapo/TIENDA_CENTERPHONE` (4 commits) y deploy: versión **`fbd7dde4-4393-41ce-ac05-3632caa5f9be`** (cron `0 * * * *` intacto)
