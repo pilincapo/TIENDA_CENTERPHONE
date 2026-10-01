@@ -1,3 +1,9 @@
+## 2026-10-01 — Deploy: auditoría de accesos sin sesión en producción
+
+- Push `6dd31a7..2ddc5b4` a `pilincapo/TIENDA_CENTERPHONE` y deploy: versión **`4be43a51-15f5-4fb8-94ba-48e5dff01b89`** (cron `0 * * * *` intacto)
+- Smoke de producción: home 200, `/admin/` 200, **logout sin cookie → 401** (fix nuevo verificado en el sitio real), changelog sin cookie 401, `/changelog.md` 401, login falso 401, pedido inexistente 404
+- Privacidad verificada con un pedido real de producción: `GET /api/orders/:id` devuelve solo estado, ítems, total, nombre y fechas — sin teléfono ni email del pagador
+
 ## 2026-10-01 — Auditoría de accesos sin sesión: 2 agujeros corregidos
 
 - Se revisó **todos** los endpoints del worker (admin, checkout, pedidos, SEO, settings públicos) buscando rutas que respondan sin login, como pasó con el changelog. Dos hallazgos y corrección:
