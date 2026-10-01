@@ -766,12 +766,17 @@ a.topnav-btn {
 .cart-line {
   display: flex; gap: 12px; align-items: center;
   border: 1px solid var(--border-bright); padding: 10px; background: var(--panel-2);
+  max-width: 100%; box-sizing: border-box;
 }
 .cart-thumb { width: 54px; height: 54px; flex: none; display: flex; align-items: center; justify-content: center; overflow: hidden; background: var(--panel); border: 1px solid var(--border-bright); }
 .cart-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .cart-thumb-ph { font-size: 26px; }
-.cart-line-info { flex: 1; min-width: 0; }
-.cart-line-title { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cart-line-info { flex: 1; min-width: 0; max-width: 100%; }
+.cart-line-title {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; word-break: break-word; line-height: 1.4;
+}
 .cart-line-price { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .cart-qty { display: inline-flex; align-items: center; gap: 10px; margin-top: 8px; }
 .cart-qty-btn {
@@ -781,7 +786,15 @@ a.topnav-btn {
 }
 .cart-qty-btn:hover { border-color: var(--brand); color: var(--brand); }
 .cart-qty-n { min-width: 18px; text-align: center; font-size: 13px; font-weight: 700; }
-.cart-line-right { text-align: right; display: grid; gap: 8px; justify-items: end; }
+.cart-line-right { text-align: right; display: grid; gap: 8px; justify-items: end; flex: none; }
+
+/* Carrito en pantallas angostas: la miniatura y la columna derecha se compactan */
+@media (max-width: 480px) {
+  .cart-thumb { width: 44px; height: 44px; }
+  .cart-line { gap: 8px; padding: 8px; }
+  .cart-line-title { font-size: 12px; }
+  .modal-box--cart { max-width: none; width: 100%; }
+}
 .cart-line-sub { font-size: 13px; font-weight: 700; color: var(--text); }
 .cart-limit-note { display: block; font-size: 10px; color: var(--term-amber); font-weight: 600; }
 .cart-remove {

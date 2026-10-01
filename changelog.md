@@ -1,3 +1,9 @@
+## 2026-09-30 — Carrito: los títulos largos ya no rompen el modal
+
+- Con un producto de nombre largo ("Cargador SIMPLE regulable de pilas AA AAA 18650 16340 14500 26650 en caja (HD-8990)") el modal del carrito se desarmaba: el título forzado a una sola línea empujaba la fila completa y aparecía **scroll horizontal** (el total y los botones quedaban afuera, con barra de desplazamiento lateral)
+- Rediseño de la línea de producto: el título ahora **corta en 2 líneas** (con "…" si es más largo), la columna de precio/cantidad no se aplasta y el bloque se compacta en celulares (miniatura 44px, modal a ancho completo); verificado con el título más largo del catálogo a 1280px y 390px: cero scroll lateral, todo dentro del modal
+- 158/158 tests ✅, build ✅
+
 ## 2026-09-30 — Prueba real del CBU en producción
 
 - Pedido de prueba en producción con 2 productos ($61.200 → $55.080 con el 10%): la pantalla mostró la caja **"CBU / Alias para transferir — CENTERPHONE.MP"** con botón Copiar (verificado: copia al portapapeles y pasa a "✓ Copiado"), orden correcto (total → CBU → WhatsApp → ver pedido)
