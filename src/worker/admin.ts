@@ -7,9 +7,9 @@ import type { AutoImport } from "../shared/autoimport";
 import { TAGS } from "../shared/types";
 import type { Env } from "./db";
 import {
-  countProductsByCategory, deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct, getAutoImportByUrl,
-  getProduct, insertSyncLog, lastSyncLogByDetail, listAutoImports, listCategories, listPriceRules, listProducts, listSyncLog,
-  listSyncLogByTrigger, upsertAutoImport, upsertCategory, upsertPriceRule, upsertProduct,
+  countProducts, countProductsByCategory, countProductsByStatus, deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct,
+  getAutoImportByUrl, getProduct, insertSyncLog, lastSyncLogByDetail, listAutoImports, listCategories, listPriceRules,
+  listProductsPaged, listSyncLog, listSyncLogByTrigger, upsertAutoImport, upsertCategory, upsertPriceRule, upsertProduct,
 } from "./db";
 import { markAutoImportRun, nowArgentina, runAllAutoImportsNow, runAutoImportById, runAutoImports } from "./autoimport";
 import { getSyncState, importItems, regenerateSnapshot, runSync } from "./sync";
@@ -164,8 +164,30 @@ adminApp.post("/password", async (c) => {
 
 // ---- Productos ----
 
+// Productos del panel, paginados: el panel ya no carga todos de una vez.
+//   ?page=1&limit=50&q=texto&status=published|hidden
+//   → { products, total, page, pages, limit, counts: { published, hidden } }
+// `counts` permite pintar los chips sin pedir todas las filas.
 adminApp.get("/products", async (c) => {
-  return c.json({ products: await listProducts(c.env.DB, true) });
+  const q = (c.req.query("q") ?? "").trim().slice(0, 100);
+  const statusParam = c.req.query("status");
+  const status: "" | "published" | "hidden" =
+    statusParam === "published" || statusParam === "hidden" ? statusParam : "";
+  const page = Math.max(1, Math.min(500, Math.trunc(Number(c.req.query("page") ?? 1)) || 1));
+  const limit = Math.max(1, Math.min(200, Math.trunc(Number(c.req.query("limit") ?? 50)) || 50));
+  const [products, total, counts] = await Promise.all([
+    listProductsPaged(c.env.DB, { status, q, limit, offset: (page - 1) * limit }),
+    countProducts(c.env.DB, { status, q }),
+    countProductsByStatus(c.env.DB),
+  ]);
+  return c.json({
+    products,
+    total,
+    page,
+    pages: Math.max(1, Math.ceil(total / limit)),
+    limit,
+    counts: { published: counts.published, hidden: counts.hidden },
+  });
 });
 
 adminApp.post("/products", async (c) => {

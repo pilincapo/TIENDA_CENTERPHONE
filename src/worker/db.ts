@@ -124,6 +124,66 @@ export async function listProducts(db: D1Database, all = false): Promise<Product
   return (results ?? []).map(rowToProduct);
 }
 
+// ---- Paginación para el panel (Products no carga todos de una) ----
+
+export interface ProductPageFilter {
+  status?: "" | "published" | "hidden"; // "" = todos
+  q?: string; // búsqueda por título o código (id)
+  limit?: number;
+  offset?: number;
+}
+
+// Escapa los comodines de LIKE del texto del usuario (búsqueda literal).
+function likePattern(q: string): string {
+  return `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+}
+
+function productWhere(status: "" | "published" | "hidden", q: string): { sql: string; args: string[] } {
+  const conds: string[] = [];
+  const args: string[] = [];
+  if (status === "published" || status === "hidden") {
+    conds.push("status = ?");
+    args.push(status);
+  }
+  if (q !== "") {
+    const pat = likePattern(q);
+    conds.push("(title LIKE ? ESCAPE '\\' OR id LIKE ? ESCAPE '\\')");
+    args.push(pat, pat);
+  }
+  return { sql: conds.length > 0 ? `WHERE ${conds.join(" AND ")}` : "", args };
+}
+
+/** Una página de productos (todos los estados según filtro), para el panel. */
+export async function listProductsPaged(db: D1Database, f: ProductPageFilter): Promise<Product[]> {
+  const { sql, args } = productWhere(f.status ?? "", f.q ?? "");
+  const limit = Math.max(1, Math.min(200, f.limit ?? 50));
+  const offset = Math.max(0, f.offset ?? 0);
+  const { results } = await db
+    .prepare(`SELECT * FROM products ${sql} ORDER BY sort_order, created_at, id LIMIT ? OFFSET ?`)
+    .bind(...args, limit, offset)
+    .all<Dict>();
+  return (results ?? []).map(rowToProduct);
+}
+
+/** Cantidad de productos que devuelve el mismo filtro (para las páginas). */
+export async function countProducts(db: D1Database, f: Pick<ProductPageFilter, "status" | "q">): Promise<number> {
+  const { sql, args } = productWhere(f.status ?? "", f.q ?? "");
+  const row = await db.prepare(`SELECT COUNT(*) AS n FROM products ${sql}`).bind(...args).first<Dict>();
+  return Number(row?.n ?? 0);
+}
+
+/** Totales por estado (para los chips "Todos" / "Sin stock" sin cargar filas). */
+export async function countProductsByStatus(db: D1Database): Promise<{ published: number; hidden: number; total: number }> {
+  const { results } = await db.prepare("SELECT status AS st, COUNT(*) AS n FROM products GROUP BY status").all<Dict>();
+  let published = 0;
+  let hidden = 0;
+  for (const r of results ?? []) {
+    if (r.st === "published") published = Number(r.n ?? 0);
+    if (r.st === "hidden") hidden = Number(r.n ?? 0);
+  }
+  return { published, hidden, total: published + hidden };
+}
+
 /** Cantidad de productos por categoría (publicados y totales) para el panel. */
 export async function countProductsByCategory(db: D1Database): Promise<Map<string, { total: number; published: number }>> {
   const { results } = await db

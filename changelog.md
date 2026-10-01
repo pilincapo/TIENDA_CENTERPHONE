@@ -1,3 +1,13 @@
+## 2026-10-01 — Paginación en la vista de Productos del panel
+
+- La pestaña Productos ya no carga los 830 productos de una: ahora pide de a **50 por página** (paginador «‹ Anterior / Página X de Y / Siguiente ›» abajo de la tabla)
+- La búsqueda pasó a hacerse **en el servidor**: escribe y a los 350 ms trae las coincidencias ya paginadas (busca por título o código); mantiene el foco del buscador al recargar
+- Los chips «Todos» y «Sin stock» muestran totales reales sin cargar filas (ej.: Todos 829 / Sin stock 1) y combinan con la búsqueda
+- Borrar, editar y guardar ya **no te mandan a la primera página**: recargan la misma página donde estabas; «Re-publicar todos» y «Vaciar categoría» operan sobre todas las páginas de una vez (lado servidor)
+- Endpoint `GET /api/admin/products` paginado: `?page&limit&q&status` → `{products, total, page, pages, limit, counts}` con 3 consultas en paralelo (límite 1-200, página 1-500, `q` máx. 100 caracteres); sin sesión sigue respondiendo 401 (guardia de tests)
+- Verificado en local con la base real: 830 productos → 17 páginas de 50, página 2 distinta de la 1, búsqueda «samsung» → 2 resultados, filtro «Sin stock» → 1 producto, sin errores de consola; typecheck ✅ y **199/199 tests** ✅ (5 nuevos del endpoint paginado)
+- Sin cambios visuales en la tienda pública; solo el panel
+
 ## 2026-10-01 — Deploy: guardia de repairpro versionada + resumen semanal conectado
 
 - Push `7b81a4b..6dd126c` a `pilincapo/TIENDA_CENTERPHONE` y deploy: versión **`9415c8e9-8a8b-4236-a2d1-a18932e7e190`** (cron `0 * * * *` intacto; binding `env.EMAIL (pilin123@gmail.com)` activo)

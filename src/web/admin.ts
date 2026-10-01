@@ -601,38 +601,64 @@ window.addEventListener("hashchange", () => {
   if (!el.app.hidden) void render();
 });
 
-// ---- Productos ----
+// ---- Productos (paginados: el panel ya no carga todos de una) ----
 
-async function viewProducts(statusFilter: "published" | "hidden" = "published"): Promise<void> {
-  const [{ products }, { categories }] = await Promise.all([
-    api<{ products: Product[] }>("/products"),
-    api<{ categories: Category[] }>("/categories"),
-  ]);
-  const hiddenCount = products.filter((p) => p.status === "hidden").length;
-  const publishedCount = products.length - hiddenCount;
-  updateTabBadge("products", hiddenCount, "productos sin stock");
-  const visible = statusFilter === "hidden" ? products.filter((p) => p.status === "hidden") : products.filter((p) => p.status === "published");
+interface ProductsPage {
+  products: Product[];
+  total: number;
+  page: number;
+  pages: number;
+  limit: number;
+  counts: { published: number; hidden: number };
+}
+
+// Estado que sobrevive a los re-renders: editar o borrar no te manda a la página 1.
+const prodState = { status: "published" as "published" | "hidden", page: 1, q: "" };
+let refocusSearch = false;
+
+async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void> {
+  if (statusFilter) {
+    if (prodState.status !== statusFilter) prodState.page = 1;
+    prodState.status = statusFilter;
+  }
+  el.view.innerHTML = `<div class="panel"><h2>Productos</h2><p class="muted">Cargando…</p></div>`;
+  const fetchPage = async (): Promise<ProductsPage> => {
+    const params = new URLSearchParams({ page: String(prodState.page), limit: "50", status: prodState.status });
+    if (prodState.q !== "") params.set("q", prodState.q);
+    return api<ProductsPage>(`/products?${params.toString()}`);
+  };
+  let data = await fetchPage();
+  // Si la página quedó vacía (borré el último de la página 3, por ejemplo), retrocedo.
+  let guard = 0;
+  while (data.products.length === 0 && prodState.page > 1 && guard++ < 3) {
+    prodState.page = Math.max(1, Math.min(prodState.page - 1, data.pages));
+    data = await fetchPage();
+  }
+  const products = data.products;
+  const { categories } = await api<{ categories: Category[] }>("/categories");
+  updateTabBadge("products", data.counts.hidden, "productos sin stock");
+  const visible = products;
   const catName = (id: string | null): string =>
     id ? (categories.find((c) => c.id === id)?.name ?? id) : "—";
   const catOptions = categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
   const chip = (v: "published" | "hidden", label: string, n: number): string =>
-    `<button class="chip ${statusFilter === v ? "on" : ""}" data-pf="${v}">${label} <span class="muted">${n}</span></button>`;
+    `<button class="chip ${prodState.status === v ? "on" : ""}" data-pf="${v}">${label} <span class="muted">${n}</span></button>`;
   el.view.innerHTML = `
     <div class="panel">
       <div class="row">
         <h2 style="margin:0">Productos</h2>
         <div class="row" style="margin-left:14px; gap:6px">
-          ${chip("published", "Todos", publishedCount)}
-          ${chip("hidden", "Sin stock", hiddenCount)}
+          ${chip("published", "Todos", data.counts.published)}
+          ${chip("hidden", "Sin stock", data.counts.hidden)}
         </div>
         <input id="prod-search" type="search" placeholder="Buscar por título o código…" autocomplete="off"
-          style="max-width:240px; margin-left:10px"/>
-        <span class="muted" id="prod-search-count" hidden></span>
+          value="${esc(prodState.q)}" style="max-width:240px; margin-left:10px"/>
+        <span class="muted" id="prod-search-count" ${prodState.q !== "" ? "" : "hidden"}>${prodState.q !== "" ? `${data.total} coincidencias` : ""}</span>
         <button class="btn btn-primary" id="new-product" style="margin-left:auto">+ Nuevo producto</button>
       </div>
-      ${statusFilter === "hidden" ? `<p class="muted" style="margin:8px 0 0">No aparecen en el catálogo público porque la fuente ya no los trae (sin stock) o los ocultaste a mano. Si la fuente vuelve a traerlos, se re-publican solos.</p>
+      ${prodState.status === "hidden" ? `<p class="muted" style="margin:8px 0 0">No aparecen en el catálogo público porque la fuente ya no los trae (sin stock) o los ocultaste a mano. Si la fuente vuelve a traerlos, se re-publican solos.</p>
       <div class="row" style="margin-top:10px">
-        <button class="btn btn-primary" id="unhide-all" ${visible.length === 0 ? "disabled" : ""}>▶ Re-publicar todos</button>
+        <button class="btn btn-primary" id="unhide-all" ${data.counts.hidden === 0 ? "disabled" : ""}>▶ Re-publicar todos</button>
       </div>` : `
       <div class="row" style="margin-top:10px; align-items:center">
         <select id="bulk-cat" style="max-width:260px">
@@ -643,10 +669,10 @@ async function viewProducts(statusFilter: "published" | "hidden" = "published"):
         <button class="btn btn-danger" id="bulk-del" hidden>🗑️ Borrar seleccionados</button>
         <span class="muted" id="bulk-count" hidden></span>
       </div>`}
-      ${visible.length === 0 ? `<p class="muted" style="margin-top:14px">${statusFilter === "hidden" ? "No hay productos sin stock. 🎉" : "No hay productos todavía."}</p>` : `
+      ${visible.length === 0 ? `<p class="muted" style="margin-top:14px">${prodState.q !== "" ? "Ningún producto coincide con la búsqueda." : prodState.status === "hidden" ? "No hay productos sin stock. 🎉" : "No hay productos todavía."}</p>` : `
       <div class="table-scroll">
       <table class="table" style="margin-top:14px">
-        <thead><tr><th><input type="checkbox" id="sel-all" title="Marcar todos"/></th><th>Título</th><th>Precio</th><th>Categoría</th><th>Estado</th><th>Tags</th><th></th></tr></thead>
+        <thead><tr><th><input type="checkbox" id="sel-all" title="Marcar todos (esta página)"/></th><th>Título</th><th>Precio</th><th>Categoría</th><th>Estado</th><th>Tags</th><th></th></tr></thead>
         <tbody>
           ${visible.map((p) => `
             <tr data-id="${esc(p.id)}">
@@ -665,32 +691,49 @@ async function viewProducts(statusFilter: "published" | "hidden" = "published"):
         </tbody>
       </table>`}
       </div>
+      ${visible.length > 0 ? `
+      <div class="pager">
+        <button class="btn" id="pg-prev" ${data.page <= 1 ? "disabled" : ""}>‹ Anterior</button>
+        <span class="muted">Página ${data.page} de ${data.pages} — ${data.total} producto${data.total !== 1 ? "s" : ""}${prodState.q !== "" ? ` buscando "${esc(prodState.q)}"` : ""}</span>
+        <button class="btn" id="pg-next" ${data.page >= data.pages ? "disabled" : ""}>Siguiente ›</button>
+      </div>` : ""}
     </div>`;
   el.view.querySelectorAll<HTMLButtonElement>("[data-pf]").forEach((b) => {
     b.addEventListener("click", () => void viewProducts((b.dataset.pf as "published" | "hidden") ?? "published"));
   });
-  // ---- Buscador: filtra filas al tipear (título o código), sin recargar nada ----
-  const searchInput = el.view.querySelector("#prod-search") as HTMLInputElement | null;
-  const searchCount = el.view.querySelector("#prod-search-count") as HTMLElement | null;
-  const applySearch = (): void => {
-    const q = (searchInput?.value ?? "").trim().toLowerCase();
-    let shown = 0;
-    el.view.querySelectorAll<HTMLTableRowElement>("table.table tbody tr[data-id]").forEach((tr) => {
-      const title = tr.querySelector("td:nth-child(2)")?.textContent?.toLowerCase() ?? "";
-      const match = q === "" || title.includes(q);
-      tr.style.display = match ? "" : "none";
-      // Oculto también el checkbox para que la selección múltiple no cuente ocultos.
-      const cb = tr.querySelector<HTMLInputElement>(".prod-sel");
-      if (cb && !match) cb.checked = false;
-      if (match) shown++;
-    });
-    if (searchCount) {
-      const total = el.view.querySelectorAll("table.table tbody tr[data-id]").length;
-      searchCount.hidden = q === "";
-      searchCount.textContent = q === "" ? "" : `${shown} de ${total} coinciden`;
+  // ---- Paginación: cambia de página sin recargar el resto del panel ----
+  el.view.querySelector("#pg-prev")?.addEventListener("click", () => {
+    if (prodState.page > 1) {
+      prodState.page -= 1;
+      void viewProducts();
     }
-  };
-  searchInput?.addEventListener("input", applySearch);
+  });
+  el.view.querySelector("#pg-next")?.addEventListener("click", () => {
+    if (prodState.page < data.pages) {
+      prodState.page += 1;
+      void viewProducts();
+    }
+  });
+  // ---- Buscador: filtra en el servidor (título o código), con pausa al tipear ----
+  const searchInput = el.view.querySelector("#prod-search") as HTMLInputElement | null;
+  let searchTimer: number | undefined;
+  searchInput?.addEventListener("input", () => {
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => {
+      const q = (searchInput.value ?? "").trim();
+      if (q === prodState.q) return;
+      prodState.q = q;
+      prodState.page = 1;
+      refocusSearch = true;
+      void viewProducts();
+    }, 350);
+  });
+  if (refocusSearch && searchInput) {
+    refocusSearch = false;
+    searchInput.focus();
+    const len = searchInput.value.length;
+    searchInput.setSelectionRange(len, len);
+  }
   el.view.querySelectorAll(".btn-edit").forEach((b) => {
     b.addEventListener("click", () => {
       const p = products.find((x) => x.id === (b as HTMLElement).dataset.id);
@@ -707,7 +750,7 @@ async function viewProducts(statusFilter: "published" | "hidden" = "published"):
       } catch (e) {
         toast(e instanceof Error ? e.message : "Error", false);
       }
-      void render();
+      void viewProducts(); // recarga la MISMA página (no te manda al inicio)
     });
   });
 
@@ -750,10 +793,10 @@ async function viewProducts(statusFilter: "published" | "hidden" = "published"):
     } catch (e) {
       toast(e instanceof Error ? e.message : "Error", false);
     }
-    void render();
+    void viewProducts();
   });
 
-  // ---- Vaciar categoría entera ----
+  // ---- Vaciar categoría entera (borra en el servidor, de todas las páginas) ----
   el.view.querySelector("#bulk-cat-del")?.addEventListener("click", async () => {
     const sel = el.view.querySelector("#bulk-cat") as HTMLSelectElement | null;
     const catId = sel?.value ?? "";
@@ -762,12 +805,8 @@ async function viewProducts(statusFilter: "published" | "hidden" = "published"):
       return;
     }
     const cat = categories.find((c) => c.id === catId);
-    const inCat = products.filter((p) => p.categoryId === catId || p.subcategoryId === catId);
-    if (inCat.length === 0) {
-      toast(`La categoría "${cat?.name ?? catId}" no tiene productos`, false);
-      return;
-    }
-    if (!confirm(`¿Borrar los ${inCat.length} producto${inCat.length > 1 ? "s" : ""} de "${cat?.name ?? catId}"? La categoría NO se borra. Esta acción no se puede deshacer.`)) return;
+    // Con paginación el conteo exacto lo da el servidor después del borrado.
+    if (!confirm(`¿Borrar TODOS los productos de "${cat?.name ?? catId}" (de todas las páginas)? La categoría NO se borra. Esta acción no se puede deshacer.`)) return;
     try {
       const r = await api<{ deleted: number }>("/products/bulk", {
         method: "POST",
@@ -777,7 +816,7 @@ async function viewProducts(statusFilter: "published" | "hidden" = "published"):
     } catch (e) {
       toast(e instanceof Error ? e.message : "Error", false);
     }
-    void render();
+    void viewProducts();
   });
 
   // ---- Re-publicar (vista "Sin stock", ex vista oculta) ----
@@ -787,14 +826,21 @@ async function viewProducts(statusFilter: "published" | "hidden" = "published"):
         await api("/products/unhide", { method: "POST", body: JSON.stringify({ id }) });
       }
       toast(`Re-publicado(s): ${ids.length}`);
-      await viewProducts("hidden");
+      await viewProducts();
     } catch (e) {
       toast(e instanceof Error ? e.message : "Error al re-publicar", false);
     }
   };
-  el.view.querySelector("#unhide-all")?.addEventListener("click", () => {
-    if (!confirm(`¿Re-publicar los ${visible.length} productos sin stock?`)) return;
-    void republish(visible.map((p) => p.id));
+  el.view.querySelector("#unhide-all")?.addEventListener("click", async () => {
+    // El servidor re-publica TODOS los sin stock (de todas las páginas) de una.
+    if (!confirm(`¿Re-publicar TODOS los productos sin stock (${data.counts.hidden}, de todas las páginas)?`)) return;
+    try {
+      await api("/products/unhide", { method: "POST", body: JSON.stringify({ all: true }) });
+      toast("Re-publicados todos los productos sin stock");
+      await viewProducts();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Error al re-publicar", false);
+    }
   });
   el.view.querySelectorAll(".btn-unhide").forEach((b) => {
     b.addEventListener("click", () => void republish([(b as HTMLElement).dataset.id ?? ""]));
@@ -896,7 +942,14 @@ async function openProductForm(p: Product | null, categories: Category[]): Promi
       }
       back.remove();
       toast("Producto guardado");
-      void render();
+      if (p && "priceCents" in p) {
+        void viewProducts(); // edición: vuelve a la MISMA página
+      } else {
+        prodState.page = 1;
+        prodState.status = "published";
+        prodState.q = "";
+        void viewProducts(); // nuevo: arranca limpio en la página 1
+      }
     } catch (e) {
       const errEl = back.querySelector("#p-error") as HTMLElement;
       errEl.textContent = e instanceof Error ? e.message : "Error";

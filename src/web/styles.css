@@ -897,6 +897,12 @@ a.topnav-btn {
 .cl-list code, .cl-p code { background: var(--panel); border: 1px solid var(--border); padding: 1px 5px; font-size: 12px; color: var(--brand); }
 .cl-p { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
 
+/* Paginador de la tabla de Productos (panel) */
+.pager { display: flex; align-items: center; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+.pager .muted { font-size: 13px; }
+.pager button:disabled { opacity: 0.45; cursor: default; }
+.pager button:disabled:hover { border-color: var(--border-bright); color: var(--muted); background: var(--panel); box-shadow: none; }
+
 /* Pestaña "Seguridad" (eventos del worker, últimos 24h) */
 .sec-entries { margin-top: 14px; display: grid; gap: 6px; }
 .sec-row { display: flex; align-items: baseline; gap: 10px; padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--border); font-size: 13px; }
