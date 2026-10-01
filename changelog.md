@@ -1,3 +1,14 @@
+## 2026-10-01 — Deploy: pestaña "Cambios" en producción
+
+- Push `33bc0bb..4e432f2` a `pilincapo/TIENDA_CENTERPHONE` (pestaña Cambios + fix de seguridad) y deploy: versión **`2f8a4b52-bee6-4c42-bde6-2afca1813732`** (cron `0 * * * *` intacto)
+- Suben la pestaña Cambios, la copia del changelog a los assets (`changelog.md` en el build) y la protección del archivo (`run_worker_first` + 401 desde el worker)
+- Smoke de producción: home 200, `/admin/` 200 con el bundle nuevo (pestaña presente), `/changelog.md` público → 401, `/api/admin/changelog` sin sesión → 401, login falso 401, pedido inexistente 404
+
+## 2026-10-01 — Arreglo de seguridad: la API del changelog ahora exige sesión
+
+- El smoke de producción encontró que `/api/admin/changelog` respondía 200 **sin** estar logueado: el endpoint había quedado registrado antes del middleware de sesión de `adminApp`, y en Hono los `use()` solo protegen las rutas declaradas después de ellos
+- Fix: el endpoint se movió a la zona protegida (después del middleware, junto a `/session`); en local 158/158 tests ✅ y re-deploy con la versión final
+
 ## 2026-09-30 — Pestaña "Cambios" en el panel (changelog del sitio)
 
 - Nueva pestaña **Cambios** en el grupo Sistema del panel: muestra todas las entradas de este changelog (188 al día de hoy) como tarjetas plegables, la más nueva abierta por defecto, con negritas y código renderizados; se actualiza sola con cada deploy (lee el changelog.md del repo, copiado a los assets por el build)
