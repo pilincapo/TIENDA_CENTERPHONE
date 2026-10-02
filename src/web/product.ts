@@ -71,11 +71,20 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
   document.title = settings.storeName ? `${product.title} — ${settings.storeName}` : `${product.title}`;
   // La marca del footer también sigue al storeName (lo aplica fillStoreInfo).
   const symbol = settings.currencySymbol || "$";
-  const cat = snapshot?.categories.find((c) => c.id === product.categoryId);
+  // Breadcrumb raíz › subcategoría: con solo `categoryId` un artículo de
+  // «Almacenamiento» llegaba como si fuera de toda «Electrónica», y el enlace
+  // mandaba a la raíz en vez de a la subcategoría donde está.
+  const cats = snapshot?.categories ?? [];
+  const sub = product.subcategoryId ? cats.find((c) => c.id === product.subcategoryId) : undefined;
+  const root = sub?.parentId
+    ? cats.find((c) => c.id === sub.parentId)
+    : cats.find((c) => c.id === product.categoryId);
+  const crumb = (c: { id: string; name: string }): string =>
+    ` › <a href="/?cat=${encodeURIComponent(c.id)}">${esc(c.name)}</a>`;
 
   el.breadcrumbs.innerHTML =
     `<a href="/">Inicio</a>` +
-    (cat ? ` › <a href="/?cat=${encodeURIComponent(cat.id)}">${esc(cat.name)}</a>` : "") +
+    (sub ? crumb(root ?? { id: sub.parentId ?? "", name: sub.name }) + crumb(sub) : root ? crumb(root) : "") +
     ` › <span>${esc(product.title)}</span>`;
 
   // Imagen principal: LCP de la ficha — eager + fetchpriority high + srcset WebP
@@ -140,10 +149,15 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
   ld.textContent = productJsonLd(product, settings.storeName || "CenterPhone Celulares");
   document.head.appendChild(ld);
 
-  // BreadcrumbList: mismo trail que la miga visible (Inicio › Categoría › Producto).
+  // BreadcrumbList: mismo trail que la miga visible (Inicio › Categoría [› Subcategoría] › Producto).
   const origin = "https://centerphone.com.ar";
   const crumbs = [{ name: "Inicio", url: `${origin}/` }];
-  if (cat) crumbs.push({ name: cat.name, url: `${origin}/?cat=${encodeURIComponent(cat.id)}` });
+  if (sub) {
+    if (root) crumbs.push({ name: root.name, url: `${origin}/?cat=${encodeURIComponent(root.id)}` });
+    crumbs.push({ name: sub.name, url: `${origin}/?cat=${encodeURIComponent(sub.id)}` });
+  } else if (root) {
+    crumbs.push({ name: root.name, url: `${origin}/?cat=${encodeURIComponent(root.id)}` });
+  }
   crumbs.push({ name: product.title, url: `${origin}/producto/${encodeURIComponent(product.id)}` });
   document.getElementById("json-ld-breadcrumbs")?.remove();
   const ldb = document.createElement("script");

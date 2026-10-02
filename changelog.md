@@ -1,3 +1,13 @@
+## 2026-10-02 — Catálogo: los chips de subcategoría («↳ Almacenamiento») mostraban cero productos
+
+- **Causa**: al filtrar por categoría el catálogo comparaba **solo** con `p.categoryId`, pero la subcategoría de un producto vive en `p.subcategoryId` (el normalizador deja la raíz en `categoryId` y la subcategoría en `subcategoryId`). En producción, «Almacenamiento» tiene **5 artículos con `subcategoryId = almacenamiento` y ninguno con ese `categoryId`**: al tocar el chip la lista quedaba vacía
+- Verificado en el snapshot de producción: las 14 subcategorías tienen 0 productos como `categoryId` (ej. 238 productos son `electronica / iluminacion`)
+- **Fix**: `inCategorySet()` acepta el artículo si coincide **la raíz o la subcategoría**. Vive en `src/web/category-filter.ts` (módulo puro) para poder testearla sin DOM — importar `catalog.ts` en un test revienta porque el módulo agarra elementos del documento al cargarse
+- **El chip tampoco quedaba marcado**: al elegir una subcategoría, `subcategoriesOf(subId)` devolvía vacío y la fila de subcategorías desaparecía. Ahora la fila se arma con las hermanas (las de su raíz), así que el chip elegido sigue visible y marcado
+- **De paso, la ficha**: el breadcrumb mostraba solo la raíz («Inicio › Electrónica › artículo») y el enlace mandaba a la raíz. Ahora es «Inicio › Electrónica › Almacenamiento › artículo», con `?cat=` apuntando a cada nivel, y el JSON-LD `BreadcrumbList` incluye la subcategoría
+- Tests: nuevo `catalog-filter.test.ts` (+5): subcategoría, raíz, raíz+subcategorías, sin filtro y artículo sin categoría — **270/270** ✅, typecheck ✅, build ✅
+- Verificado en local con datos reales: un artículo con `subcategoryId` aparece al tocar su chip (1 tarjeta, antes 0), el chip queda activo y la ficha muestra el breadcrumb con los dos niveles. Los datos de prueba se restauraron después
+
 ## 2026-10-02 — Estadísticas: el gráfico de visitas por día ahora sí dice cuántos valores representa
 
 - **Problema**: el gráfico de líneas solo tenía un `<title>` nativo del SVG en cada punto. Con radio 2,5 px había que acertarle al punto y esperar un segundo: en la práctica nadie veía cuántas visitas marcaba cada día. Además el eje Y no estaba rotulado, así que la altura de la línea no significaba nada

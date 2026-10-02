@@ -8,6 +8,7 @@ import { waLinkText } from "../shared/whatsapp";
 import { fillStoreInfo, setupModals } from "./store-modals";
 import { track } from "./track";
 import { setupCartUI } from "./cart-ui";
+import { inCategorySet } from "./category-filter";
 
 type SortMode = "default" | "price-asc" | "price-desc" | "random";
 
@@ -162,7 +163,11 @@ function activeFilterCount(): number {
 
 function renderToolbar(): void {
   const cats = rootCategories();
-  const subs = state.category ? subcategoriesOf(state.category) : [];
+  // Si lo elegido es una subcategoría, la fila se arma con las hermanas (las de
+  // su raíz): si no, `subcategoriesOf(sub)` venía vacío y el chip que el usuario
+  // acaba de tocar desaparecía sin quedar marcado.
+  const sel = (state.snapshot?.categories ?? []).find((c) => c.id === state.category);
+  const subs = sel ? subcategoriesOf(sel.parentId ?? sel.id) : [];
   const n = activeFilterCount();
   // El select "Ordenar" vive en una fila fija propia (NO scrolleable): si las
   // categorías llenan la fila de chips, antes quedaba fuera de pantalla.
@@ -281,7 +286,7 @@ function applyFilters(products: Product[]): Product[] {
   const freshHours = state.settings?.freshHours ?? 48;
   return products.filter((p) => {
     if (term !== "" && !`${p.title} ${p.description}`.toLowerCase().includes(term)) return false;
-    if (catIds.size > 0 && (!p.categoryId || !catIds.has(p.categoryId))) return false;
+    if (!inCategorySet(p, catIds)) return false;
     for (const t of state.tags) {
       // "new" matchea el tag a mano O el badge "Nuevo" automatico (fresco):
       // los productos importados casi nunca traen el tag, pero si muestran el
