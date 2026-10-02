@@ -120,16 +120,22 @@ function orderWhere(status: string, q: string): { sql: string; args: string[] } 
   }
   if (q !== "") {
     const pat = orderLikePattern(q);
-    // Nombre, id y email: matcheo literal normal.
-    conds.push("(buyer_name LIKE ? ESCAPE '\\' OR id LIKE ? ESCAPE '\\' OR payer_email LIKE ? ESCAPE '\\')");
+    // Todo el matcheo (nombre, id, email y teléfono) vive en UN SOLO grupo
+    // OR: orderWhere une los conds con AND; separarlos filtraría de más.
+    const partes = [
+      "buyer_name LIKE ? ESCAPE '\\'",
+      "id LIKE ? ESCAPE '\\'",
+      "payer_email LIKE ? ESCAPE '\\'",
+    ];
     args.push(pat, pat, pat);
-    // Teléfono: además del texto crudo, se compara solo-dígitos contra el
-    // número sin espacios/signos, así "342 555 1234" o "+54 9..." matchean.
     const qDigits = q.replace(/\D/g, "");
     if (qDigits !== "") {
-      conds.push("(buyer_phone LIKE ? ESCAPE '\\' OR REPLACE(REPLACE(REPLACE(buyer_phone, ' ', ''), '-', ''), '+', '') LIKE ?)");
+      // Teléfono: crudo o solo-dígitos contra el número sin espacios/signos,
+      // así "342 555 1234", "+54 9..." o "3425551234" encuentran lo mismo.
+      partes.push("buyer_phone LIKE ? ESCAPE '\\'", "REPLACE(REPLACE(REPLACE(buyer_phone, ' ', ''), '-', ''), '+', '') LIKE ?");
       args.push(pat, `%${qDigits}%`);
     }
+    conds.push(`(${partes.join(" OR ")})`);
   }
   return { sql: conds.length > 0 ? `WHERE ${conds.join(" AND ")}` : "", args };
 }

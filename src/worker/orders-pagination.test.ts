@@ -16,6 +16,9 @@ const PEDIDOS = [
   { id: "o7", status: "archived", total_cents: 900, currency: "ARS", buyer_name: "Prueba Test", buyer_phone: "3425819408", payer_email: null, items_json: "[]", mp_preference_id: null, mp_payment_id: null, paid_at: null, notified_wa: 0, archived_at: 7, archived_by: "panel", created_at: 0, updated_at: 7 },
 ];
 
+// Todas las SQL que pasaron por el mock: sirven para assertar la forma del WHERE.
+const sqls: string[] = [];
+
 function makeDb(): D1Database {
   const filtra = (condSql: string, binds: unknown[]): typeof PEDIDOS => {
     let rows = [...PEDIDOS];
@@ -46,6 +49,7 @@ function makeDb(): D1Database {
   };
   return {
     prepare(sql: string) {
+      sqls.push(sql);
       const exec = (binds: unknown[]) => ({
         run: async () => ({ success: true }),
         first: async () => {
@@ -170,6 +174,20 @@ describe("GET /api/admin/orders (paginado)", () => {
     const body = (await res.json()) as { orders: Dict[]; total: number };
     expect(body.total).toBe(1);
     expect(body.orders.map((o) => o.id)).toEqual(["o2"]);
+  });
+
+  it("nombre/id/email y teléfono comparten UN solo grupo OR (no se AND-ean)", async () => {
+    // orderWhere une los conds con AND: si el teléfono quedara en un grupo
+    // aparte, toda query con dígitos devolvería 0 (bug ya vivido en prod).
+    const env = mockEnv(mockKV());
+    const cookie = await loginYCookie(env);
+    await adminApp.request("/orders?q=3425819402", { headers: { Cookie: cookie } }, env);
+    const conQ = sqls.filter((s) => s.includes("buyer_name LIKE"));
+    expect(conQ.length).toBeGreaterThan(0); // list + count
+    const conTel = conQ.filter((s) => s.includes("buyer_phone LIKE"));
+    expect(conTel.length).toBeGreaterThan(0); // la query tenía dígitos
+    expect(conTel.every((s) => /buyer_name LIKE[\s\S]*OR buyer_phone LIKE/.test(s))).toBe(true);
+    expect(conQ.some((s) => /\) AND \(buyer_phone/.test(s))).toBe(false);
   });
 
   it("status=paid trae solo los pagados", async () => {

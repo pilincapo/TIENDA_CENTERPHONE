@@ -4,7 +4,9 @@
 - En la columna Comprador el **teléfono es un link a WhatsApp** (`wa.me/<número>`, solo con número válido) para escribirle al comprador de cualquier pedido — no solo de los pagados
 - Placeholder nuevo: «Buscar por nombre, teléfono, email o id…»
 - Backend en `orderWhere`: `payer_email LIKE` + teléfono crudo y sin signos (`REPLACE` anidado, solo si la query tiene dígitos) — SQL validado contra D1 local con fixtures
-- Tests: +3 (teléfono con espacios, teléfono solo dígitos, email) y el mock de la vista paginada ahora emula email/teléfono — **239/239** ✅, typecheck ✅, build ✅
+- Tests: +3 (teléfono con espacios, teléfono solo dígitos, email) + 1 que asserta la forma del WHERE; el mock de la vista paginada ahora emula email/teléfono — **240/240** ✅, typecheck ✅, build ✅
+- **Fix post-deploy**: `orderWhere` une los conds con AND y el teléfono en un grupo aparte hacía que toda query con dígitos (incluida la búsqueda por id) devolviera 0 en prod — todo quedó en un solo grupo OR
+- Deploys: **`b9638782-14af-4503-a9a0-104f163d4a6c`** (con el bug AND) y corrección **`2c07cbde-7ecb-4e16-8c7d-97225ae55d32`**; smoke en prod: id, teléfono con/sin espacios, email y nombre
 
 ## 2026-10-02 — Restaurar devuelve el pedido a su estado anterior
 
