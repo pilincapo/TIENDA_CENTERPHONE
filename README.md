@@ -9,7 +9,7 @@ Catálogo web de celulares con **cierre de venta por WhatsApp**. Todo corre en C
 - **Reglas de precios**: pestaña para crear reglas tipo "entre $0 y $10.000 → +40%", agrupables en escalas (ej: 1–10.000, 10.001–20.000, 20.001+). Durante cualquier importación (manual o del cron), si el precio cae en el rango de una regla activa se le aplica el recargo. Si varias coinciden gana la mayor prioridad (y a igual prioridad, el rango más específico). En Importar podés además **forzar una regla o un grupo entero** de la lista. Los precios siempre quedan en **pesos enteros** (sin decimales).
 - **Extracción desde URL** (botón Analizar / auto al pegar el link): prueba en orden ① JSON directo, ② estado embebido de tiendas **TiendaNegocio** (script `1-state`: productos con precio, stock, imagen + categoría de la página), ③ JSON-LD schema.org (ficha individual o categoría con fetch de fichas), ④ Shopify `/products.json`. La categoría se crea automáticamente si no existe. Los fallos de red/DNS/estado HTTP se reportan con la causa clara.
 - **Sincronización automática**: cron horario de Cloudflare que ejecuta las auto-importaciones activas en los horarios configurados (hora Argentina). Los precios pueden venir como número (`1299999`), string (`"$1.299,99"`), con tags en español (`nuevo/oferta/destacado`) y stock (`agotado`, `bajo pedido`).
-- **Snapshot público en KV**: la home lee un JSON cacheado en el edge (rápido, casi sin lecturas de D1); se regenera en cada cambio del panel o import.
+- **Snapshot público en KV**: la home lee un JSON cacheado en el edge (rápido, casi sin lecturas de D1); se regenera al sincronizar o al importar. Las altas/ediciones/bajas del panel **no** lo regeneran (leer todo el catálogo por cada edición come la cuota de D1): quedan marcadas como «sin publicar» hasta el próximo «Publicar ahora».
 
 ## Costo: $0
 
@@ -101,7 +101,7 @@ Cualquiera de estas formas funciona (los nombres aceptan español e inglés, y e
 
 ## Panel: qué hay en cada pestaña
 
-- **Dashboard**: estado del catálogo, botones "Sincronizar ahora" y "Regenerar snapshot", historial de sincronizaciones (automáticas/manuales) con detalle y causa de errores.
+- **Dashboard**: estado del catálogo (incluida la fila «Sitio público» con la última publicación y los cambios sin publicar), botones "Sincronizar ahora" y "Publicar catálogo", historial de sincronizaciones (automáticas/manuales) con detalle y causa de errores.
 - **Productos**: tabla completa (incluye ocultos), crear/editar/borrar (individual, múltiple o por categoría), tags y disponibilidad.
 - **Categorías**: con jerarquía (padre/hijo) y activo/inactivo (las inactivas no salen en filtros).
 - **Importar**: pegá un link (extrae y preselecciona productos con checkboxes), JSON, o arrastrá un archivo → previsualización con reglas de precio aplicadas → confirmar. Botón "Importar seleccionados" fijo arriba.

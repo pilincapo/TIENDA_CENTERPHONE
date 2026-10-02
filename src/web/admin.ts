@@ -75,6 +75,61 @@ function updatePendingBadge(count: number): void {
   updateTabBadge("orders", count, "pedidos pendientes");
 }
 
+// ---- Publicación del catálogo público ----
+// Las escrituras del panel (alta, edición, baja, categorías) ya NO regeneran el
+// snapshot: leer TODO el catálogo en D1 por cada edición come la cuota de filas
+// del free tier. El worker deja una marca y este banner avisa hasta que se publica
+// (al sincronizar o con el botón).
+const pendiente = {
+  banner: document.getElementById("pending-banner") as HTMLElement | null,
+  detail: document.getElementById("pending-detail") as HTMLElement | null,
+  publish: document.getElementById("pending-publish") as HTMLButtonElement | null,
+  dismiss: document.getElementById("pending-dismiss") as HTMLButtonElement | null,
+};
+
+function mostrarBannerPendiente(activo: boolean, detalle = ""): void {
+  if (!pendiente.banner) return;
+  pendiente.banner.hidden = !activo;
+  if (activo && detalle && pendiente.detail) pendiente.detail.textContent = detalle;
+}
+
+/** Marca localmente que hay cambios sin publicar (no espera al servidor: el
+ *  worker ya respondió 200 y la marca ya está puesta). */
+function marcarSinPublicar(): void {
+  mostrarBannerPendiente(
+    true,
+    "Último cambio recién guardado. El sitio público lo muestra al sincronizar o al publicar ahora."
+  );
+}
+
+/** Consulta el estado real de publicación (al entrar al panel y tras publicar). */
+async function refrescarEstadoCatalogo(): Promise<void> {
+  try {
+    const s = await api<{ pending: boolean; pendingAt: number | null; generatedAt: number | null }>("/catalog-status");
+    const detalle =
+      s.pending && s.pendingAt
+        ? `Último cambio sin publicar: ${new Date(s.pendingAt).toLocaleString("es-AR")}. El sitio público se actualiza al sincronizar o al publicar ahora.`
+        : "Los productos que editaste acá se ven al sincronizar o al publicar ahora.";
+    mostrarBannerPendiente(s.pending, detalle);
+  } catch {
+    /* sin estado: el panel sigue funcionando */
+  }
+}
+
+/** Publica el catálogo al sitio (lo mismo que hace la sincronización). */
+async function publicarAhora(): Promise<void> {
+  const btn = pendiente.publish;
+  if (btn) btn.disabled = true;
+  try {
+    const r = await api<{ products: number }>("/snapshot", { method: "POST" });
+    toast(`Sitio actualizado (${r.products} productos)`);
+    mostrarBannerPendiente(false);
+  } catch (e) {
+    toast(e instanceof Error ? e.message : "Error al publicar", false);
+  }
+  if (btn) btn.disabled = false;
+}
+
 function route(): string {
   return location.hash.replace("#", "") || "dashboard";
 }
@@ -120,6 +175,9 @@ async function render(): Promise<void> {
     if (e instanceof Error && e.message === "unauthorized") return showLogin();
     el.view.innerHTML = `<div class="panel"><p class="error">${esc(e instanceof Error ? e.message : String(e))}</p></div>`;
   }
+  // El banner de "sin publicar" es global: se refresca al cambiar de pestaña
+  // (dos KV.get chicos) para no quedar desactualizado si se editó en otro lado.
+  void refrescarEstadoCatalogo();
 }
 
 // Filtro activo del historial del dashboard (compartido entre renders dinámicos).
@@ -295,10 +353,21 @@ async function refreshDashboardDynamic(): Promise<void> {
   const bodyEl = document.getElementById("dash-log-body");
   if (!stateEl || !bodyEl) return; // no estamos en el dashboard
   try {
-    const { state, log, fuentes } = await api<{ state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }; log: SyncLogEntry[]; fuentes?: FuenteEstado[] }>(
-      `/sync/log?limit=50${dashSyncFilter ? `&trigger=${encodeURIComponent(dashSyncFilter)}` : ""}`
+    // También el estado de publicación: sin esto el polling borraba la fila
+    // "Sitio público" del render inicial.
+    const [{ state, log, fuentes }, catalogo] = await Promise.all([
+      api<{ state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }; log: SyncLogEntry[]; fuentes?: FuenteEstado[] }>(
+        `/sync/log?limit=50${dashSyncFilter ? `&trigger=${encodeURIComponent(dashSyncFilter)}` : ""}`
+      ),
+      api<CatalogStatus>("/catalog-status").catch(() => null as CatalogStatus | null),
+    ]);
+    stateEl.innerHTML = estadoCatalogoKv(state, catalogo);
+    mostrarBannerPendiente(
+      Boolean(catalogo?.pending),
+      catalogo?.pending && catalogo.pendingAt
+        ? `Ultimo cambio sin publicar: ${new Date(catalogo.pendingAt).toLocaleString("es-AR")}. El sitio publico se actualiza al sincronizar o al publicar ahora.`
+        : ""
     );
-    stateEl.innerHTML = estadoCatalogoKv(state);
     bodyEl.innerHTML = log.length === 0
       ? '<tr><td colspan="6" class="muted">Todavía no hubo sincronizaciones.</td></tr>'
       : log.map(syncLogRow).join("");
@@ -334,14 +403,31 @@ async function refreshDashboardDynamic(): Promise<void> {
 
 /** Filas del bloque "Estado del catálogo" (compartido entre el render inicial y el polling).
  *  La fila de error solo aparece cuando hay un error real, para no mostrar "—" de relleno. */
-function estadoCatalogoKv(state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }): string {
+function estadoCatalogoKv(state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }, cat?: CatalogStatus | null): string {
   const last = state.lastSyncAt ? new Date(state.lastSyncAt).toLocaleString("es-AR") : "nunca";
   const lastRow = state.lastStatus
     ? `<span class="${state.lastStatus === "ok" ? "ok" : "err"}">${esc(state.lastStatus)}</span>`
     : '<span class="muted">—</span>';
   const errRow = state.lastError ? `\n<span class="k">Error</span><span>${esc(state.lastError)}</span>` : "";
-  return `<span class="k">Última sincronización</span><span>${esc(last)}</span>\n<span class="k">Resultado</span><span>${lastRow}</span>${errRow}`;
+  // Sitio publico: cuando se publico el catalogo y si hay cambios sin publicar.
+  const pubRow = (() => {
+    if (!cat) return "";
+    if (cat.pending && cat.pendingAt) {
+      return `\n<span class="k">Sitio público</span><span class="err">Cambios sin publicar (${esc(new Date(cat.pendingAt).toLocaleString("es-AR"))})</span>`;
+    }
+    const gen = cat.generatedAt ? esc(new Date(cat.generatedAt).toLocaleString("es-AR")) : "nunca";
+    return `\n<span class="k">Sitio público</span><span>Publicado ${gen}</span>`;
+  })();
+  return `<span class="k">Última sincronización</span><span>${esc(last)}</span>\n<span class="k">Resultado</span><span>${lastRow}</span>${errRow}${pubRow}`;
 }
+
+/** Estado de publicacion del catalogo publico (lo devuelve /catalog-status). */
+interface CatalogStatus {
+  pending: boolean;
+  pendingAt: number | null;
+  generatedAt: number | null;
+}
+
 
 /** Conecta el botón de descartar del aviso (y recuerda el descarte por sesión).
  *  Si aparece un error NUEVO (otra corrida), el aviso vuelve a mostrarse. */
@@ -365,12 +451,21 @@ function scheduleDashRefresh(): void {
 
 async function viewDashboard(syncFilter = ""): Promise<void> {
   dashSyncFilter = syncFilter;
-  const [{ state, log, fuentes }, saludRes] = await Promise.all([
+  const [{ state, log, fuentes }, saludRes, catalogo] = await Promise.all([
     api<{ state: { lastSyncAt: number | null; lastStatus: string | null; lastError: string | null }; log: SyncLogEntry[]; fuentes?: FuenteEstado[] }>(
       `/sync/log?limit=50${syncFilter ? `&trigger=${encodeURIComponent(syncFilter)}` : ""}`
     ),
     api<{ salud: SaludSemanalUI }>("/sync/health").catch(() => ({ salud: null as SaludSemanalUI | null })),
+    api<CatalogStatus>("/catalog-status").catch(() => null as CatalogStatus | null),
   ]);
+  // Si hay cambios sin publicar, el banner global se ve aunque el usuario entre
+  // directo al dashboard (o vuelva de otra pestaña).
+  mostrarBannerPendiente(
+    Boolean(catalogo?.pending),
+    catalogo?.pending && catalogo.pendingAt
+      ? `Ultimo cambio sin publicar: ${new Date(catalogo.pendingAt).toLocaleString("es-AR")}. El sitio publico se actualiza al sincronizar o al publicar ahora.`
+      : ""
+  );
   // Si el error mostrado es el mismo que el usuario ya descartó en esta sesión, no re-mostrar.
   const descartado = sessionStorage.getItem("dashErrorDismissed");
   const bannerVisible = state.lastStatus === "error" && state.lastError !== null && descartado !== String(state.lastSyncAt ?? 0);
@@ -378,10 +473,10 @@ async function viewDashboard(syncFilter = ""): Promise<void> {
     ${bannerVisible ? dashErrorBanner(state) : ""}
     <div class="panel">
       <h2>Estado del catálogo</h2>
-      <div class="kv" id="dash-state">${estadoCatalogoKv(state)}</div>
+      <div class="kv" id="dash-state">${estadoCatalogoKv(state, catalogo)}</div>
       <div class="row" style="margin-top:16px">
         <button class="btn btn-primary" id="sync-now">⟳ Sincronizar ahora</button>
-        <button class="btn" id="rebuild">Regenerar snapshot</button>
+        <button class="btn" id="rebuild">Publicar catálogo</button>
       </div>
     </div>
     ${fuentesPanel(fuentes ?? [])}
@@ -406,7 +501,7 @@ async function viewDashboard(syncFilter = ""): Promise<void> {
       </div>
     </div>`;
   el.view.querySelector("#sync-now")?.addEventListener("click", () => void doSync());
-  el.view.querySelector("#rebuild")?.addEventListener("click", () => void rebuildSnapshot());
+  el.view.querySelector("#rebuild")?.addEventListener("click", () => void publicarAhora());
   if (bannerVisible) bindBannerClose();
   el.view.querySelector("#sync-filter")?.addEventListener("change", (ev) => {
     dashSyncFilter = (ev.target as HTMLSelectElement).value;
@@ -470,6 +565,9 @@ async function doSync(): Promise<void> {
     toast(e instanceof Error ? e.message : "Error de sync", false);
   }
   if (btn) btn.disabled = false;
+  // La sincronización publica el catálogo: el aviso de "sin publicar" ya no aplica.
+  mostrarBannerPendiente(false);
+  await refrescarEstadoCatalogo();
   // Historial y estado se refrescan solos, sin recargar la vista.
   await refreshDashboardDynamic();
   setTimeout(() => box.remove(), 6000);
@@ -494,15 +592,6 @@ async function syncClassic(box: HTMLElement, prog: ProgressCtl): Promise<void> {
     toast(e instanceof Error ? e.message : "Error de sync", false);
   }
   void box;
-}
-
-async function rebuildSnapshot(): Promise<void> {
-  try {
-    const r = await api<{ products: number }>("/snapshot", { method: "POST" });
-    toast(`Snapshot regenerado (${r.products} productos)`);
-  } catch (e) {
-    toast(e instanceof Error ? e.message : "Error", false);
-  }
 }
 
 async function showLogin(): Promise<void> {
@@ -539,6 +628,9 @@ async function checkSession(): Promise<boolean> {
 }
 
 async function boot(): Promise<void> {
+  // Banner de "cambios sin publicar": publicar a mano o descartar el aviso.
+  pendiente.publish?.addEventListener("click", () => void publicarAhora());
+  pendiente.dismiss?.addEventListener("click", () => mostrarBannerPendiente(false));
   await applyStoreName();
   if (await checkSession()) {
     el.login.hidden = true;
@@ -747,7 +839,8 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
       if (!id || !confirm("¿Borrar este producto?")) return;
       try {
         await api(`/products/${encodeURIComponent(id)}`, { method: "DELETE" });
-        toast("Producto borrado");
+        toast("Producto borrado (se publica al sincronizar)");
+        marcarSinPublicar();
       } catch (e) {
         toast(e instanceof Error ? e.message : "Error", false);
       }
@@ -790,7 +883,8 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
         method: "POST",
         body: JSON.stringify({ ids }),
       });
-      toast(`${r.deleted} producto${r.deleted !== 1 ? "s" : ""} borrado${r.deleted !== 1 ? "s" : ""}`);
+      toast(`${r.deleted} producto${r.deleted !== 1 ? "s" : ""} borrado${r.deleted !== 1 ? "s" : ""} (se publica al sincronizar)`);
+      marcarSinPublicar();
     } catch (e) {
       toast(e instanceof Error ? e.message : "Error", false);
     }
@@ -813,7 +907,8 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
         method: "POST",
         body: JSON.stringify({ categoryId: catId }),
       });
-      toast(`${r.deleted} producto${r.deleted !== 1 ? "s" : ""} borrado${r.deleted !== 1 ? "s" : ""} de "${cat?.name ?? catId}"`);
+      toast(`${r.deleted} producto${r.deleted !== 1 ? "s" : ""} borrado${r.deleted !== 1 ? "s" : ""} de "${cat?.name ?? catId}" (se publica al sincronizar)`);
+      marcarSinPublicar();
     } catch (e) {
       toast(e instanceof Error ? e.message : "Error", false);
     }
@@ -826,7 +921,8 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
       for (const id of ids) {
         await api("/products/unhide", { method: "POST", body: JSON.stringify({ id }) });
       }
-      toast(`Re-publicado(s): ${ids.length}`);
+      toast(`Re-publicado(s): ${ids.length} (se publica al sincronizar)`);
+      marcarSinPublicar();
       await viewProducts();
     } catch (e) {
       toast(e instanceof Error ? e.message : "Error al re-publicar", false);
@@ -837,7 +933,8 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
     if (!confirm(`¿Re-publicar TODOS los productos sin stock (${data.counts.hidden}, de todas las páginas)?`)) return;
     try {
       await api("/products/unhide", { method: "POST", body: JSON.stringify({ all: true }) });
-      toast("Re-publicados todos los productos sin stock");
+      toast("Re-publicados todos los productos sin stock (se publica al sincronizar)");
+      marcarSinPublicar();
       await viewProducts();
     } catch (e) {
       toast(e instanceof Error ? e.message : "Error al re-publicar", false);
@@ -942,7 +1039,8 @@ async function openProductForm(p: Product | null, categories: Category[]): Promi
         await api("/products", { method: "POST", body: JSON.stringify(body) });
       }
       back.remove();
-      toast("Producto guardado");
+      toast("Producto guardado (se publica al sincronizar)");
+      marcarSinPublicar();
       if (p && "priceCents" in p) {
         void viewProducts(); // edición: vuelve a la MISMA página
       } else {
@@ -1021,7 +1119,8 @@ async function viewCategories(): Promise<void> {
       if (!id || !confirm("¿Borrar esta categoría? Los productos quedarán sin categoría.")) return;
       try {
         await api(`/categories/${encodeURIComponent(id)}`, { method: "DELETE" });
-        toast("Categoría borrada");
+        toast("Categoría borrada (se publica al sincronizar)");
+        marcarSinPublicar();
       } catch (e) {
         toast(e instanceof Error ? e.message : "Error", false);
       }
@@ -1060,7 +1159,8 @@ async function openCategoryForm(c: Category | null, roots: Category[]): Promise<
       if (c) await api(`/categories/${encodeURIComponent(c.id)}`, { method: "PUT", body: JSON.stringify(body) });
       else await api("/categories", { method: "POST", body: JSON.stringify(body) });
       back.remove();
-      toast("Categoría guardada");
+      toast("Categoría guardada (se publica al sincronizar)");
+      marcarSinPublicar();
       void render();
     } catch (e) {
       const errEl = back.querySelector("#c-error") as HTMLElement;
@@ -1314,6 +1414,9 @@ function renderImportPreview(out: HTMLElement, r: PreviewResponse, sourceUrl = "
       await new Promise((res2) => setTimeout(res2, 450));
       prog.done();
       toast(`Importados ${imported}, fallidos ${failed}`, failed === 0);
+      // La importación publica el catálogo (el worker regenera al último lote).
+      mostrarBannerPendiente(false);
+      void refrescarEstadoCatalogo();
       void render();
     } catch (e) {
       prog.set(100, e instanceof Error ? e.message : "Error", 1, true);

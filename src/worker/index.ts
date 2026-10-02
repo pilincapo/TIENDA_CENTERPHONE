@@ -1,7 +1,7 @@
 // Entrada del worker: rutas públicas + cron.
 
 import { Hono } from "hono";
-import type { CatalogSnapshot } from "../shared/types";
+import { type CatalogSnapshot, KV_CATALOG_VERSION_KEY } from "../shared/types";
 import type { Env } from "./db";
 import { adminApp } from "./admin";
 import { forceHttpsUrl, getSettings } from "./settings";
@@ -57,7 +57,7 @@ app.get("/api/catalog", async (c) => {
   if (cacheable) {
     // La clave incluye la versión del snapshot (un KV.get chico, ~1ms): al
     // regenerar el catálogo cambia la versión y el cache viejo queda huérfano.
-    const version = (await c.env.KV.get("catalog:v")) || "0";
+    const version = (await c.env.KV.get(KV_CATALOG_VERSION_KEY)) || "0";
     const cacheKey = `${url.origin}/api/catalog?v=${version}`;
     const hit = await cache.match(cacheKey);
     if (hit) return hit;

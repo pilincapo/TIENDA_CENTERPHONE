@@ -58,6 +58,18 @@
           </div>
         </div>
       </nav>
+      <div class="panel pending-banner" id="pending-banner" hidden>
+        <div class="row">
+          <div style="flex:1;min-width:220px">
+            <strong>Hay cambios sin publicar en el sitio</strong>
+            <p class="muted" style="margin:6px 0 0;font-size:13px" id="pending-detail">
+              Los productos que editaste acá se ven al sincronizar o al publicar ahora.
+            </p>
+          </div>
+          <button class="btn btn-primary" id="pending-publish">Publicar ahora</button>
+          <button class="btn" id="pending-dismiss" title="Ocultar aviso">✕</button>
+        </div>
+      </div>
       <main class="admin-main" id="view"></main>
     </div>
 

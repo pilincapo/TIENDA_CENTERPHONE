@@ -12,7 +12,7 @@ import {
   listProductsPaged, listSyncLog, listSyncLogByTrigger, upsertAutoImport, upsertCategory, upsertPriceRule, upsertProduct,
 } from "./db";
 import { markAutoImportRun, nowArgentina, runAllAutoImportsNow, runAutoImportById, runAutoImports } from "./autoimport";
-import { getSyncState, importItems, regenerateSnapshot, runSync } from "./sync";
+import { getCatalogStatus, getSyncState, importItems, markCatalogPending, regenerateSnapshot, runSync } from "./sync";
 import { getStatsSummary } from "./stats";
 import { computeSalud } from "./health";
 import { applyRuleSet, roundToPeso, type PriceRule } from "../shared/pricing";
@@ -200,8 +200,10 @@ adminApp.post("/products", async (c) => {
   if (existing) return c.json({ error: "Ya existe un producto con ese id" }, 409);
   const product = sanitizeProduct(body, id);
   await upsertProduct(c.env.DB, product, nowMs());
-  await regenerateSnapshot(c.env);
-  return c.json({ product }, 201);
+  // Alta manual: NO se regenera el snapshot (leería todo el catálogo en D1 por
+  // cada alta). Queda pendiente de publicar.
+  await markCatalogPending(c.env);
+  return c.json({ product, pending: true }, 201);
 });
 
 adminApp.put("/products/:id", async (c) => {
@@ -211,14 +213,15 @@ adminApp.put("/products/:id", async (c) => {
   const body = await c.req.json<Partial<Product>>().catch(() => null);
   const product = sanitizeProduct({ ...existing, ...body, id }, id);
   await upsertProduct(c.env.DB, product, nowMs());
-  await regenerateSnapshot(c.env);
-  return c.json({ product });
+  // Edición manual: pendiente de publicar (ver POST /products).
+  await markCatalogPending(c.env);
+  return c.json({ product, pending: true });
 });
 
 adminApp.delete("/products/:id", async (c) => {
   await deleteProduct(c.env.DB, c.req.param("id"));
-  await regenerateSnapshot(c.env);
-  return c.json({ ok: true });
+  await markCatalogPending(c.env);
+  return c.json({ ok: true, pending: true });
 });
 
 // Re-publicación de productos ocultos: { id: "..." } para uno, { all: true } para todos.
@@ -241,8 +244,8 @@ adminApp.post("/products/unhide", async (c) => {
   } else {
     return c.json({ error: "Pasá un id de producto o all: true" }, 400);
   }
-  if (n > 0) await regenerateSnapshot(c.env);
-  return c.json({ ok: true, republished: n });
+  if (n > 0) await markCatalogPending(c.env);
+  return c.json({ ok: true, republished: n, pending: n > 0 });
 });
 
 // Borrado múltiple: { ids: [...] } o { categoryId: "..." } (borra la categoría entera,
@@ -270,8 +273,9 @@ adminApp.post("/products/bulk", async (c) => {
   } else {
     return c.json({ error: "Pasá ids: [...] o categoryId" }, 400);
   }
-  await regenerateSnapshot(c.env);
-  return c.json({ ok: true, deleted });
+  // Borrado masivo desde el panel: tampoco regenera (ver POST /products).
+  await markCatalogPending(c.env);
+  return c.json({ ok: true, deleted, pending: true });
 });
 
 function sanitizeProduct(p: Partial<Product>, id: string): Product {
@@ -314,8 +318,8 @@ adminApp.post("/categories", async (c) => {
     parentId: body.parentId ?? null, active: body.active !== false,
   };
   await upsertCategory(c.env.DB, category, nowMs());
-  await regenerateSnapshot(c.env);
-  return c.json({ category }, 201);
+  await markCatalogPending(c.env);
+  return c.json({ category, pending: true }, 201);
 });
 
 adminApp.put("/categories/:id", async (c) => {
@@ -327,14 +331,14 @@ adminApp.put("/categories/:id", async (c) => {
     parentId: body.parentId ?? null, active: body.active !== false,
   };
   await upsertCategory(c.env.DB, category, nowMs());
-  await regenerateSnapshot(c.env);
-  return c.json({ category });
+  await markCatalogPending(c.env);
+  return c.json({ category, pending: true });
 });
 
 adminApp.delete("/categories/:id", async (c) => {
   await deleteCategory(c.env.DB, c.req.param("id"));
-  await regenerateSnapshot(c.env);
-  return c.json({ ok: true });
+  await markCatalogPending(c.env);
+  return c.json({ ok: true, pending: true });
 });
 
 // ---- Sincronización y snapshot ----
@@ -414,6 +418,13 @@ adminApp.get("/sync/health", async (c) => {
   return c.json({ salud: computeSalud(results ?? []) });
 });
 
+// Estado de publicación del catálogo: hay cambios del panel que el sitio público
+// todavía no muestra. Lo consume el banner del panel.
+adminApp.get("/catalog-status", async (c) => {
+  return c.json(await getCatalogStatus(c.env));
+});
+
+// Publicar a mano (equivale a lo que hace la sincronización): regenera el snapshot.
 adminApp.post("/snapshot", async (c) => {
   const snapshot = await regenerateSnapshot(c.env);
   return c.json({ ok: true, products: snapshot.products.length });

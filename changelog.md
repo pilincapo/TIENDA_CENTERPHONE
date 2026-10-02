@@ -1,3 +1,15 @@
+## 2026-10-02 — El panel ya no regenera el catálogo en cada edición: se publica al sincronizar
+
+- **Causa**: cada alta, edición o baja manual (y cada cambio de categoría) llamaba a `regenerateSnapshot`, que **lee todo el catálogo** en D1. Con ~1.000 productos, guardar el formulario de un producto consumía ~1.000 filas leídas; editar 20 productos seguidos, ~20.000. Es la segunda fuente de quema de cuota después de las importaciones por fuente
+- **Fix (lo pedido: literal)**: las escrituras del panel ya no regeneran el snapshot. En su lugar marcan `catalog:pending:v1` en KV con un write chico. El catálogo público se actualiza **al sincronizar** (cron o «Sincronizar ahora»), al importar, o con el botón «Publicar ahora» / «Publicar catálogo» del panel
+- **Nada se pierde**: banner global en el panel («Hay cambios sin publicar en el sitio») con «Publicar ahora» y un ✕ para descartarlo; los toasts de guardado/baja dicen «(se publica al sincronizar)»; y el bloque «Estado del catálogo» del dashboard muestra una fila «Sitio público» con la hora de la última publicación o, si hay cambios, «Cambios sin publicar (fecha)»
+- El banner se refresca solo al cambiar de pestaña (`GET /catalog-status`: dos `KV.get` chicos, sin leer el snapshot) y se apaga solo al publicar, sincronizar o importar
+- `POST /snapshot` sigue siendo el que publica (invalida el caché por versión con `KV_CATALOG_VERSION_KEY` y ahora limpia la marca). `regenerateSnapshot` limpia la marca, así que también lo hacen el cron y la importación
+- **Efecto en la cuota**: editar productos desde el panel pasa de ~1.000 filas leídas por edición a **cero**. Solo las sincronizaciones (una por corrida) leen el catálogo completo
+- **Ojo**: entre que se edita y se publica, el sitio público muestra el catálogo anterior (la ficha de `/producto/:id` sí lee D1 y se actualiza al instante). Por eso el banner y el texto de los toasts
+- **Bug que encontró la prueba en el navegador**: el polling del dashboard (cada 15 s) reescribía el bloque «Estado del catálogo» y borraba la fila «Sitio público» del render inicial. Ahora el polling también consulta `/catalog-status`
+- Tests: nuevo `catalog-publish.test.ts` (+8) que verifica que alta/edición/baja de producto y de categoría y el borrado masivo **no** leen el catálogo y sí marcan pendiente, y que publicar regenera y limpia la marca — **265/265** ✅, typecheck ✅, build ✅
+
 ## 2026-10-02 — Modo del sitio: «Tienda» o «Catálogo» con un solo selector
 
 - Nuevo selector en **Configuración → Modo del sitio**: **Modo Tienda** (carrito, MercadoPago, transferencia y consulta por WhatsApp) o **Modo Catálogo** (solo precios de referencia y consulta por WhatsApp)

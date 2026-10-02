@@ -383,6 +383,17 @@ img { max-width: 100%; display: block; }
   background: rgba(255, 107, 107, 0.08);
   margin-bottom: 16px;
 }
+/* Aviso de "cambios sin publicar": las altas/ediciones/bajas del panel ya no
+   regeneran el snapshot (leer todo el catalogo en D1 por cada edicion come la
+   cuota del free tier), asi que el sitio publico queda viejo hasta publicar. */
+.pending-banner {
+  border: 1px solid var(--brand);
+  border-left: 6px solid var(--brand);
+  background: rgba(122, 162, 247, 0.08);
+  margin: 16px 20px 0;
+}
+.pending-banner strong { color: var(--brand); }
+
 .table tr:hover td { background: var(--panel-2); }
 .table img.thumb { width: 44px; height: 44px; border-radius: 0; object-fit: cover; background: var(--panel-2); border: 1px solid var(--border); }
 

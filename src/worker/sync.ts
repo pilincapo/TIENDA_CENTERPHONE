@@ -1,7 +1,7 @@
 // Sincronización, importación y snapshot público en KV.
 
 import type { CatalogSnapshot, Product, StoreSettings, SyncTrigger } from "../shared/types";
-import { KV_SNAPSHOT_KEY, KV_SYNC_STATE_KEY } from "../shared/types";
+import { KV_CATALOG_PENDING_KEY, KV_CATALOG_VERSION_KEY, KV_SNAPSHOT_KEY, KV_SYNC_STATE_KEY } from "../shared/types";
 import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { applyRuleSet } from "../shared/pricing";
 import type { Env } from "./db";
@@ -55,6 +55,39 @@ async function purgeCatalogEdgeCache(env: Env): Promise<void> {
   }
 }
 
+/**
+ * Marca que el catálogo público quedó viejo SIN regenerarlo: leer todo el catálogo
+ * en D1 por cada alta/edición/baja del panel come la cuota de filas del free tier.
+ * El snapshot se regenera al sincronizar (o cuando el admin publica a mano).
+ */
+export async function markCatalogPending(env: Env): Promise<void> {
+  await env.KV.put(KV_CATALOG_PENDING_KEY, String(nowMs()));
+}
+
+export interface CatalogStatus {
+  /** Hay cambios del panel que el catálogo público todavía no refleja. */
+  pending: boolean;
+  /** Cuándo se hizo el último cambio sin publicar (null si no hay ninguno). */
+  pendingAt: number | null;
+  /** Cuándo se generó el snapshot público por última vez. */
+  generatedAt: number | null;
+}
+
+/** Estado de publicación del catálogo (dos KV.get chicos, sin leer el snapshot). */
+export async function getCatalogStatus(env: Env): Promise<CatalogStatus> {
+  const [pendingRaw, generatedRaw] = await Promise.all([
+    env.KV.get(KV_CATALOG_PENDING_KEY),
+    env.KV.get(KV_CATALOG_VERSION_KEY),
+  ]);
+  const pendingAt = pendingRaw ? Number(pendingRaw) || null : null;
+  const generatedAt = generatedRaw ? Number(generatedRaw) || null : null;
+  return {
+    pending: pendingAt !== null && (generatedAt === null || pendingAt > generatedAt),
+    pendingAt,
+    generatedAt,
+  };
+}
+
 export async function regenerateSnapshot(env: Env): Promise<CatalogSnapshot> {
   const [products, categories] = await Promise.all([
     listProducts(env.DB),
@@ -77,7 +110,10 @@ export async function regenerateSnapshot(env: Env): Promise<CatalogSnapshot> {
   // Bump de versión del cache: la clave de /api/catalog incluye catalog:v, así
   // que al cambiarla el PoP deja de servir el snapshot viejo (el TTL de 5 min lo
   // limpia solo). Un write chico por regeneración, dentro del free tier.
-  await env.KV.put("catalog:v", String(nowMs()));
+  await env.KV.put(KV_CATALOG_VERSION_KEY, String(nowMs()));
+  // Publicar limpia la marca de "sin publicar": el snapshot que acabamos de
+  // escribir ya incluye todos los cambios del panel.
+  await env.KV.put(KV_CATALOG_PENDING_KEY, "");
   // Purga de zona (solo tiene efecto con Cache Rules de zona, no con la Cache API
   // del worker). No bloquea: los errores no propagan.
   await purgeCatalogEdgeCache(env);

@@ -191,6 +191,11 @@ export const DEFAULT_SETTINGS: StoreSettings = {
 };
 
 export const KV_SNAPSHOT_KEY = "catalog:snapshot:v1";
+// Marca de "el catalogo publico quedo viejo": la ponen las escrituras del panel
+// (alta, edicion, baja, categorias) y la borra cada regenerateSnapshot.
+export const KV_CATALOG_PENDING_KEY = "catalog:pending:v1";
+// Timestamp de la ultima generacion del snapshot (invalida el cache de /api/catalog).
+export const KV_CATALOG_VERSION_KEY = "catalog:v";
 export const KV_SETTINGS_KEY = "config:settings:v1";
 export const KV_SYNC_STATE_KEY = "config:syncstate:v1";
 // Pedidos: solo se marca "notificado por WhatsApp" del lado del panel.
