@@ -1931,7 +1931,8 @@ async function viewOrders(statusFilter = ""): Promise<void> {
         <input id="ord-search" type="search" placeholder="Buscar por nombre, teléfono, email o id…" autocomplete="off"
           value="${esc(ordState.q)}" style="max-width:260px"/>
         <span class="muted" id="ord-search-count" ${ordState.q !== "" ? "" : "hidden"}>${ordState.q !== "" ? `${data.total} coincidencia${data.total !== 1 ? "s" : ""} en ${data.total} pedido${data.total !== 1 ? "s" : ""} (de ${totalAll})` : ""}</span>
-        <button class="btn" id="ord-bulk" style="margin-left:auto" hidden>🗂️ Archivar seleccionados</button>
+        <button class="btn" id="ord-refresh" style="margin-left:auto" title="Volver a pedir la lista al servidor (manténe filtros y página)">⟳ Actualizar</button>
+        <button class="btn" id="ord-bulk" hidden>🗂️ Archivar seleccionados</button>
       </div>
       ${payments.configured && payments.enabled
         ? `<p class="muted">Pago online activo: MercadoPago confirma solo vía webhook.</p>`
@@ -2097,6 +2098,21 @@ async function viewOrders(statusFilter = ""): Promise<void> {
         .then(() => viewOrders(ordState.status))
         .catch(() => { /* no crítico */ });
     });
+  });
+
+  // ---- Actualizar: re-pide la lista al servidor sin perder filtros/página/búsqueda ----
+  el.view.querySelector<HTMLButtonElement>("#ord-refresh")?.addEventListener("click", async (ev) => {
+    const b = ev.currentTarget as HTMLButtonElement;
+    b.disabled = true;
+    b.textContent = "⟳ Actualizando…";
+    try {
+      await viewOrders(ordState.status);
+      toast("Lista actualizada");
+    } catch (e) {
+      b.disabled = false;
+      b.textContent = "⟳ Actualizar";
+      toast(e instanceof Error ? e.message : "Error al actualizar", false);
+    }
   });
 
   // ---- Seleccion masiva: archivar varios pedidos con una sola confirmacion ----

@@ -1,3 +1,10 @@
+## 2026-10-02 — Botón ⟳ Actualizar en Pedidos
+
+- Nuevo botón **⟳ Actualizar** en la cabecera de la lista (junto al buscador): re-pide la lista al servidor **manteniendo filtro, página y búsqueda** — ya no hace falta cambiar de chip o recargar la página para ver si entró un pedido nuevo
+- UX: se deshabilita y muestra «⟳ Actualizando…» durante el fetch, toast «Lista actualizada» al terminar y toast de error si falla
+- La selección masiva (`ordSelected`) sobrevive al actualizar, igual que al paginar
+- 240/240 tests ✅, typecheck ✅, build ✅ (bundle `admin-CjC0hn89.js`)
+
 ## 2026-10-02 — Búsqueda por teléfono/email y WhatsApp directo desde Pedidos
 
 - La búsqueda del panel ahora matchea **nombre, id, email y teléfono**: el teléfono compara dígitos normalizados («342 555 1234», «+54 9…» o «3425551234» encuentran lo mismo)
