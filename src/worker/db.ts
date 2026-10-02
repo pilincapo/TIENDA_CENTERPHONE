@@ -259,7 +259,8 @@ export async function upsertProductsBatch(db: D1Database, prods: Product[], now:
        VALUES ${chunk.map((_, j) => `(?${j * 13 + 1}, ?${j * 13 + 2}, ?${j * 13 + 3}, ?${j * 13 + 4}, ?${j * 13 + 5}, ?${j * 13 + 6}, ?${j * 13 + 7}, ?${j * 13 + 8}, ?${j * 13 + 9}, ?${j * 13 + 10}, ?${j * 13 + 11}, ?${chunk.length * 13 + 1}, ?${chunk.length * 13 + 1}, ?${j * 13 + 12}, ?${j * 13 + 13})`).join(",")}
        ON CONFLICT(id) DO UPDATE SET
          title = excluded.title, description = excluded.description, price_cents = excluded.price_cents,
-         category_id = excluded.category_id, subcategory_id = excluded.subcategory_id, tags = excluded.tags,
+         category_id = excluded.category_id,
+         subcategory_id = COALESCE(excluded.subcategory_id, products.subcategory_id), tags = excluded.tags,
          image_url = excluded.image_url, status = excluded.status, availability = excluded.availability,
          sort_order = excluded.sort_order, updated_at = excluded.updated_at,
          source_url = COALESCE(excluded.source_url, products.source_url),
