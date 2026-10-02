@@ -5,6 +5,8 @@
 - Nuevo test `src/worker/db-chunk.test.ts` (4 casos) que fixa los tamaños de chunk y que nunca se pase del límite
 - **246/246** tests ✅, typecheck ✅, build ✅
 - **Segundo bug encontrado en el smoke de producción** (`D1_ERROR` en el job raíz): las sentencias de `hideProductsNotIn`/`unhideProductsIn` usan `?1` (source_url) + N ids + `?N+2` (updated_at) = **N+2** parámetros, así que `ID_CHUNK=99` daba 101 y reventaba ⇒ `chunkSizeFor` ahora recibe `reserved` (los binds fijos de la sentencia) y `ID_CHUNK = chunkSizeFor(1, 2)` = 98 ids
+- **Corridos los 14 jobs por subcategoría** (de a uno por el límite de CPU del plan gratis), todos `ok`, sin errores: Iluminación 246, Cables 98, Adaptadores 71, Cargadores 52, Baterías 47, Parlantes 44, Auriculares 32, Accesorios 30, Consolas 26, Audio/Video 24, Mouses 23, Micrófonos 11, Almacenamiento 5, Radios 4
+- **Estado del catálogo**: 990 productos, **705 con subcategoría** repartidos en las 14 subcategorías nuevas (Electrónica ×12, Computación ×2). Los ~285 restantes son de las categorías planas (Belleza, Hogar, Rodados, Fumadores, Mascotas) y de los productos que solo existen en la página raíz
 - Jobs: los 14 jobs de importación por subcategoría (Electrónica ×12 y Computación ×2) quedaron creados y **activos** en producción con horarios escalonados (07:00 → Auriculares, Cables, Computación·Almacenamiento; 08:00 → Cargadores y Fuentes, Adaptadores y Conversores, Mouses y Teclados; 09:00 → Consolas y Videojuegos, Parlantes, Micrófonos; 15:00 → Baterías/Pilas/Cargadores, Accesorios para Celulares, Iluminación; 16:00 → Radios, Audio/Video/Controles Remotos), todos con la regla de precio `group:40-30-20`
 
 ## 2026-10-02 — Subcategorías en la importación de productos
