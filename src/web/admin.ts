@@ -1897,7 +1897,7 @@ async function viewOrders(statusFilter = ""): Promise<void> {
     const fecha = new Date(o.createdAt).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
     return `
     <tr>
-      <td><span class="ord-id" title="${esc(o.id)}">${esc(o.id.slice(0, 10))}…</span><br>
+      <td>${o.status === "archived" ? "" : `<input type="checkbox" class="ord-sel" data-id="${esc(o.id)}" title="Seleccionar para archivar"/>`}<span class="ord-id" title="${esc(o.id)}">${esc(o.id.slice(0, 10))}…</span><br>
           <small class="muted">${fecha}</small></td>
       <td>${esc(o.buyerName)}<br><small class="muted">${esc(o.buyerPhone)}</small>${o.payerEmail ? `<br><small class="muted">${esc(o.payerEmail)}</small>` : ""}</td>
       <td class="ord-items" title="${esc(items)}">${items}</td>
@@ -1935,7 +1935,7 @@ async function viewOrders(statusFilter = ""): Promise<void> {
       ${orders.length === 0
         ? `<p class="muted">Todavía no hay pedidos${ordState.status !== "" ? " con este estado" : ""}${ordState.q !== "" ? ` buscando "${esc(ordState.q)}"` : ""}.</p>`
         : `<table class="table ord-table">
-            <thead><tr><th>Pedido</th><th>Comprador</th><th>Productos</th><th class="num">Total</th><th>Estado</th><th></th></tr></thead>
+            <thead><tr><th><input type="checkbox" id="ord-sel-all" title="Marcar todos (esta página)"/></th><th>Pedido</th><th>Comprador</th><th>Productos</th><th class="num">Total</th><th>Estado</th><th></th></tr></thead>
             <tbody>${rows}</tbody>
           </table>`}
       ${orders.length > 0 ? `

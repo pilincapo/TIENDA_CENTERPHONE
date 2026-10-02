@@ -1,3 +1,9 @@
+## 2026-10-02 — Fix: faltaban los checkboxes de selección masiva en la tabla
+
+- El archivo masivo se había desplegado con el botón y los handlers, pero **sin los checkboxes**: no había forma de elegir pedidos (los pasos de HTML no se habían escrito)
+- Se agregan el checkbox «marcar todos (esta página)» en el `<th>` de la tabla y el checkbox por fila `.ord-sel` (los archivados quedan sin checkbox, igual que el diseño original)
+- 234/234 tests ✅, typecheck ✅, build ✅ (bundle `admin-De_1x1CA.js`)
+
 ## 2026-10-01 — Deploy: archivo masivo de pedidos + motivo opcional
 
 - **Migración 009 aplicada a D1 remota**: columna `archive_note` en `orders` (verificada con un SELECT directo)
