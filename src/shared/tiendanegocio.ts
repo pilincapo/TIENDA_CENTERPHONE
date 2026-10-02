@@ -41,7 +41,12 @@ export function itemsFromTiendaNegocio(html: string): { items: unknown[]; catego
   if (!pcs || typeof pcs !== "object") return { items: [], category: null };
 
   const cat = pcs.category as Dict | undefined;
-  const category = asStr(cat?.title, 100) || null;
+  const pageTitle = asStr(cat?.title, 100);
+  const category = pageTitle || null;
+  // Las paginas de subcategoria declaran su padre (father_title/father_slug):
+  // el producto va a la categoria padre y la subcategoria es la pagina misma.
+  // Las paginas raiz (sin father) siguen siendo una categoria simple.
+  const parentTitle = asStr(cat?.father_title, 100);
 
   const products = Array.isArray(pcs.products) ? pcs.products : [];
   type RawItem = Record<string, unknown>;
@@ -60,7 +65,8 @@ export function itemsFromTiendaNegocio(html: string): { items: unknown[]; catego
       title,
       description: asStr(o.seo_description, 2000),
       price: Number.isFinite(price) && price > 0 ? price : undefined,
-      category: category ?? undefined,
+      category: (parentTitle || category) ?? undefined,
+      subcategory: parentTitle !== "" ? pageTitle : undefined,
       image_url: asStr(o.thumbnail, 500) || undefined,
       tags: o.promo ? ["oferta"] : [],
       availability:

@@ -74,3 +74,37 @@ describe("itemsFromTiendaNegocio", () => {
     expect(r.category).toBeNull();
   });
 });
+
+const subStateJson = JSON.stringify({
+  "products-categories-search": {
+    category: {
+      id: 89378, title: "Auriculares", slug: "auriculares",
+      father_id: 89377, father_title: "Electrónica", father_slug: "electronica",
+    },
+    products: [
+      {
+        hash: "9001", title: "Auricular manos libres NEW TIPO C en bolsita",
+        price: 3500, promo: null, stock: 5, thumbnail: null, stockAvailable: true,
+      },
+    ],
+  },
+});
+
+const subHtml = `<html><body><script id="1-state" type="application/json">${subStateJson.replace(
+  /"/g,
+  "&q;"
+)}</script></body></html>`;
+
+describe("itemsFromTiendaNegocio — subcategorías", () => {
+  it("en una página de subcategoría: la categoría es el padre y la subcategoría es la página", () => {
+    const { items } = itemsFromTiendaNegocio(subHtml);
+    const first = items[0] as Record<string, unknown>;
+    expect(first.category).toBe("Electrónica");
+    expect(first.subcategory).toBe("Auriculares");
+  });
+
+  it("las páginas raíz no inventan subcategoría", () => {
+    const { items } = itemsFromTiendaNegocio(html);
+    expect((items[0] as Record<string, unknown>).subcategory).toBeUndefined();
+  });
+});

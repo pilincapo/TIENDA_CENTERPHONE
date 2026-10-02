@@ -1,3 +1,11 @@
+## 2026-10-02 — Subcategorías en la importación de productos
+
+- El parser de TiendaNegocio (`itemsFromTiendaNegocio`) ahora lee `father_title` de la página de categoría: cuando la URL es de una **subcategoría**, cada producto se importa con la **categoría padre** y la **subcategoría** de la página. Las páginas raíz siguen como categoría simple (sin subcategoría)
+- La infraestructura de subcategorías ya existía (schema `parent_id`/`subcategory_id`, normalizador, selector del panel, chips de subcategorías en la tienda) pero esta fuente nunca las alimentaba
+- `upsertProductsBatch`: `subcategory_id = COALESCE(excluded.subcategory_id, products.subcategory_id)` — un job raíz que no conoce la subcategoría ya no la borra (la edición manual desde el panel sigue pudiendo vaciarla)
+- Tests: +2 (página de subcategoría y página raíz) — **242/242** ✅, typecheck ✅, build ✅. Verificado contra la fuente real: Auriculares→Electrónica/Auriculares (33), Almacenamiento→Computación/Almacenamiento (5), Mascotas→sin subcategoría (7)
+- Pendiente (requiere deploy): agregar los jobs de importación de las 14 subcategorías de Electrónica (12) y Computación (2)
+
 ## 2026-10-02 — Botón ⟳ Actualizar en Pedidos
 
 - Nuevo botón **⟳ Actualizar** en la cabecera de la lista (junto al buscador): re-pide la lista al servidor **manteniendo filtro, página y búsqueda** — ya no hace falta cambiar de chip o recargar la página para ver si entró un pedido nuevo
