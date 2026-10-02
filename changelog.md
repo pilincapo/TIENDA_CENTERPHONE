@@ -1,3 +1,11 @@
+## 2026-10-02 — Importación: batches que ya no superan el límite de parámetros de D1
+
+- **Bug raíz** (encontrado al probar en producción): `BATCH_SIZE = 30` generaba sentencias de **391 parámetros** y D1 acepta como máximo **100** ⇒ el batch de productos **fallaba siempre** y caía al `upsertProduct` individual (sin `COALESCE`), por eso un job raíz seguía borrando la subcategoría ya conocida
+- `db.ts`: nuevo `chunkSizeFor(bindsPerRow)` que calcula el tamaño de chunk a partir del límite real de D1 (`MAX_PARAMS_PER_STATEMENT = 100`); `PRODUCT_CHUNK = 7` (92 params), `CATEGORY_CHUNK = 24` (97), `ID_CHUNK = 99`. Reemplaza al `BATCH_SIZE` fijo en `upsertCategoriesBatch`, `upsertProductsBatch`, `hideProductsNotIn` y `unhideProductsIn`
+- Nuevo test `src/worker/db-chunk.test.ts` (4 casos) que fixa los tamaños de chunk y que nunca se pase del límite
+- **246/246** tests ✅, typecheck ✅, build ✅
+- Jobs: los 14 jobs de importación por subcategoría (Electrónica ×12 y Computación ×2) quedaron creados y **activos** en producción con horarios escalonados (07:00 → Auriculares, Cables, Computación·Almacenamiento; 08:00 → Cargadores y Fuentes, Adaptadores y Conversores, Mouses y Teclados; 09:00 → Consolas y Videojuegos, Parlantes, Micrófonos; 15:00 → Baterías/Pilas/Cargadores, Accesorios para Celulares, Iluminación; 16:00 → Radios, Audio/Video/Controles Remotos), todos con la regla de precio `group:40-30-20`
+
 ## 2026-10-02 — Subcategorías en la importación de productos
 
 - El parser de TiendaNegocio (`itemsFromTiendaNegocio`) ahora lee `father_title` de la página de categoría: cuando la URL es de una **subcategoría**, cada producto se importa con la **categoría padre** y la **subcategoría** de la página. Las páginas raíz siguen como categoría simple (sin subcategoría)

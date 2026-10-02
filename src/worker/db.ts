@@ -224,14 +224,25 @@ export async function deleteProduct(db: D1Database, id: string): Promise<void> {
   await db.prepare("DELETE FROM products WHERE id = ?1").bind(id).run();
 }
 
-/** Tamaño de chunk para batches: respetan el límite de 50 queries por invocación (D1 free)
- *  y el de 100 parámetros por statement. */
-const BATCH_SIZE = 30;
+/** D1 acepta como máximo 100 parámetros por sentencia (límite duro del servicio). */
+const MAX_PARAMS_PER_STATEMENT = 100;
+
+/** Cuántas filas entran por statement sin pasarse del límite de parámetros. */
+export function chunkSizeFor(bindsPerRow: number): number {
+  return Math.max(1, Math.floor((MAX_PARAMS_PER_STATEMENT - 1) / Math.max(1, bindsPerRow)));
+}
+
+// 13 binds por producto (created_at y updated_at comparten el último) + 1 de now.
+const PRODUCT_CHUNK = chunkSizeFor(13); // 7 productos -> 92 parámetros
+// 4 binds por categoría + 1 de now.
+const CATEGORY_CHUNK = chunkSizeFor(4); // 24 categorías -> 97 parámetros
+// 1 bind por id (+ 1 o 2 de la sentencia).
+const ID_CHUNK = chunkSizeFor(1);
 
 export async function upsertCategoriesBatch(db: D1Database, cats: Category[], now: number): Promise<void> {
   if (cats.length === 0) return;
-  for (let i = 0; i < cats.length; i += BATCH_SIZE) {
-    const chunk = cats.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < cats.length; i += CATEGORY_CHUNK) {
+    const chunk = cats.slice(i, i + CATEGORY_CHUNK);
     const stmt = db.prepare(
       `INSERT INTO categories (id, name, parent_id, active, created_at, updated_at)
        VALUES ${chunk.map((_, j) => `(?${j * 4 + 1}, ?${j * 4 + 2}, ?${j * 4 + 3}, ?${j * 4 + 4}, ?${chunk.length * 4 + 1}, ?${chunk.length * 4 + 1})`).join(",")}
@@ -251,9 +262,11 @@ export async function upsertCategoriesBatch(db: D1Database, cats: Category[], no
 export async function upsertProductsBatch(db: D1Database, prods: Product[], now: number): Promise<{ title: string; reason: string }[]> {
   const failed: { title: string; reason: string }[] = [];
   if (prods.length === 0) return failed;
-  for (let i = 0; i < prods.length; i += BATCH_SIZE) {
-    const chunk = prods.slice(i, i + BATCH_SIZE);
-    // 13 binds por producto (sin created_at propio) + 1 de now = 13n + 1 (≤ 391, dentro del límite).
+  for (let i = 0; i < prods.length; i += PRODUCT_CHUNK) {
+    const chunk = prods.slice(i, i + PRODUCT_CHUNK);
+    // 13 binds por producto + 1 de now = 13n + 1; PRODUCT_CHUNK (7) lo deja en 92, dentro
+    // del limite de 100 parametros de D1 (con 30 productos la sentencia fallaba siempre
+    // y caia al upsert producto por producto, sin el COALESCE de subcategoria).
     const stmt = db.prepare(
       `INSERT INTO products (id, title, description, price_cents, category_id, subcategory_id, tags, image_url, status, availability, sort_order, created_at, updated_at, source_url, brand)
        VALUES ${chunk.map((_, j) => `(?${j * 13 + 1}, ?${j * 13 + 2}, ?${j * 13 + 3}, ?${j * 13 + 4}, ?${j * 13 + 5}, ?${j * 13 + 6}, ?${j * 13 + 7}, ?${j * 13 + 8}, ?${j * 13 + 9}, ?${j * 13 + 10}, ?${j * 13 + 11}, ?${chunk.length * 13 + 1}, ?${chunk.length * 13 + 1}, ?${j * 13 + 12}, ?${j * 13 + 13})`).join(",")}
@@ -309,8 +322,8 @@ export async function hideProductsNotIn(db: D1Database, sourceUrl: string, keepI
   const keep = new Set(keepIds);
   const toHide = prev.filter((id) => !keep.has(id));
   let hidden = 0;
-  for (let i = 0; i < toHide.length; i += BATCH_SIZE) {
-    const chunk = toHide.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < toHide.length; i += ID_CHUNK) {
+    const chunk = toHide.slice(i, i + ID_CHUNK);
     const marks = chunk.map((_, j) => `?${j + 2}`).join(",");
     const r = await db
       .prepare(`UPDATE products SET status = 'hidden', updated_at = ?${chunk.length + 2} WHERE source_url = ?1 AND id IN (${marks})`)
@@ -326,8 +339,8 @@ export async function unhideProductsIn(db: D1Database, sourceUrl: string, ids: s
   // Chunks por el límite de 100 parámetros de D1 (antes explotaba con >99 ids).
   if (ids.length === 0) return 0;
   let unhid = 0;
-  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-    const chunk = ids.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < ids.length; i += ID_CHUNK) {
+    const chunk = ids.slice(i, i + ID_CHUNK);
     const marks = chunk.map((_, j) => `?${j + 2}`).join(",");
     const r = await db
       .prepare(`UPDATE products SET status = 'published', updated_at = ?${chunk.length + 2} WHERE source_url = ?1 AND status = 'hidden' AND id IN (${marks})`)
