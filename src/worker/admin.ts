@@ -343,9 +343,11 @@ adminApp.post("/sync", async (c) => {
   // Modo "un job por request": el frontend encola las fuentes y llama una vez
   // por cada id. Cada request procesa UNA sola fuente para no exceder el límite
   // de CPU del plan gratis (7 fuentes grandes en un solo request mueren a los ~30s).
-  const body = await c.req.json<{ jobId?: string }>().catch(() => ({}) as { jobId?: string });
+  const body = await c.req.json<{ jobId?: string; skipSnapshot?: boolean }>().catch(() => ({}) as { jobId?: string; skipSnapshot?: boolean });
   if (body?.jobId) {
-    const result = await runAutoImportById(c.env, body.jobId);
+    // skipSnapshot: el panel encola las fuentes de a una y regenera el catalogo
+    // una sola vez al terminar (si no, cada fuente lee el catalogo entero).
+    const result = await runAutoImportById(c.env, body.jobId, body.skipSnapshot === true);
     if (!result) return c.json({ ok: false, error: "Auto-importación no encontrada" }, 404);
     return c.json({ ok: result.ok, result });
   }
