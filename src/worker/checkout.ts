@@ -164,6 +164,12 @@ checkoutApp.post("/api/orders/transfer", async (c) => {
   recordCheckoutAttempt(ip);
 
   const settings = await getSettings(c.env.KV);
+  // Modo catálogo: no se crean pedidos. El sitio solo muestra precios y WhatsApp,
+  // pero la API queda cerrada para que nadie pueda cerrar una venta por transferencia
+  // desde un carrito viejo o desde un cliente generado a mano.
+  if (settings.storeMode !== "tienda") {
+    return c.json({ error: "La tienda no está tomando pedidos en este momento" }, 503);
+  }
   const created = await finalizeOrder(c, settings, "transfer");
   if ("error" in created) return c.json({ error: created.error }, created.status);
   const { order, cartTotal, discountPercent } = created;

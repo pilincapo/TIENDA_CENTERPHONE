@@ -2,6 +2,7 @@
 
 import type { CatalogSnapshot, Category, Product, Tag } from "../shared/types";
 import type { PublicSettings } from "./types-web";
+import { sellsOnline } from "./types-web";
 import { formatPrice, tagLabel } from "../shared/format";
 import { waLinkText } from "../shared/whatsapp";
 import { fillStoreInfo, setupModals } from "./store-modals";
@@ -68,8 +69,9 @@ async function init(): Promise<void> {
     if (state.settings) {
       setupModals(state.settings);
       fillStoreInfo(state.settings);
-      // Carrito + pago online (botón header, modal y delegación de clicks).
-      setupCartUI(state.settings, state.snapshot?.products ?? []);
+      // Modo catálogo: sin carrito ni pagos (botón del header, modal y checkout).
+      // Los botones "Comprar"/"Agregar" tampoco se renderizan (ver cardHtml).
+      if (sellsOnline(state.settings)) setupCartUI(state.settings, state.snapshot?.products ?? []);
       if (state.settings.storeName) {
         // El nombre del panel manda: title + og:title/og:description dinámicos.
         const fullTitle = `${state.settings.storeName} — Catálogo`;
@@ -371,7 +373,7 @@ function cardHtml(p: Product, eager = false): string {
     : "";
   // Pago online: solo "En stock". Agregar suma al carrito; Comprar abre el
   // checkout directo con ese producto (o el carrito si ya tenía cosas).
-  const buy = state.settings?.paymentsEnabled && p.availability === "in_stock"
+  const buy = sellsOnline(state.settings) && p.availability === "in_stock"
     ? `<span class="card-buy-row">
          <button class="card-add" data-add="${esc(p.id)}" type="button" title="Agregar al carrito">Agregar</button>
          <button class="card-buy" data-buy="${esc(p.id)}" type="button" title="Comprar ahora con MercadoPago">Comprar</button>

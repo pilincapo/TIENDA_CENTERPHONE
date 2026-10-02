@@ -110,6 +110,7 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     howTitle: s.howTitle,
     howPickupNote: s.howPickupNote,
     freshHours: s.freshHours,
+    storeMode: s.storeMode,
     paymentsEnabled: s.paymentsEnabled,
     checkoutNote: s.checkoutNote,
     mpSurchargePercent: s.mpSurchargePercent,

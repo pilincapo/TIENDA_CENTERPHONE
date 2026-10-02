@@ -1,7 +1,7 @@
 // Rutas de administración (montadas en /api/admin).
 
 import { Hono } from "hono";
-import type { Category, OrderStatus, Product, SyncLogEntry } from "../shared/types";
+import type { Category, OrderStatus, Product, StoreSettings, SyncLogEntry } from "../shared/types";
 import { ORDER_STATUSES } from "../shared/types";
 import type { AutoImport } from "../shared/autoimport";
 import { TAGS } from "../shared/types";
@@ -18,7 +18,7 @@ import { computeSalud } from "./health";
 import { applyRuleSet, roundToPeso, type PriceRule } from "../shared/pricing";
 import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { extractFromUrl } from "./extract";
-import { forceHttpsUrl, getSettings, newId, nowMs, saveSettings } from "./settings";
+import { forceHttpsUrl, getSettings, isStoreMode, newId, nowMs, saveSettings } from "./settings";
 import { configProblem, fetchSecurityEvents } from "./security-log";
 import { adminSetOrderStatus, adminSetOrderArchive, adminSetOrderUnarchive, countOrders, countOrdersByStatus, listOrdersPaged, setOrderNotifiedWa } from "./orders";
 import {
@@ -544,7 +544,7 @@ function normalizeWaPhone(v: unknown): string {
 adminApp.put("/settings", async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   if (!body) return c.json({ error: "Body inválido" }, 400);
-  const settings = await saveSettings(c.env.KV, {
+  const next: Partial<StoreSettings> = {
     whatsappPhone: normalizeWaPhone(body.whatsappPhone),
     currencySymbol: String(body.currencySymbol ?? "$").slice(0, 3) || "$",
     syncUrl: forceHttpsUrl(body.syncUrl, 500),
@@ -561,7 +561,6 @@ adminApp.put("/settings", async (c) => {
     howTitle: String(body.howTitle ?? "").slice(0, 80),
     howPickupNote: String(body.howPickupNote ?? "").slice(0, 300),
     freshHours: Math.min(24 * 30, Math.max(0, Math.round(Number(body.freshHours ?? 48)))) ,
-    paymentsEnabled: body.paymentsEnabled === true,
     checkoutNote: String(body.checkoutNote ?? "").slice(0, 300),
     // Recargo/descuento en % entero, acotado a 0-50 (fuera de rango = 0).
     mpSurchargePercent: clampPercent(body.mpSurchargePercent),
@@ -569,7 +568,12 @@ adminApp.put("/settings", async (c) => {
     transferCbu: String(body.transferCbu ?? "").slice(0, 120),
     maintenanceMode: body.maintenanceMode === true,
     maintenanceMessage: String(body.maintenanceMessage ?? "").slice(0, 300),
-  });
+  };
+  // Modo del sitio ("tienda" | "catalogo"). Solo se toca si viene: si falta,
+  // se conserva el que ya estaba (no se cae a catálogo por un body parcial).
+  // "paymentsEnabled" ya no se acepta: saveSettings lo deriva del modo.
+  if (isStoreMode(body.storeMode)) next.storeMode = body.storeMode;
+  const settings = await saveSettings(c.env.KV, next);
   return c.json({ settings });
 });
 

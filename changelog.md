@@ -1,3 +1,18 @@
+## 2026-10-02 — Modo del sitio: «Tienda» o «Catálogo» con un solo selector
+
+- Nuevo selector en **Configuración → Modo del sitio**: **Modo Tienda** (carrito, MercadoPago, transferencia y consulta por WhatsApp) o **Modo Catálogo** (solo precios de referencia y consulta por WhatsApp)
+- **Una sola fuente de verdad**: `storeMode` deriva `paymentsEnabled` en `normalizeSettings()`. Antes eran dos campos independientes que podían contradecirse (activar el pago online «en catálogo» y que el sitio muestre un carrito que el backend después rechaza). El checkbox viejo de «Activar pago online» se reemplaza por el selector
+- **Modo Catálogo apaga**: los botones «Comprar» y «Agregar» del catálogo y de la ficha, el botón del carrito del header y el modal de checkout. Los precios y el botón «Consultar por WhatsApp» quedan
+- **El backend también cierra**: `POST /api/orders/transfer` ahora devuelve 503 en modo catálogo. Antes solo `/api/checkout` chequeaba el flag, así que un carrito viejo o un cliente generado a mano podía cerrar una venta por transferencia
+- `sellsOnline()` centraliza la decisión del frontend para que el catálogo y la ficha no puedan mostrarse distintos
+- **Compatibilidad**: una config guardada antes del modo se deriva de su checkbox de pagos (con pagos → tienda, sin pagos → catálogo). Sin config guardada arranca en catálogo, igual que antes
+- **Bug encontrado por los tests**: la primera versión miraba `storeMode` ya mezclado con los defaults, y el default «tienda» tapaba la derivación — una tienda que tenía los pagos apagados se habría abierto sola al desplegar. Ahora se mira el objeto crudo
+- El `PUT /settings` solo toca el modo si viene en el body: un guardado parcial no deja la tienda en modo catálogo por accidente (mismo criterio que el resto de campos)
+- En el panel el grupo de pagos se atenúa al elegir catálogo pero **no se deshabilita**: un input `disabled` no viaja en el FormData y sus valores se perderían al guardar
+- Tests: +8 (normalización del modo y el 503 de transferencia) — **257/257** ✅, typecheck ✅, build ✅
+- Verificado en local en las dos direcciones: catálogo → 20 productos con «Consultar», 0 «Comprar»/«Agregar», sin carrito y ambos endpoints en 503; volver a tienda → 20 «Agregar», 20 «Comprar» y el modal de carrito de vuelta
+- Nuevo helper `tools/patch_lineendings.py`: varios archivos del repo tienen finales de línea mezclados (LF, CRLF) y un reemplazo de texto a medias se aplicaba en silencio, dejando cambios fuera del commit
+
 ## 2026-10-02 — Cuota de D1: el catálogo se regenera una vez por corrida, no una por fuente
 
 - **Incidente**: `D1_ERROR: Your account has exceeded D1's free tier daily row read limit` — se agotó la cuota diaria de filas leídas (5 M/día del plan gratis) y con ella la pestaña Auto-importaciones y el Dashboard empezó a devolver 500 «Error interno». Se restablece a medianoche UTC (21:00 Argentina)

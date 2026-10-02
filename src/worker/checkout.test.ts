@@ -273,6 +273,28 @@ describe("POST /api/checkout", () => {
     expect(row.items_json).not.toContain("descuento-transferencia");
   });
 
+  it("modo catálogo: /api/orders/transfer NO crea pedidos (503)", async () => {
+    // El sitio en modo catálogo no muestra carrito, pero un cliente con la
+    // pestaña vieja abierta (o uno generado a mano) podría intentar cerrar una
+    // venta: el backend también tiene que negarse.
+    const { db, orders, products } = makeDb();
+    seedProduct(products);
+    const res = await checkoutApp.request(
+      "/api/orders/transfer",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+        body: JSON.stringify({ items: [{ id: "p1", qty: 1 }], name: "Juan", phone: "342 555 1234" }),
+      },
+      asEnv({ DB: db, KV: makeKv(false, { storeMode: "catalogo" }) }),
+      asCtx([]),
+    );
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as { error?: string };
+    expect(body.error).toMatch(/no está tomando pedidos/i);
+    expect(orders.size).toBe(0);
+  });
+
   it("POST /api/orders/transfer crea el pedido con el descuento congelado y sin preferencia de MP", async () => {
     const { db, orders, products } = makeDb();
     seedProduct(products);

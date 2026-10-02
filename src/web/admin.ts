@@ -2389,12 +2389,21 @@ async function viewSettings(): Promise<void> {
               </select></div>
           </div>
         </details>
-        <details class="cfg-group">
-          <summary>Pagos online (MercadoPago) <span class="cfg-hint">toggle, recargo, descuento y CBU</span></summary>
+        <details class="cfg-group" open>
+          <summary>Modo del sitio <span class="cfg-hint">tienda con ventas online, o solo catálogo</span></summary>
           <div class="cfg-body">
             <div class="field field--check">
-              <label><input type="checkbox" name="paymentsEnabled" ${settings.paymentsEnabled ? "checked" : ""}/> Activar pago online con MercadoPago (botones "Comprar" y "Agregar" en el catálogo)</label>
+              <label><input type="radio" name="storeMode" value="tienda" ${settings.storeMode !== "catalogo" ? "checked" : ""}/> <strong>Modo Tienda</strong> — venta online: carrito, pago con MercadoPago, transferencia y consulta por WhatsApp</label>
             </div>
+            <div class="field field--check">
+              <label><input type="radio" name="storeMode" value="catalogo" ${settings.storeMode === "catalogo" ? "checked" : ""}/> <strong>Modo Catálogo</strong> — solo precios de referencia y consulta por WhatsApp: sin carrito, sin pagos y sin creación de pedidos</label>
+            </div>
+            <p class="muted" id="store-mode-hint" style="margin:0"></p>
+          </div>
+        </details>
+        <details class="cfg-group">
+          <summary>Pagos online (MercadoPago) <span class="cfg-hint">recargo, descuento y CBU</span></summary>
+          <div class="cfg-body" id="pagos-body">
             <div class="field"><label>Nota de envío/retiro (se muestra en el carrito y en la página del pedido)</label>
               <input name="checkoutNote" value="${esc(settings.checkoutNote)}" placeholder="Coordinamos envío o retiro por WhatsApp después del pago."/></div>
             <div class="field"><label>Recargo por pagar con MercadoPago (%) — 0 = sin recargo</label>
@@ -2460,7 +2469,7 @@ async function viewSettings(): Promise<void> {
           howTitle: fd.get("howTitle"),
           howPickupNote: fd.get("howPickupNote"),
           freshHours: Number(fd.get("freshHours")),
-          paymentsEnabled: (fd.get("paymentsEnabled") ?? "") === "on",
+          storeMode: fd.get("storeMode") === "catalogo" ? "catalogo" : "tienda",
           checkoutNote: fd.get("checkoutNote"),
           mpSurchargePercent: Number(fd.get("mpSurchargePercent") ?? 0),
           transferDiscountPercent: Number(fd.get("transferDiscountPercent") ?? 0),
@@ -2475,6 +2484,23 @@ async function viewSettings(): Promise<void> {
       toast(e instanceof Error ? e.message : "Error", false);
     }
   });
+
+  // Modo del sitio: explica en vivo qué pasa y marca el grupo de pagos.
+  // Los campos de pago NO se deshabilitan (un input disabled no viaja en el
+  // FormData y sus valores se perderían al guardar): solo se avisa y se atenúa.
+  const modoHint = form.querySelector<HTMLElement>("#store-mode-hint");
+  const pagosBody = form.querySelector<HTMLElement>("#pagos-body");
+  const pintarModo = (): void => {
+    const catalogo = form.querySelector<HTMLInputElement>('[name="storeMode"][value="catalogo"]')?.checked === true;
+    if (modoHint) {
+      modoHint.textContent = catalogo
+        ? "Ahora el sitio es solo un catálogo: se ven precios y el botón de WhatsApp, pero no hay carrito ni forma de pagar, y el servidor rechaza la creación de pedidos."
+        : "Ahora el sitio vende online: carrito, MercadoPago y transferencia, más la consulta por WhatsApp.";
+    }
+    if (pagosBody) pagosBody.style.opacity = catalogo ? "0.45" : "1";
+  };
+  form.querySelectorAll<HTMLInputElement>('[name="storeMode"]').forEach((r) => r.addEventListener("change", pintarModo));
+  pintarModo();
 
   // Guardia de cambios sin guardar: compara el formulario contra cómo cargó.
   // Volviendo a los valores originales también se desarma (no molesta de más).

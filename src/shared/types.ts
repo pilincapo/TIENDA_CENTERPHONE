@@ -92,8 +92,19 @@ export interface Order {
   updatedAt: number;
 }
 
+/**
+ * Modo del sitio:
+ * - "tienda": venta online (carrito, MercadoPago, transferencia) + consulta por WhatsApp.
+ * - "catalogo": solo precios de referencia y consulta por WhatsApp. Sin carrito,
+ *   sin pagos y sin creación de pedidos.
+ */
+export type StoreMode = "tienda" | "catalogo";
+
 export interface StoreSettings {
-  /** Pago online por MercadoPago: activa botones de compra y /api/checkout. Requiere el secret MERCADOPAGO_ACCESS_TOKEN. */
+  /** Modo del sitio. Única fuente de verdad: `paymentsEnabled` se deriva de acá. */
+  storeMode: StoreMode;
+  /** Pago online por MercadoPago: activa botones de compra y /api/checkout. Requiere el secret MERCADOPAGO_ACCESS_TOKEN.
+   *  Derivado de storeMode (se mantiene el campo para no tocar todo el código de pagos). */
   paymentsEnabled: boolean;
   /** Nota de envío/retiro que se muestra en el carrito y en la página del pedido. */
   checkoutNote: string;
@@ -167,6 +178,9 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   howTitle: "Cómo comprar",
   howPickupNote: "",
   freshHours: 48,
+  // Sin config guardada arrancamos en catálogo (sin pagos), igual que antes
+  // que paymentsEnabled valía false.
+  storeMode: "catalogo",
   paymentsEnabled: false,
   checkoutNote: "Coordinamos envío o retiro por WhatsApp después del pago. Envío gratis en la ciudad de Santa Fe.",
   mpSurchargePercent: 0,

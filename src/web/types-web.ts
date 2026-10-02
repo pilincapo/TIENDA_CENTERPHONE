@@ -14,7 +14,12 @@ export interface PublicSettings {
   howTitle: string;
   howPickupNote: string;
   freshHours: number;
-  /** Pago online activado en el panel (requiere además el secret del worker). */
+  /**
+   * Modo del sitio. En "catalogo" el sitio muestra precios y el botón de WhatsApp,
+   * y nada de carrito ni pagos (el worker además rechaza crear pedidos).
+   */
+  storeMode: "tienda" | "catalogo";
+  /** Pago online activado (derivado: storeMode === "tienda"; requiere el secret del worker). */
   paymentsEnabled: boolean;
   /** Nota de envío/retiro para el carrito y el pedido. */
   checkoutNote: string;
@@ -26,4 +31,12 @@ export interface PublicSettings {
   transferCbu: string;
   /** Modo mantenimiento activo: el catálogo muestra la página de contacto. */
   maintenanceMode: boolean;
+}
+
+/**
+ * El sitio vende en línea solo en modo "tienda". Centraliza la decisión para que
+ * el catálogo y la ficha no puedan mostrarse distintos entre sí.
+ */
+export function sellsOnline(settings: Pick<PublicSettings, "storeMode" | "paymentsEnabled"> | null): boolean {
+  return settings?.storeMode === "tienda" && settings.paymentsEnabled === true;
 }

@@ -3,6 +3,7 @@
 import type { Category, Product } from "../shared/types";
 import type { CatalogSnapshot } from "../shared/types";
 import type { PublicSettings } from "./types-web";
+import { sellsOnline } from "./types-web";
 import { formatPrice, availabilityLabel } from "../shared/format";
 import { waLink } from "../shared/whatsapp";
 import { productJsonLd, breadcrumbJsonLd } from "./schema";
@@ -106,7 +107,7 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
     : null;
   // Pago online en la ficha: solo "En stock". Los botones se agregan al HTML
   // si el carrito está habilitado (setupCartUI los conecta por delegación).
-  const buyable = settings.paymentsEnabled && product.availability === "in_stock" && !product.hiddenNoStock;
+  const buyable = sellsOnline(settings) && product.availability === "in_stock" && !product.hiddenNoStock;
   const buyButtons = buyable
     ? `<button class="btn btn-primary" data-buy="${esc(product.id)}" type="button">💳 Comprar ahora</button>
        <button class="btn btn-secondary" data-add="${esc(product.id)}" type="button">Agregar al carrito</button>`
@@ -162,7 +163,8 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
   setupModals(settings);
   fillStoreInfo(settings);
   // Carrito + pago online (solo el producto de la ficha en el cache local).
-  setupCartUI(settings, [product]);
+  // Modo catálogo: la ficha solo muestra precio y WhatsApp, sin carrito.
+  if (sellsOnline(settings)) setupCartUI(settings, [product]);
 
   // Tracking de clics a WhatsApp (botón inline y flotante).
   document.querySelectorAll("[data-wa-track]").forEach((a) => {
