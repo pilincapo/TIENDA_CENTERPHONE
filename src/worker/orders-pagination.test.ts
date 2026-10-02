@@ -26,10 +26,21 @@ function makeDb(): D1Database {
     if (condSql.includes("status != ?")) {
       rows = rows.filter((o) => o.status !== "archived");
     }
-    const pat = binds.find((b) => typeof b === "string" && String(b).startsWith("%"));
+    const pats = binds.filter((b) => typeof b === "string" && String(b).startsWith("%"));
+    const pat = pats[0];
     if (typeof pat === "string") {
       const q = pat.replaceAll("%", "").replaceAll("\\", "").toLowerCase();
-      rows = rows.filter((o) => o.buyer_name.toLowerCase().includes(q) || o.id.toLowerCase().includes(q));
+      // Si el backend calculó dígitos para el teléfono, va en el último bind
+      // (nombre/id/email + teléfono crudo = 4) y se compara TAL CUAL para
+      // castigar una regex de dígitos rota.
+      const phonePat = pats.length > 3 ? String(pats[pats.length - 1]).replaceAll("%", "") : null;
+      rows = rows.filter(
+        (o) =>
+          o.buyer_name.toLowerCase().includes(q) ||
+          o.id.toLowerCase().includes(q) ||
+          (o.payer_email ?? "").toLowerCase().includes(q) ||
+          (phonePat !== null && o.buyer_phone.replace(/\D/g, "").includes(phonePat)),
+      );
     }
     return rows;
   };
@@ -132,6 +143,33 @@ describe("GET /api/admin/orders (paginado)", () => {
     const body = (await res.json()) as { orders: Dict[]; total: number; pages: number };
     expect(body.total).toBe(2);
     expect(body.orders.map((o) => o.id)).toEqual(["o1", "o2"]);
+  });
+
+  it("busca por teléfono aunque la query tenga espacios: 342 581 9403 → o2", async () => {
+    const env = mockEnv(mockKV());
+    const cookie = await loginYCookie(env);
+    const res = await adminApp.request("/orders?q=342%20581%209403", { headers: { Cookie: cookie } }, env);
+    const body = (await res.json()) as { orders: Dict[]; total: number };
+    expect(body.total).toBe(1);
+    expect(body.orders.map((o) => o.id)).toEqual(["o2"]);
+  });
+
+  it("busca por teléfono solo con dígitos: 3425819404 → o3", async () => {
+    const env = mockEnv(mockKV());
+    const cookie = await loginYCookie(env);
+    const res = await adminApp.request("/orders?q=3425819404", { headers: { Cookie: cookie } }, env);
+    const body = (await res.json()) as { orders: Dict[]; total: number };
+    expect(body.total).toBe(1);
+    expect(body.orders.map((o) => o.id)).toEqual(["o3"]);
+  });
+
+  it("busca por email del comprador: maria@ → o2", async () => {
+    const env = mockEnv(mockKV());
+    const cookie = await loginYCookie(env);
+    const res = await adminApp.request("/orders?q=maria%40", { headers: { Cookie: cookie } }, env);
+    const body = (await res.json()) as { orders: Dict[]; total: number };
+    expect(body.total).toBe(1);
+    expect(body.orders.map((o) => o.id)).toEqual(["o2"]);
   });
 
   it("status=paid trae solo los pagados", async () => {

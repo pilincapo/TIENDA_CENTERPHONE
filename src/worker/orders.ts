@@ -96,7 +96,7 @@ export async function listOrders(db: D1Database, status: string, limit = 100): P
 
 export interface OrderPageFilter {
   status?: "" | OrderStatus; // "" = todos
-  q?: string; // búsqueda por nombre de comprador o id de pedido
+  q?: string; // búsqueda por nombre, teléfono, email o id de pedido
   limit?: number;
   offset?: number;
 }
@@ -120,8 +120,16 @@ function orderWhere(status: string, q: string): { sql: string; args: string[] } 
   }
   if (q !== "") {
     const pat = orderLikePattern(q);
-    conds.push("(buyer_name LIKE ? ESCAPE '\' OR id LIKE ? ESCAPE '\')");
-    args.push(pat, pat);
+    // Nombre, id y email: matcheo literal normal.
+    conds.push("(buyer_name LIKE ? ESCAPE '\\' OR id LIKE ? ESCAPE '\\' OR payer_email LIKE ? ESCAPE '\\')");
+    args.push(pat, pat, pat);
+    // Teléfono: además del texto crudo, se compara solo-dígitos contra el
+    // número sin espacios/signos, así "342 555 1234" o "+54 9..." matchean.
+    const qDigits = q.replace(/\D/g, "");
+    if (qDigits !== "") {
+      conds.push("(buyer_phone LIKE ? ESCAPE '\\' OR REPLACE(REPLACE(REPLACE(buyer_phone, ' ', ''), '-', ''), '+', '') LIKE ?)");
+      args.push(pat, `%${qDigits}%`);
+    }
   }
   return { sql: conds.length > 0 ? `WHERE ${conds.join(" AND ")}` : "", args };
 }

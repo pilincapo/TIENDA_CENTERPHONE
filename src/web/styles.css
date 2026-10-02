@@ -829,6 +829,8 @@ a.topnav-btn {
 .ord-items { max-width: 320px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ord-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .ord-actions .btn { padding: 5px 9px; font-size: 12px; }
+.ord-wa { color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; }
+.ord-wa:hover { color: var(--brand); text-decoration: none; }
 .ord-badge {
   display: inline-block; padding: 2px 8px; font-size: 11px; font-weight: 700;
   border: 1px solid var(--border-bright); border-radius: 10px;

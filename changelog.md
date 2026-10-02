@@ -1,3 +1,11 @@
+## 2026-10-02 — Búsqueda por teléfono/email y WhatsApp directo desde Pedidos
+
+- La búsqueda del panel ahora matchea **nombre, id, email y teléfono**: el teléfono compara dígitos normalizados («342 555 1234», «+54 9…» o «3425551234» encuentran lo mismo)
+- En la columna Comprador el **teléfono es un link a WhatsApp** (`wa.me/<número>`, solo con número válido) para escribirle al comprador de cualquier pedido — no solo de los pagados
+- Placeholder nuevo: «Buscar por nombre, teléfono, email o id…»
+- Backend en `orderWhere`: `payer_email LIKE` + teléfono crudo y sin signos (`REPLACE` anidado, solo si la query tiene dígitos) — SQL validado contra D1 local con fixtures
+- Tests: +3 (teléfono con espacios, teléfono solo dígitos, email) y el mock de la vista paginada ahora emula email/teléfono — **239/239** ✅, typecheck ✅, build ✅
+
 ## 2026-10-02 — Restaurar devuelve el pedido a su estado anterior
 
 - **Bug**: al restaurar, un pedido cancelado/rechazado volvía como **pendiente** — `adminSetOrderUnarchive` solo distinguía paid/pending y perdía el estado previo

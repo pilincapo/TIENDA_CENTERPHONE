@@ -5,6 +5,7 @@ import { formatPrice } from "../shared/format";
 import type { AutoImport } from "../shared/autoimport";
 import type { PriceRule } from "../shared/pricing";
 import { findOverlaps, groupNames } from "../shared/pricing";
+import { normalizePhone } from "../shared/whatsapp";
 
 const el = {
   login: document.getElementById("login") as HTMLElement,
@@ -1895,11 +1896,14 @@ async function viewOrders(statusFilter = ""): Promise<void> {
     const meta = ORDER_STATUS_META[o.status] ?? ORDER_STATUS_META["pending"]!;
     const items = o.items.map((i) => `${i.qty}x ${esc(i.title)}`).join(" · ");
     const fecha = new Date(o.createdAt).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    // Teléfono del comprador como link de WhatsApp (si hay número valido).
+    const tel = normalizePhone(o.buyerPhone);
+    const wa = tel.length >= 8 ? `https://wa.me/${tel}` : null;
     return `
     <tr>
       <td>${o.status === "archived" ? "" : `<input type="checkbox" class="ord-sel" data-id="${esc(o.id)}" title="Seleccionar para archivar"/>`}<span class="ord-id" title="${esc(o.id)}">${esc(o.id.slice(0, 10))}…</span><br>
           <small class="muted">${fecha}</small></td>
-      <td>${esc(o.buyerName)}<br><small class="muted">${esc(o.buyerPhone)}</small>${o.payerEmail ? `<br><small class="muted">${esc(o.payerEmail)}</small>` : ""}</td>
+      <td>${esc(o.buyerName)}<br><small class="muted">${wa ? `<a class="ord-wa" href="${wa}" target="_blank" rel="noopener" title="Escribir por WhatsApp">${esc(o.buyerPhone)}</a>` : esc(o.buyerPhone)}</small>${o.payerEmail ? `<br><small class="muted">${esc(o.payerEmail)}</small>` : ""}</td>
       <td class="ord-items" title="${esc(items)}">${items}</td>
       <td class="num"><b>${formatPrice(o.totalCents, symbol)}</b></td>
       <td><span class="ord-badge ${meta.cls}">${meta.label}</span>${o.status === "archived" && o.archiveNote ? `<br><small class="muted" title="Motivo del archivo">📝 ${esc(o.archiveNote)}</small>` : ""}${o.mpPaymentId ? `<br><small class="muted">MP ${esc(o.mpPaymentId)}</small>` : ""}${o.mpPreferenceId ? `<br><small class="ord-meta" title="${esc(o.mpPreferenceId)}">Pref ${esc(o.mpPreferenceId.length > 22 ? `${o.mpPreferenceId.slice(0, 22)}…` : o.mpPreferenceId)}</small>` : ""}</td>
@@ -1924,7 +1928,7 @@ async function viewOrders(statusFilter = ""): Promise<void> {
         </div>
       </div>
       <div class="row" style="margin-top:10px; align-items:center">
-        <input id="ord-search" type="search" placeholder="Buscar por nombre de comprador o id de pedido…" autocomplete="off"
+        <input id="ord-search" type="search" placeholder="Buscar por nombre, teléfono, email o id…" autocomplete="off"
           value="${esc(ordState.q)}" style="max-width:260px"/>
         <span class="muted" id="ord-search-count" ${ordState.q !== "" ? "" : "hidden"}>${ordState.q !== "" ? `${data.total} coincidencia${data.total !== 1 ? "s" : ""} en ${data.total} pedido${data.total !== 1 ? "s" : ""} (de ${totalAll})` : ""}</span>
         <button class="btn" id="ord-bulk" style="margin-left:auto" hidden>🗂️ Archivar seleccionados</button>
