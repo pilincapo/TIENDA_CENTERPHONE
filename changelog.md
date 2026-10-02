@@ -9,7 +9,12 @@
 - **Replanificación de los 84 jobs** por peso medido: cada job que no entra en el presupuesto (Globos · Metalizados, 46s) queda **solo en su hora**; el resto se agrupa hasta 43s por corrida. Carga total 825s de 1032s disponibles
 - **Resultado**: el catálogo pasó de **990 a 5.635 productos** (5.627 publicados), **3.742 con subcategoría (66%)** y **79 categorías** (31 raíces + 48 subcats) — el árbol completo del sitio salvo Sorbetes
 - `GET /api/catalog` sirve un snapshot de **2.13 MB** (el límite de valor de KV free es 25 MB, así que entra) y las importaciones escriben ~83 snapshots/día, muy por debajo de las 1000 escrituras/día del plan gratis
-- 246/246 tests ✅, typecheck ✅. Pendiente: deploy del cambio de presupuesto del cron
+- **Deploy**: `be6e6b2c-a430-41be-9534-9afdd530ef80` (presupuesto del cron). Commit `85ee539`
+- **Descubierto en el smoke**: la tienda estaba con `maintenanceMode = true` (el flag «Cerrar el catálogo al público» del panel), por eso todas las rutas públicas devolvían 503 con `Retry-After: 3600`. No lo había activado ninguna importación (`/api/admin/*` está en la lista de bypass). Desactivado reenviando el objeto de settings completo: el `PUT /settings` **reemplaza** el objeto entero, así que un PUT parcial con un solo campo habría borrado WhatsApp, CBU, horarios y redes — verificado que ningún otro campo cambió
+- **Jerarquía de Globos**: los 5 jobs de **nivel 3** (Con confetti, Cromados, Lisos, Formas, Números) traían `father_title` del nivel 2, así que crearon «Globos Metalizados Foil» como categoría raíz y 5 subcategorías duplicadas. Desactivados esos 5 jobs (la URL plana no distingue el nieto), re-parentada la categoría al nivel correcto y borradas las 5 huérfanas. Re-sync de los 2 jobs de nivel 2 (769 + 239 productos)
+- **Verificado en la tienda**: 5.627 productos publicados, filtro `?cat=globos` con 1.041 productos y las 3 subcategorías (Accesorios e infladores, Globos Látex, Globos Metalizados Foil) anidadas con `↳`
+- **Cobertura**: el árbol del sitio tiene 32 raíces y 47 subcategorías; están las 31 raíces con job activo (falta `Sorbetes`, que la fuente devuelve vacía) y las 47 subcategorías
+- 246/246 tests ✅, typecheck ✅, build ✅
 
 ## 2026-10-02 — Importación: batches que ya no superan el límite de parámetros de D1
 
