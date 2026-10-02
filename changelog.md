@@ -1,4 +1,13 @@
-## 2026-10-02 — Cobertura completa del sitio: 63 jobs nuevos y catálogo de 5.635 productos
+## 2026-10-02 — Reversión: la tienda vuelve a solo las 7 categorías y sus subcategorías
+
+- **Motivo**: los 63 jobs/categorías que se habían agregado no fueron pedidos — el usuario solo quiere las subcategorías **de las 7 categorías que él creó a mano**. La opción que se le ofreció («33 subcategorías + 13 raíces nuevas») estaba redactada sin advertir que metía **17 categorías raíz nuevas** al menú de la tienda
+- **Qué se borró**: los 63 jobs de importación nuevos, las 53 categorías que crearon (17 raíces + 30 subcategorías + 5 de nivel 3 huérfanas) y los **4.645 productos** que importaron
+- **Cómo se borró sin tocar lo del usuario**: primero se desactivaron los 63 jobs y se re-corrieron los 21 originales, porque un producto que aparece en varias páginas tiene su `source_url` reescrito por el último job que lo importó (82 productos del usuario estaban apuntando a una URL nueva). Recién con los 990 originales teniendo ya su URL correcta se ejecutó `DELETE FROM products WHERE source_url IN (62 URLs de los jobs nuevos)`: **4.645 filas, 0 productos de otras fuentes**
+- **Estado final**: 7 categorías raíz (Electrónica, Computación, Hogar, Belleza y Cuidado Personal, Rodados y Accesorios, Artículos para Fumadores, Mascotas) + las 14 subcategorías de Electrónica y Computación, **982 productos publicados** (712 con subcategoría) y 21 jobs activos. Verificado en la tienda: aparecen solo los 7 chips de raíz
+- **Lo que se conserva de este trabajo**: el fix del límite de 100 parámetros de D1 (`chunkSizeFor`) y el `COALESCE` de subcategoría — ambos siguen haciendo falta aunque no haya jobs nuevos
+- Nota: si alguna vez se quieren recuperar los jobs borrados, el changelog de la entrada siguiente tiene el detalle de qué eran
+
+## 2026-10-02 — Cobertura completa del sitio: 63 jobs nuevos y catálogo de 5.635 productos *(revertido)*
 
 - **Investigación**: el árbol de `hacetupedido.com` tiene **32 categorías raíz y 47 subcategorías**. Las que el usuario pidió abrir (Belleza, Hogar, Rodados, Artículos para Fumadores, Mascotas) **son hojas del árbol: no tienen subcategorías** — sus productos ya se importan bien como categoría simple
 - **Alcance real**: se agregaron los nodos que faltaban del sitio — **17 categorías raíz planas** (Ferretería, Relojes, Deportes, Bebés, Camping, Variedades, Equipaje, Verano, Invierno, Platos de Sitio, Navidad, Vestimenta, Librería, Bazar, Maquillaje, Globos, Celebraciones, Souvenirs, Juguetería, Decoración, Descartables, Velitas y Navidad y Año Nuevo) y **46 subcategorías** de Juguetería, Descartables, Celebraciones, Bazar, Globos, Decoración y Souvenirs. Total **84 jobs** en producción
