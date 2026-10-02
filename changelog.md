@@ -3,6 +3,8 @@
 - El archivo masivo se había desplegado con el botón y los handlers, pero **sin los checkboxes**: no había forma de elegir pedidos (los pasos de HTML no se habían escrito)
 - Se agregan el checkbox «marcar todos (esta página)» en el `<th>` de la tabla y el checkbox por fila `.ord-sel` (los archivados quedan sin checkbox, igual que el diseño original)
 - 234/234 tests ✅, typecheck ✅, build ✅ (bundle `admin-De_1x1CA.js`)
+- Fix commiteado (`62fff5b`) y desplegado: versión **`fed696c4-fdfa-4a55-92f5-aefb6a070878`**
+- **Validación punta a punta en producción**: 4 pedidos de prueba («Prueba CBU producción», «Deploy Persistencia», «Prueba Webhook», «Prueba Final») archivados desde el panel con una sola confirmación — `POST /orders/archive-bulk` `200`, chips Todos 15→11 / Cancelados 12→8 / Archivados 0→4, nota 📝 visible en cada fila, `archived_at`/`archived_by`/`archive_note` persistidos en D1 y las 4 filas sin checkbox con botón «↩ Restaurar»
 
 ## 2026-10-01 — Deploy: archivo masivo de pedidos + motivo opcional
 
