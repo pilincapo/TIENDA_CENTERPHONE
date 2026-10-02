@@ -6,7 +6,7 @@
 - **El chip tampoco quedaba marcado**: al elegir una subcategoría, `subcategoriesOf(subId)` devolvía vacío y la fila de subcategorías desaparecía. Ahora la fila se arma con las hermanas (las de su raíz), así que el chip elegido sigue visible y marcado
 - **De paso, la ficha**: el breadcrumb mostraba solo la raíz («Inicio › Electrónica › artículo») y el enlace mandaba a la raíz. Ahora es «Inicio › Electrónica › Almacenamiento › artículo», con `?cat=` apuntando a cada nivel, y el JSON-LD `BreadcrumbList` incluye la subcategoría
 - Tests: nuevo `catalog-filter.test.ts` (+5): subcategoría, raíz, raíz+subcategorías, sin filtro y artículo sin categoría — **270/270** ✅, typecheck ✅, build ✅
-- Verificado en local con datos reales: un artículo con `subcategoryId` aparece al tocar su chip (1 tarjeta, antes 0), el chip queda activo y la ficha muestra el breadcrumb con los dos niveles. Los datos de prueba se restauraron después
+- Verificado en local con datos reales: un artículo con `subcategoryId` aparece al tocar su chip (1 tarjeta, antes 0), el chip queda activo y la ficha muestra el breadcrumb con los dos niveles. Los datos de prueba se restauraron después. Deploy `3c0fd9e6` y comprobado en producción: `/?cat=almacenamiento` → «5 de 5» con los 5 artículos de Almacenamiento (Kingston 64 GB, micro SD, pendrive, lector de memoria, Kingston 256 GB), el chip «↳ Almacenamiento» visible junto a sus hermanas y la ficha `/producto/7671` con el breadcrumb «Inicio › Computación › Almacenamiento › …»
 
 ## 2026-10-02 — Estadísticas: el gráfico de visitas por día ahora sí dice cuántos valores representa
 
