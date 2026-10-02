@@ -142,12 +142,15 @@ export async function runAutoImports(env: Env): Promise<AutoImportOutcome> {
   const results: AutoImportOutcome["results"] = [];
   const t0 = Date.now();
   for (const job of due) {
-    // Presupuesto: ~18s por fuente de margen. El plan gratis corta a los ~30s de
-    // CPU (≈50s de wall time con I/O); mejor parar a tiempo y dejar la fuente
-    // restante para el próximo tick del cron (corre cada 1 hora) que morir a mitad.
-    if (Date.now() - t0 > 20_000 && results.length > 0) {
+    // Presupuesto por corrida. El límite real del plan gratis es de CPU, no de
+    // reloj: los triggers de cron pueden correr 15 min y el grueso del tiempo
+    // de una importación es esperar a la fuente (I/O, no CPU). Por eso el corte
+    // es holgado (45s) y lo pesado se programa solo en su hora. Si aun así se
+    // corta, el job queda "stale" (lastRunAt viejo) y el próximo tick lo retoma:
+    // la importación es idempotente, así que no se pierde lo ya importado.
+    if (Date.now() - t0 > 45_000 && results.length > 0) {
       const pend = due.length - results.length;
-      const msg = `Cron interrumpido por límite de tiempo: ${pend} fuente(s) quedaron pendientes para el próximo tick`;
+      const msg = `Cron interrumpido por límite de tiempo (45s): ${pend} fuente(s) quedaron pendientes para el próximo tick`;
       results.push({ id: "", url: "(pendientes)", ok: false, imported: 0, deactivated: 0, warnings: [], error: msg });
       // La fila va al historial con await: si la invocación muere después, ya está escrita.
       await logRun(env, "cron", "(pendientes)", false, { imported: 0, total: null, failed: null, deactivated: 0, warnings: [], errors: [msg] }, Date.now());

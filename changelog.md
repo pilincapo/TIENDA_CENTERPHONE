@@ -1,3 +1,16 @@
+## 2026-10-02 — Cobertura completa del sitio: 63 jobs nuevos y catálogo de 5.635 productos
+
+- **Investigación**: el árbol de `hacetupedido.com` tiene **32 categorías raíz y 47 subcategorías**. Las que el usuario pidió abrir (Belleza, Hogar, Rodados, Artículos para Fumadores, Mascotas) **son hojas del árbol: no tienen subcategorías** — sus productos ya se importan bien como categoría simple
+- **Alcance real**: se agregaron los nodos que faltaban del sitio — **17 categorías raíz planas** (Ferretería, Relojes, Deportes, Bebés, Camping, Variedades, Equipaje, Verano, Invierno, Platos de Sitio, Navidad, Vestimenta, Librería, Bazar, Maquillaje, Globos, Celebraciones, Souvenirs, Juguetería, Decoración, Descartables, Velitas y Navidad y Año Nuevo) y **46 subcategorías** de Juguetería, Descartables, Celebraciones, Bazar, Globos, Decoración y Souvenirs. Total **84 jobs** en producción
+- **Bug encontrado al crearlos**: las URLs nuevas=nolfloorarron `?page=all`, así que cada job traía solo la primera página (exactamente 24 productos cada uno). Corregido con `PUT /auto-imports/:id` y re-corriendo los 63
+- **Bug propio de los scripts**: el `PUT` se mandaba como POST (404) — el `call()` por defecto no fija método
+- **Job desactivado**: `Sorbetes` (`/productos/sorbetes1`) — la página responde «categoría sin fichas extraíbles»; es la única raíz del sitio sin productos
+- **Cron**: presupuesto de corrida de **20s → 45s** en `autoimport.ts`. El límite real del plan gratis es de CPU (los cron pueden correr 15 min) y casi todo el tiempo de una importación es esperar a la fuente; con 20s los jobs de 30-46s nunca llegaban a terminar y se reintentaban para siempre
+- **Replanificación de los 84 jobs** por peso medido: cada job que no entra en el presupuesto (Globos · Metalizados, 46s) queda **solo en su hora**; el resto se agrupa hasta 43s por corrida. Carga total 825s de 1032s disponibles
+- **Resultado**: el catálogo pasó de **990 a 5.635 productos** (5.627 publicados), **3.742 con subcategoría (66%)** y **79 categorías** (31 raíces + 48 subcats) — el árbol completo del sitio salvo Sorbetes
+- `GET /api/catalog` sirve un snapshot de **2.13 MB** (el límite de valor de KV free es 25 MB, así que entra) y las importaciones escriben ~83 snapshots/día, muy por debajo de las 1000 escrituras/día del plan gratis
+- 246/246 tests ✅, typecheck ✅. Pendiente: deploy del cambio de presupuesto del cron
+
 ## 2026-10-02 — Importación: batches que ya no superan el límite de parámetros de D1
 
 - **Bug raíz** (encontrado al probar en producción): `BATCH_SIZE = 30` generaba sentencias de **391 parámetros** y D1 acepta como máximo **100** ⇒ el batch de productos **fallaba siempre** y caía al `upsertProduct` individual (sin `COALESCE`), por eso un job raíz seguía borrando la subcategoría ya conocida
