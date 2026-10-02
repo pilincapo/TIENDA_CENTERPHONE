@@ -227,17 +227,23 @@ export async function deleteProduct(db: D1Database, id: string): Promise<void> {
 /** D1 acepta como máximo 100 parámetros por sentencia (límite duro del servicio). */
 const MAX_PARAMS_PER_STATEMENT = 100;
 
-/** Cuántas filas entran por statement sin pasarse del límite de parámetros. */
-export function chunkSizeFor(bindsPerRow: number): number {
-  return Math.max(1, Math.floor((MAX_PARAMS_PER_STATEMENT - 1) / Math.max(1, bindsPerRow)));
+/**
+ * Cuántas filas entran por statement sin pasarse del límite de parámetros.
+ * `reserved` = binds fijos de la sentencia que no son de fila (source_url, now…).
+ */
+export function chunkSizeFor(bindsPerRow: number, reserved = 1): number {
+  const perRow = Math.max(1, Math.floor(bindsPerRow));
+  const libres = MAX_PARAMS_PER_STATEMENT - Math.max(0, reserved);
+  return Math.max(1, Math.floor(libres / perRow));
 }
 
 // 13 binds por producto (created_at y updated_at comparten el último) + 1 de now.
 const PRODUCT_CHUNK = chunkSizeFor(13); // 7 productos -> 92 parámetros
 // 4 binds por categoría + 1 de now.
 const CATEGORY_CHUNK = chunkSizeFor(4); // 24 categorías -> 97 parámetros
-// 1 bind por id (+ 1 o 2 de la sentencia).
-const ID_CHUNK = chunkSizeFor(1);
+// 1 bind por id + source_url (?1) + updated_at al final: 2 reservados (99 daba 101 y
+// reventaba con D1_ERROR en las importaciones grandes).
+const ID_CHUNK = chunkSizeFor(1, 2); // 98 ids -> 100 parámetros exactos
 
 export async function upsertCategoriesBatch(db: D1Database, cats: Category[], now: number): Promise<void> {
   if (cats.length === 0) return;

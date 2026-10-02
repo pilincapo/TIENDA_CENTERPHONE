@@ -20,12 +20,19 @@ describe("chunkSizeFor", () => {
     expect(n * 4 + 1).toBeGreaterThan(90);
   });
 
-  it("ids: 1 bind por fila aprovecha el límite", () => {
-    expect(chunkSizeFor(1)).toBe(99);
+  it("ids con source_url y now reservados: 98 + 2 = 100 exactos", () => {
+    const n = chunkSizeFor(1, 2);
+    expect(n).toBe(98);
+    // La sentencia de hide/unhide es: ?1 source_url, N ids, ?N+2 updated_at.
+    expect(n * 1 + 2).toBeLessThanOrEqual(100);
+    expect((n + 1) * 1 + 2).toBeGreaterThan(100);
+    // Sin reservar los 2 binds fijos daba 99 -> 101 parámetros -> D1_ERROR.
+    expect(chunkSizeFor(1) * 1 + 2).toBeGreaterThan(100);
   });
 
   it("nunca devuelve chunk vacío", () => {
     expect(chunkSizeFor(0)).toBeGreaterThanOrEqual(1);
     expect(chunkSizeFor(1000)).toBe(1);
+    expect(chunkSizeFor(13, 200)).toBe(1);
   });
 });
