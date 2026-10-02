@@ -1534,6 +1534,7 @@ const autoRun = {
   step: 0,
   stepErr: false,
   ctl: null as ProgressCtl | null,
+  cancel: false,
   /** Resumen de la corrida terminada, para mostrarlo al volver a la vista. */
   done: null as { text: string; ok: boolean; at: number } | null,
 };
@@ -1552,6 +1553,23 @@ function showAutoRunBox(box: HTMLElement): void {
   box.className = "auto-run-box";
   box.innerHTML = "";
   const prog = showProgress(box, "Ejecutando auto-importaciones…", AUTO_STEPS);
+  // Botón de cancelar: con muchas fuentes la corrida dura varios minutos y el
+  // usuario necesita poder cortarla sin recargar.
+  const wrap = box.querySelector(".progress-wrap") as HTMLElement | null;
+  if (wrap) {
+    const cancel = document.createElement("button");
+    cancel.className = "btn";
+    cancel.id = "auto-run-cancel";
+    cancel.type = "button";
+    cancel.textContent = "Cancelar";
+    cancel.style.marginTop = "10px";
+    cancel.addEventListener("click", () => {
+      autoRun.cancel = true;
+      cancel.disabled = true;
+      setAutoRun(autoRun.pct, "Cancelando al terminar la fuente actual…", autoRun.step);
+    });
+    wrap.appendChild(cancel);
+  }
   autoRun.ctl = prog;
   prog.set(Math.max(5, autoRun.pct), autoRun.label, autoRun.step, autoRun.stepErr);
 }
@@ -1585,42 +1603,68 @@ function restoreAutoRun(): void {
   autoRun.done = null; // ya lo vio
 }
 
-async function startAutoRun(): Promise<void> {
+async function startAutoRun(jobs: AutoImport[]): Promise<void> {
   if (autoRun.running) return;
   const box = document.createElement("div");
   box.id = "auto-run-box";
   el.view.querySelector(".panel .row")?.after(box);
   autoRun.running = true;
+  autoRun.cancel = false;
   autoRun.startedAt = Date.now();
   autoRun.done = null;
   autoRun.ctl = null;
+  autoRun.pct = 5;
   showAutoRunBox(box);
-  setAutoRun(8, "Descargando fuentes…", 0);
+  setAutoRun(3, "Preparando…", 0);
   const btn = el.view.querySelector("#run-auto") as HTMLButtonElement | null;
   if (btn) btn.disabled = true;
-  const ph2 = setTimeout(() => setAutoRun(50, "Extrayendo productos…", 1), 1500);
-  const ph3 = setTimeout(() => setAutoRun(78, "Importando y aplicando reglas…", 2), 6000);
+  const desglose: string[] = [];
+  let imported = 0;
+  let deact = 0;
+  let failed = 0;
   try {
-    const r = await api<{ ok: boolean; results: { url: string; ok: boolean; imported: number; deactivated?: number; error: string | null }[] }>("/auto-imports/run", {
-      method: "POST",
-      body: JSON.stringify({ all: true }),
-    });
-    clearTimeout(ph2); clearTimeout(ph3);
-    const imported = r.results.reduce((n, x) => n + x.imported, 0);
-    const deact = r.results.reduce((n, x) => n + (x.deactivated ?? 0), 0);
-    const failed = r.results.filter((x) => !x.ok).length;
-    // Resumen por fuente en la barra (más información, no solo %).
-    const porFuente = r.results
-      .map((x) => `${esc(x.url.replace(/^https?:\/\//, "").replace("www.", "").slice(0, 24))}: ${x.ok ? `+${x.imported}${x.deactivated ? `/-${x.deactivated}` : ""}` : "error"}`)
-      .join(" · ");
-    const resumen = `${r.results.length} fuente(s) · ${imported} importados${deact ? ` · ${deact} sin stock` : ""} · ${porFuente}`;
-    setAutoRun(100, resumen, 3, failed > 0);
-    toast(`Listo: ${imported} productos, ${failed} con error${deact ? `. ${deact} ya no están en las fuentes (sin stock)` : ""}`, r.ok);
-    autoRun.done = { text: resumen, ok: r.ok && failed === 0, at: Date.now() };
+    // Una fuente por request: un único request con todas las fuentes puede morirse
+    // por el límite de CPU del plan gratis y dejar la sincronización a medias.
+    for (let i = 0; i < jobs.length; i++) {
+      if (autoRun.cancel) break;
+      const job = jobs[i]!;
+      const n = i + 1;
+      const frac = i / Math.max(1, jobs.length);
+      // Paso 0 = descargando, 1 = extrayendo, 2 = importando (escala sobre la corrida).
+      const paso = frac < 0.15 ? 0 : frac < 0.45 ? 1 : 2;
+      setAutoRun(Math.round(frac * 96) + 2, `(${n}/${jobs.length}) ${job.label || job.url}…`, paso);
+      try {
+        const r = await api<{ ok: boolean; result: { ok: boolean; imported: number; deactivated?: number; error: string | null } }>(
+          "/sync",
+          { method: "POST", body: JSON.stringify({ jobId: job.id }) },
+        );
+        const res = r.result;
+        imported += res.imported;
+        deact += res.deactivated ?? 0;
+        if (!res.ok) failed++;
+        desglose.push(`${corto(job)}: ${res.ok ? `+${res.imported}${res.deactivated ? `/-${res.deactivated}` : ""}` : "error"}`);
+      } catch {
+        failed++;
+        desglose.push(`${corto(job)}: error`);
+      }
+      // Ir mostrando el avance real: al volver a la vista se ve hasta dónde llegó.
+      setAutoRun(Math.round(((i + 1) / Math.max(1, jobs.length)) * 96) + 2,
+        `(${n}/${jobs.length}) ${corto(job)} · ${imported} importados`, paso);
+    }
+    const cancelada = autoRun.cancel;
+    const hechas = cancelada ? desglose.length : jobs.length;
+    const resumen = `${hechas} de ${jobs.length} fuente(s) · ${imported} importados${deact ? ` · ${deact} sin stock` : ""}${desglose.length ? ` · ${desglose.join(" · ")}` : ""}`;
+    const ok = !cancelada && failed === 0;
+    setAutoRun(100, resumen, 3, failed > 0 || cancelada);
+    autoRun.done = { text: cancelada ? `Cancelada — ${resumen}` : resumen, ok, at: Date.now() };
+    if (!cancelada) {
+      toast(`Listo: ${imported} productos, ${failed} con error${deact ? `. ${deact} ya no están en las fuentes (sin stock)` : ""}`, ok);
+    } else {
+      toast(`Sincronización cancelada (${hechas}/${jobs.length} fuentes)`, false);
+    }
     // Refrescar los lastRun de las filas sin re-render completo (si seguimos en esta vista).
     if (route() === "auto") await refreshAutoLastRuns();
   } catch (e) {
-    clearTimeout(ph2); clearTimeout(ph3);
     const msg = e instanceof Error ? e.message : "Error";
     setAutoRun(100, msg, 1, true);
     toast(msg, false);
@@ -1628,12 +1672,18 @@ async function startAutoRun(): Promise<void> {
   } finally {
     autoRun.running = false;
     autoRun.ctl = null;
+    document.getElementById("auto-run-cancel")?.remove();
     const btn2 = el.view.querySelector("#run-auto") as HTMLButtonElement | null;
     if (btn2) btn2.disabled = false;
     // La caja visible se va sola si el usuario sigue en esta vista; el resumen
     // guardado (autoRun.done) se conserva para mostrarlo si vuelve más tarde.
     setTimeout(() => { if (box.isConnected) box.remove(); }, 12_000);
   }
+}
+
+/** Etiqueta corta de un job para el texto de progreso y el resumen. */
+function corto(job: AutoImport): string {
+  return (job.label || job.url.replace(/^https?:\/\//, "").replace("www.", "")).slice(0, 22);
 }
 
 async function viewAutoImports(): Promise<void> {
@@ -1712,7 +1762,7 @@ async function viewAutoImports(): Promise<void> {
     </div>`;
   if (lastCron && lastCron.status === "error") bindBannerClose();
   el.view.querySelector("#new-auto")?.addEventListener("click", () => void openAutoForm(null, rules, groups));
-  el.view.querySelector("#run-auto")?.addEventListener("click", () => void startAutoRun());
+  el.view.querySelector("#run-auto")?.addEventListener("click", () => void startAutoRun(jobs));
   // Si había una corrida en curso y el usuario volvió a la pestaña, se repinta la barra.
   restoreAutoRun();
   el.view.querySelectorAll(".auto-active").forEach((cb) => {

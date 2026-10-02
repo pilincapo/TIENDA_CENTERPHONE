@@ -1,3 +1,13 @@
+## 2026-10-02 — Panel: «Ejecutar ahora» fuente por fuente, con progreso real y botón Cancelar
+
+- **Problema**: el botón mandaba **todas** las fuentes en un solo `POST /auto-imports/run`. El propio worker advierte que en producción eso corta el Worker por el límite de CPU del plan gratis y deja la sincronización a medias
+- Ahora recorre los jobs **de a uno** (`POST /sync {jobId}` por fuente), así ninguna request se pasa del límite y una que falle no frena el resto
+- El progreso dejó de ser virtual (subía solo por tiempo): ahora es real — «(4/7) 127.0.0.1:8899/test-hide-1.json · 252 importados», con el porcentaje según las fuentes hecha
+- **Botón «Cancelar»** durante la corrida: corta al terminar la fuente en curso y deja el resumen de lo hecho («Cancelada — 5 de 7 fuente(s) · 695 importados»)
+- El resumen final conserva el desglose por fuente y distingue las que dieron error
+- Verificado en local con el flujo real: ejecutar → cambiar a Dashboard → volver (barra restaurada en 43 % con «(4/7)») → cancelar (5 de 7 fuentes, botón habilitado y «Cancelar» eliminado)
+- 246/246 tests ✅, typecheck ✅, build ✅
+
 ## 2026-10-02 — Panel: la sincronización sigue visible al cambiar de pestaña
 
 - **Qué pasaba**: al darle a **Ejecutar ahora** en Auto-importaciones y cambiar de pantalla, la barra de progreso desaparecía (vive en el DOM de esa vista) y al volver parecía que la sincronización se había perdido, aunque seguía corriendo
