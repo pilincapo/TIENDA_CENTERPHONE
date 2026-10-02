@@ -7,7 +7,7 @@
 - **Textos explicativos** en ambos paneles: qué representa cada punto/línea y que se puede pasar el mouse
 - Arreglado de paso el rótulo de la última fecha, que se salía del `viewBox` y quedaba cortado («02/1» en vez de «02/10»)
 - `bindTips()` reutilizable por cualquier elemento con `data-tip`; el tooltip se posiciona con `position: fixed` y da la vuelta si no entra a la derecha del cursor
-- Tests 265/265 ✅, typecheck ✅, build ✅. Verificado en local con el mouse: 3 posiciones distintas del gráfico (inicio, medio y final) muestran el día y las visitas correctas
+- Tests 265/265 ✅, typecheck ✅, build ✅. Verificado en local con el mouse: 3 posiciones distintas del gráfico (inicio, medio y final) muestran el día y las visitas correctas. Deploy `dd966b07` y comprobado en producción: hover sobre «mar 29-09» → «mar 29-09 · 20 visitas», eje Y en 30/15/0 y las 24 barras de hora con su tooltip
 
 ## 2026-10-02 — El panel ya no regenera el catálogo en cada edición: se publica al sincronizar
 
