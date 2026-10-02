@@ -2908,24 +2908,179 @@ async function viewSeguridad(): Promise<void> {
   }
 }
 
-// Gráfico de líneas SVG por día: sin librerías, path con puntos + labels cada N días.
+// ---- Tooltip de gráficos ----
+// Antes cada dato del gráfico dependía del <title> nativo del SVG: hay que
+// apuntar justo a un punto de 2,5 px y esperar un segundo a que aparezca. Con
+// esto el valor sale al instante al pasar por la zona del dato, y las barras
+// muestran su número también al posarse encima.
+let tipEl: HTMLElement | null = null;
+
+function tipNode(): HTMLElement {
+  if (!tipEl) {
+    tipEl = document.createElement("div");
+    tipEl.className = "st-tip";
+    tipEl.hidden = true;
+    document.body.appendChild(tipEl);
+  }
+  return tipEl;
+}
+
+function placeTip(clientX: number, clientY: number): void {
+  const t = tipNode();
+  t.hidden = false;
+  const r = t.getBoundingClientRect();
+  const x = clientX + 14 + r.width > window.innerWidth ? clientX - r.width - 14 : clientX + 14;
+  const y = Math.min(Math.max(8, clientY - r.height - 12), window.innerHeight - r.height - 8);
+  t.style.left = `${x}px`;
+  t.style.top = `${y}px`;
+}
+
+function hideTip(): void {
+  if (tipEl) tipEl.hidden = true;
+}
+
+/** Conecta el tooltip a todo lo que traiga `data-tip` dentro de `root`. */
+function bindTips(root: ParentNode): void {
+  for (const n of Array.from(root.querySelectorAll<HTMLElement>("[data-tip]"))) {
+    const txt = n.dataset.tip ?? "";
+    n.addEventListener("mouseenter", (e) => {
+      const t = tipNode();
+      t.textContent = txt;
+      placeTip(e.clientX, e.clientY);
+    });
+    n.addEventListener("mousemove", (e) => placeTip(e.clientX, e.clientY));
+    n.addEventListener("mouseleave", hideTip);
+  }
+}
+
+/** Máximo "redondo" para el eje: 27 visitas → 30, 124 → 150 (si no, 125). */
+function niceMax(v: number): number {
+  if (v <= 5) return Math.max(1, v);
+  const mag = 10 ** Math.floor(Math.log10(v));
+  for (const s of [1, 1.5, 2, 3, 4, 5, 7.5, 10]) {
+    if (v <= s * mag) return Math.round(s * mag);
+  }
+  return 10 * mag;
+}
+
+/** "2026-09-26" → "sáb 26/09" */
+function diaCorto(d: string): string {
+  const f = new Date(`${d}T00:00:00`);
+  return Number.isNaN(f.getTime())
+    ? d
+    : f.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" });
+}
+
+// Datos de cada gráfico por id (el SVG va serializado a HTML: los números en un
+// dataset JSON sería más frágil que guardar un mapa en memoria).
+const chartData = new Map<string, { txt: string; x: number; y: number }[]>();
+let chartSeq = 0;
+
+// Gráfico de líneas SVG por día: sin librerías. Cada día tiene una columna
+// invisible que dispara el tooltip (es imposible acertarle a un punto de
+// 2,5 px) y el eje Y va rotulado, así se sabe qué altura representa cada línea.
+const DAY_W = 720, DAY_H = 170, DAY_PADL = 36, DAY_PADB = 22, DAY_PADT = 12;
+
 function dayChart(byDay: { day: string; views: number }[]): string {
-  const W = 720, H = 160, PADL = 8, PADB = 22, PADT = 10;
-  const max = Math.max(1, ...byDay.map((d) => d.views));
+  const W = DAY_W, H = DAY_H, PADL = DAY_PADL, PADB = DAY_PADB, PADT = DAY_PADT;
   const n = byDay.length;
   if (n < 2) return `<p class="muted">Sin datos suficientes todavía.</p>`;
-  const x = (i: number): number => PADL + (i / (n - 1)) * (W - PADL * 2);
+  const max = niceMax(Math.max(1, ...byDay.map((d) => d.views)));
+  const x = (i: number): number => PADL + (i / (n - 1)) * (W - PADL - 8);
   const y = (v: number): number => PADT + (1 - v / max) * (H - PADT - PADB);
   const pts = byDay.map((d, i) => `${x(i).toFixed(1)},${y(d.views).toFixed(1)}`).join(" ");
   const area = `${PADL},${y(0)} ${pts} ${x(n - 1).toFixed(1)},${y(0)}`;
   const step = Math.max(1, Math.ceil(n / 8));
-  const labels = byDay.map((d, i) => (i % step === 0 || i === n - 1) ? `<text x="${x(i).toFixed(1)}" y="${H - 6}" class="st-xlabel">${d.day.slice(8)}/${d.day.slice(5, 7)}</text>` : "").join("");
-  const dots = byDay.map((d, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(d.views).toFixed(1)}" r="2.5" class="st-dot"><title>${d.day}: ${d.views} visitas</title></circle>`).join("");
-  return `<svg viewBox="0 0 ${W} ${H}" class="st-daychart" role="img" aria-label="Visitas por día">
-    <polygon points="${area}" class="st-area" />
-    <polyline points="${pts}" class="st-line" />
+  // El primer y el último rótulo se anclan a los bordes: con text-anchor middle
+  // el de la derecha se salía del viewBox y quedaba cortado ("02/1").
+  const labels = byDay
+    .map((d, i) => {
+      if (!(i % step === 0 || i === n - 1)) return "";
+      const txt = `${d.day.slice(8)}/${d.day.slice(5, 7)}`;
+      const anchor = i === n - 1 ? " end" : i === 0 ? " start" : "";
+      return `<text x="${x(i).toFixed(1)}" y="${H - 6}" class="st-xlabel" style="text-anchor:${anchor.trim() || "middle"}">${txt}</text>`;
+    })
+    .join("");
+  const dots = byDay
+    .map((d, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(d.views).toFixed(1)}" r="2.5" class="st-dot"/>`)
+    .join("");
+  const grid = [max, max / 2]
+    .map((v) => `<line x1="${PADL}" y1="${y(v).toFixed(1)}" x2="${W - 8}" y2="${y(v).toFixed(1)}" class="st-grid"/>
+      <text x="${PADL - 6}" y="${(y(v) + 4).toFixed(1)}" class="st-ylabel">${Math.round(v)}</text>`)
+    .join("");
+  const id = `stc${++chartSeq}`;
+  chartData.set(
+    id,
+    byDay.map((d, i) => ({
+      txt: `${diaCorto(d.day)} · ${d.views} visita${d.views === 1 ? "" : "s"}`,
+      x: x(i),
+      y: y(d.views),
+    }))
+  );
+  const aria = byDay.map((d) => `${diaCorto(d.day)}: ${d.views}`).join("; ");
+  return `<svg viewBox="0 0 ${W} ${H}" class="st-daychart" data-chart="${id}" role="img"
+      aria-label="Visitas por día. ${esc(aria)}">
+    ${grid}
+    <line x1="${PADL}" y1="${y(0).toFixed(1)}" x2="${W - 8}" y2="${y(0).toFixed(1)}" class="st-grid"/>
+    <text x="${PADL - 6}" y="${(y(0) + 4).toFixed(1)}" class="st-ylabel">0</text>
+    <polygon points="${area}" class="st-area"/>
+    <polyline points="${pts}" class="st-line"/>
     ${dots}${labels}
+    <g class="st-hover" hidden>
+      <line class="st-cross" y1="${PADT}" y2="${y(0).toFixed(1)}"/>
+      <circle class="st-focus" r="4.5"/>
+    </g>
   </svg>`;
+}
+
+/** Al mover el mouse sobre el gráfico: marca el día más cercano y muestra su valor. */
+function bindDayChart(root: ParentNode): void {
+  const svg = root.querySelector<SVGSVGElement & HTMLElement>(".st-daychart");
+  if (!svg) return;
+  const datos = chartData.get(svg.dataset.chart ?? "");
+  const grupo = svg.querySelector<HTMLElement>(".st-hover");
+  const cross = svg.querySelector<HTMLElement>(".st-cross");
+  const focus = svg.querySelector<HTMLElement>(".st-focus");
+  const lectura = svg.closest<HTMLElement>(".panel")?.querySelector<HTMLElement>(".st-dayrow");
+  if (!datos || datos.length === 0 || !grupo || !cross || !focus) return;
+  const locate = (clientX: number, clientY: number): number => {
+    const m = svg.getScreenCTM();
+    if (!m) return -1;
+    const p = new DOMPoint(clientX, clientY).matrixTransform(m.inverse());
+    let mejor = 0;
+    let dist = Infinity;
+    for (let i = 0; i < datos.length; i++) {
+      const d = Math.abs(datos[i]!.x - p.x);
+      if (d < dist) {
+        dist = d;
+        mejor = i;
+      }
+    }
+    return mejor;
+  };
+  const pick = (i: number): void => {
+    const d = datos[i];
+    if (!d) return;
+    grupo.hidden = false;
+    cross.setAttribute("x1", d.x.toFixed(1));
+    cross.setAttribute("x2", d.x.toFixed(1));
+    focus.setAttribute("cx", d.x.toFixed(1));
+    focus.setAttribute("cy", d.y.toFixed(1));
+    if (lectura) lectura.textContent = d.txt;
+  };
+  svg.addEventListener("mousemove", (e) => {
+    const i = locate(e.clientX, e.clientY);
+    if (i < 0) return;
+    pick(i);
+    const t = tipNode();
+    t.textContent = datos[i]!.txt;
+    placeTip(e.clientX, e.clientY);
+  });
+  svg.addEventListener("mouseleave", () => {
+    grupo.hidden = true;
+    hideTip();
+    if (lectura) lectura.textContent = "";
+  });
 }
 
 // ---- Estadísticas ----
@@ -2979,11 +3134,14 @@ async function viewStats(days = 7): Promise<void> {
     </div>
     <div class="panel">
       <h3>📈 Visitas por día</h3>
+      <p class="muted">Cada punto es un día y la altura de la línea son las visitas de ese día (eje izquierdo). Pasá el mouse por el gráfico para ver el número exacto.</p>
       ${dayChart(summary.byDay)}
+      <p class="muted st-dayrow" style="min-height:18px;margin:6px 0 0"></p>
     </div>
     <div class="panel">
       <h3>🕒 Visitas por hora (Argentina)</h3>
-      <div class="st-hours">${summary.byHour.map((h) => `<div class="st-hour" title="${h.views} visitas"><span class="st-hlabel">${String(h.hour).padStart(2, "0")}h</span>${bar(h.views)}</div>`).join("")}</div>
+      <p class="muted">La barra más larga es la hora con más visitas (${maxHour}). Pasá el mouse por una barra para ver el número.</p>
+      <div class="st-hours">${summary.byHour.map((h) => `<div class="st-hour" data-tip="${String(h.hour).padStart(2, "0")}:00–${String(h.hour).padStart(2, "0")}:59 · ${h.views} visita${h.views === 1 ? "" : "s"}"><span class="st-hlabel">${String(h.hour).padStart(2, "0")}h</span>${bar(h.views)}</div>`).join("")}</div>
     </div>
     <div class="st-cols">
       <div class="panel">
@@ -3038,6 +3196,9 @@ async function viewStats(days = 7): Promise<void> {
   el.view.querySelectorAll<HTMLButtonElement>("button[data-days]").forEach((b) => {
     b.addEventListener("click", () => void viewStats(Number(b.dataset.days)));
   });
+  // Hover del gráfico por día y tooltip de todas las barras.
+  bindDayChart(el.view);
+  bindTips(el.view);
 }
 
 void boot();

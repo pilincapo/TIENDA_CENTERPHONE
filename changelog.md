@@ -1,3 +1,14 @@
+## 2026-10-02 — Estadísticas: el gráfico de visitas por día ahora sí dice cuántos valores representa
+
+- **Problema**: el gráfico de líneas solo tenía un `<title>` nativo del SVG en cada punto. Con radio 2,5 px había que acertarle al punto y esperar un segundo: en la práctica nadie veía cuántas visitas marcaba cada día. Además el eje Y no estaba rotulado, así que la altura de la línea no significaba nada
+- **Tooltip propio**: al pasar el mouse por cualquier parte del gráfico (no hace falta apuntar al punto) aparece un recuadro con «mié 30-09 · 2 visitas», se marca ese día con una línea vertical y un punto más grande, y el valor queda también escrito bajo el gráfico
+- **Eje Y rotulado** con líneas punteadas en el máximo y la mitad (`niceMax`: 7 visitas → sube a 8, 124 → 150), para poder leer la escala de un vistazo
+- **Barras por hora**: tooltip al posarse encima con el rango y el número («14:00–14:59 · 23 visitas»), y el texto aclara cuál es la barra más larga
+- **Textos explicativos** en ambos paneles: qué representa cada punto/línea y que se puede pasar el mouse
+- Arreglado de paso el rótulo de la última fecha, que se salía del `viewBox` y quedaba cortado («02/1» en vez de «02/10»)
+- `bindTips()` reutilizable por cualquier elemento con `data-tip`; el tooltip se posiciona con `position: fixed` y da la vuelta si no entra a la derecha del cursor
+- Tests 265/265 ✅, typecheck ✅, build ✅. Verificado en local con el mouse: 3 posiciones distintas del gráfico (inicio, medio y final) muestran el día y las visitas correctas
+
 ## 2026-10-02 — El panel ya no regenera el catálogo en cada edición: se publica al sincronizar
 
 - **Causa**: cada alta, edición o baja manual (y cada cambio de categoría) llamaba a `regenerateSnapshot`, que **lee todo el catálogo** en D1. Con ~1.000 productos, guardar el formulario de un producto consumía ~1.000 filas leídas; editar 20 productos seguidos, ~20.000. Es la segunda fuente de quema de cuota después de las importaciones por fuente

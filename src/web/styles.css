@@ -562,6 +562,23 @@ img { max-width: 100%; display: block; }
 .st-area { fill: var(--brand); opacity: .12; }
 .st-dot { fill: var(--brand); }
 .st-xlabel { font-size: 10px; fill: var(--muted); text-anchor: middle; font-family: var(--font-mono); }
+/* Ejes del gráfico por día: sin ellos no se sabe qué altura representa la línea. */
+.st-grid { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 4; }
+.st-ylabel { font-size: 10px; fill: var(--muted); text-anchor: end; font-family: var(--font-mono); }
+.st-daychart { cursor: crosshair; }
+.st-hover[hidden] { display: none; }
+.st-cross { stroke: var(--brand); stroke-width: 1; opacity: .55; stroke-dasharray: 3 3; }
+.st-focus { fill: var(--brand); stroke: var(--panel); stroke-width: 2; }
+/* Tooltip propio: el <title> nativo del SVG tarda un segundo y hay que acertar
+   justo al punto; esto responde en el instante al pasar por la zona del dato. */
+.st-tip {
+  position: fixed; z-index: 999; pointer-events: none;
+  background: var(--panel-2); border: 1px solid var(--brand); color: var(--text);
+  padding: 5px 9px; font-size: 12px; font-family: var(--font-mono);
+  box-shadow: var(--term-shadow-sm); white-space: nowrap;
+}
+.st-tip[hidden] { display: none; }
+.st-hour { cursor: default; }
 .st-hours { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px 10px; margin-top: 10px; }
 .st-hour { display: flex; align-items: center; gap: 6px; min-height: 20px; }
 .st-hlabel { font-size: 10px; color: var(--muted); width: 24px; flex: none; font-family: var(--font-mono); }
