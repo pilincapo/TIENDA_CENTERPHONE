@@ -3,7 +3,9 @@
 - **Bug**: al restaurar, un pedido cancelado/rechazado volvía como **pendiente** — `adminSetOrderUnarchive` solo distinguía paid/pending y perdía el estado previo
 - El archivo ahora guarda el estado previo en la nueva columna `pre_archive_status` (migración 010) y el restore vuelve **exactamente** a ese estado; el campo se limpia al restaurar
 - Filas archivadas antes de la migración (NULL) mantienen el fallback anterior: paid si `paid_at`, si no pending
-- Migración `db/migrations/010-orders-pre-archive-status.sql` (+ `schema.sql`, `Order.preArchiveStatus` opcional) — **pendiente aplicar a D1 remota al próximo deploy**
+- Migración `db/migrations/010-orders-pre-archive-status.sql` (+ `schema.sql`, `Order.preArchiveStatus` opcional)
+- **Aplicada a D1 remota** + fix de datos: los 8 pedidos archivados quedaron con `pre_archive_status` correcto (todos eran cancelled) — commit `c621a2a`, deploy versión **`5820fd14-234a-4751-9e1f-42dcb07c2f8f`**
+- Smoke E2E en producción: restaurar «Prueba Final» volvió como **cancelled** (antes salía pending) y se volvió a archivar con su nota; los 8 archivados responden `preArchiveStatus: cancelled`
 - Tests: +2 (roundtrip cancelled/rejected con limpieza del campo, fallback de fila legada), mock y seed actualizados — **236/236** ✅, typecheck ✅, build ✅
 
 ## 2026-10-02 — Fix: el botón 🗂️ Archivar individual no abría el modal
