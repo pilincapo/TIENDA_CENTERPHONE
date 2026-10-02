@@ -1,3 +1,14 @@
+## 2026-10-02 — Panel: la sincronización sigue visible al cambiar de pestaña
+
+- **Qué pasaba**: al darle a **Ejecutar ahora** en Auto-importaciones y cambiar de pantalla, la barra de progreso desaparecía (vive en el DOM de esa vista) y al volver parecía que la sincronización se había perdido, aunque seguía corriendo
+- La corrida es una promesa viva en el navegador: no se cancela al cambiar de pestaña. Ahora su estado vive en un objeto `autoRun` a nivel de módulo (`running`, %, paso actual, resumen final) y `restoreAutoRun()` lo repinta al volver a la vista
+- Al volver **durante** la corrida: se recupera la barra con el mismo porcentaje y paso activo, y el botón «Ejecutar ahora» sigue deshabilitado
+- Al volver **después** de que terminó: se muestra el resumen («✓/⚠ Sincronización terminada» + desglose por fuente). El resumen se guarda hasta que el usuario lo ve y se descarta solo si pasa más de 5 minutos
+- El handler de «Ejecutar ahora» se mudó a `startAutoRun()`, con `finally` para que el botón nunca quede bloqueado ni la corrida se marque activa si el fetch falla
+- **Bug encontrado probando**: se creaba una caja de progreso vacía al volver a la vista sin nada que mostrar, y el resumen se borraba a los 12 s de terminar, así que si volvías más tarde no veías nada
+- Verificado en local con el flujo real (Ejecutar ahora → Dashboard → volver): barra restituida al 78 % con el paso «Importando y aplicando reglas» activo, y resumen final al volver después de que terminó
+- 246/246 tests ✅, typecheck ✅, build ✅
+
 ## 2026-10-02 — Reversión: la tienda vuelve a solo las 7 categorías y sus subcategorías
 
 - **Motivo**: los 63 jobs/categorías que se habían agregado no fueron pedidos — el usuario solo quiere las subcategorías **de las 7 categorías que él creó a mano**. La opción que se le ofreció («33 subcategorías + 13 raíces nuevas») estaba redactada sin advertir que metía **17 categorías raíz nuevas** al menú de la tienda

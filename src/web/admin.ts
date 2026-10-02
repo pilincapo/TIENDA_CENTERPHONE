@@ -1521,6 +1521,121 @@ async function refreshAutoLastRuns(): Promise<void> {
   }));
 }
 
+/**
+ * Estado de "Ejecutar ahora" que sobrevive al cambio de pestaña: la corrida es una
+ * promesa viva en el navegador, así que aunque el usuario se vaya a otra vista y
+ * vuelva, la barra se vuelve a pintar con el progreso que tenía.
+ */
+const autoRun = {
+  running: false,
+  startedAt: 0,
+  pct: 5,
+  label: "Preparando…",
+  step: 0,
+  stepErr: false,
+  ctl: null as ProgressCtl | null,
+  /** Resumen de la corrida terminada, para mostrarlo al volver a la vista. */
+  done: null as { text: string; ok: boolean; at: number } | null,
+};
+
+/** Actualiza el estado y la barra montada (si la hay). */
+function setAutoRun(pct: number, label: string, step: number, stepErr = false): void {
+  autoRun.pct = pct;
+  autoRun.label = label;
+  autoRun.step = step;
+  autoRun.stepErr = stepErr;
+  autoRun.ctl?.set(pct, label, step, stepErr);
+}
+
+/** Pinta (o repinta) la barra de la corrida en curso en el contenedor dado. */
+function showAutoRunBox(box: HTMLElement): void {
+  box.className = "auto-run-box";
+  box.innerHTML = "";
+  const prog = showProgress(box, "Ejecutando auto-importaciones…", AUTO_STEPS);
+  autoRun.ctl = prog;
+  prog.set(Math.max(5, autoRun.pct), autoRun.label, autoRun.step, autoRun.stepErr);
+}
+
+/** El resumen de una corrida terminada se muestra hasta que el usuario lo ve. */
+const AUTO_RUN_DONE_TTL = 5 * 60 * 1000;
+
+/** Al volver a la vista: barra en curso o resumen de lo que terminó. */
+function restoreAutoRun(): void {
+  // Resumen demasiado viejo (el usuario no volvió en horas): no se muestra.
+  if (autoRun.done && Date.now() - autoRun.done.at > AUTO_RUN_DONE_TTL) autoRun.done = null;
+  if (!autoRun.running && !autoRun.done) return; // nada que restaurar: no se crea caja
+  const anchor = el.view.querySelector(".panel .row");
+  if (!anchor) return;
+  const box = document.createElement("div");
+  box.id = "auto-run-box";
+  anchor.after(box);
+  if (autoRun.running) {
+    showAutoRunBox(box);
+    const btn = el.view.querySelector("#run-auto") as HTMLButtonElement | null;
+    if (btn) btn.disabled = true;
+    return;
+  }
+  const done = autoRun.done;
+  if (!done) return;
+  box.innerHTML = `
+    <div class="panel progress-wrap">
+      <strong>${done.ok ? "✓ Sincronización terminada" : "⚠ Sincronización terminada con errores"}</strong>
+      <div class="progress-label"><span class="${done.ok ? "ok" : "err"}" style="white-space:normal">${esc(done.text)}</span></div>
+    </div>`;
+  autoRun.done = null; // ya lo vio
+}
+
+async function startAutoRun(): Promise<void> {
+  if (autoRun.running) return;
+  const box = document.createElement("div");
+  box.id = "auto-run-box";
+  el.view.querySelector(".panel .row")?.after(box);
+  autoRun.running = true;
+  autoRun.startedAt = Date.now();
+  autoRun.done = null;
+  autoRun.ctl = null;
+  showAutoRunBox(box);
+  setAutoRun(8, "Descargando fuentes…", 0);
+  const btn = el.view.querySelector("#run-auto") as HTMLButtonElement | null;
+  if (btn) btn.disabled = true;
+  const ph2 = setTimeout(() => setAutoRun(50, "Extrayendo productos…", 1), 1500);
+  const ph3 = setTimeout(() => setAutoRun(78, "Importando y aplicando reglas…", 2), 6000);
+  try {
+    const r = await api<{ ok: boolean; results: { url: string; ok: boolean; imported: number; deactivated?: number; error: string | null }[] }>("/auto-imports/run", {
+      method: "POST",
+      body: JSON.stringify({ all: true }),
+    });
+    clearTimeout(ph2); clearTimeout(ph3);
+    const imported = r.results.reduce((n, x) => n + x.imported, 0);
+    const deact = r.results.reduce((n, x) => n + (x.deactivated ?? 0), 0);
+    const failed = r.results.filter((x) => !x.ok).length;
+    // Resumen por fuente en la barra (más información, no solo %).
+    const porFuente = r.results
+      .map((x) => `${esc(x.url.replace(/^https?:\/\//, "").replace("www.", "").slice(0, 24))}: ${x.ok ? `+${x.imported}${x.deactivated ? `/-${x.deactivated}` : ""}` : "error"}`)
+      .join(" · ");
+    const resumen = `${r.results.length} fuente(s) · ${imported} importados${deact ? ` · ${deact} sin stock` : ""} · ${porFuente}`;
+    setAutoRun(100, resumen, 3, failed > 0);
+    toast(`Listo: ${imported} productos, ${failed} con error${deact ? `. ${deact} ya no están en las fuentes (sin stock)` : ""}`, r.ok);
+    autoRun.done = { text: resumen, ok: r.ok && failed === 0, at: Date.now() };
+    // Refrescar los lastRun de las filas sin re-render completo (si seguimos en esta vista).
+    if (route() === "auto") await refreshAutoLastRuns();
+  } catch (e) {
+    clearTimeout(ph2); clearTimeout(ph3);
+    const msg = e instanceof Error ? e.message : "Error";
+    setAutoRun(100, msg, 1, true);
+    toast(msg, false);
+    autoRun.done = { text: msg, ok: false, at: Date.now() };
+  } finally {
+    autoRun.running = false;
+    autoRun.ctl = null;
+    const btn2 = el.view.querySelector("#run-auto") as HTMLButtonElement | null;
+    if (btn2) btn2.disabled = false;
+    // La caja visible se va sola si el usuario sigue en esta vista; el resumen
+    // guardado (autoRun.done) se conserva para mostrarlo si vuelve más tarde.
+    setTimeout(() => { if (box.isConnected) box.remove(); }, 12_000);
+  }
+}
+
 async function viewAutoImports(): Promise<void> {
   const [jobs, rules, logReciente] = await Promise.all([
     fetchAutoImports(),
@@ -1597,41 +1712,9 @@ async function viewAutoImports(): Promise<void> {
     </div>`;
   if (lastCron && lastCron.status === "error") bindBannerClose();
   el.view.querySelector("#new-auto")?.addEventListener("click", () => void openAutoForm(null, rules, groups));
-  el.view.querySelector("#run-auto")?.addEventListener("click", async () => {
-    const box = document.createElement("div");
-    el.view.querySelector(".panel .row")?.after(box);
-    const prog = showProgress(box, "Ejecutando auto-importaciones…", AUTO_STEPS);
-    prog.set(8, "Descargando fuentes…", 0);
-    const ph2 = setTimeout(() => prog.set(50, "Extrayendo productos…", 1), 1500);
-    const ph3 = setTimeout(() => prog.set(78, "Importando y aplicando reglas…", 2), 6000);
-    const btn = el.view.querySelector("#run-auto") as HTMLButtonElement | null;
-    if (btn) btn.disabled = true;
-    try {
-      const r = await api<{ ok: boolean; results: { url: string; ok: boolean; imported: number; deactivated?: number; error: string | null }[] }>("/auto-imports/run", {
-        method: "POST",
-        body: JSON.stringify({ all: true }),
-      });
-      clearTimeout(ph2); clearTimeout(ph3);
-      const imported = r.results.reduce((n, x) => n + x.imported, 0);
-      const deact = r.results.reduce((n, x) => n + (x.deactivated ?? 0), 0);
-      const failed = r.results.filter((x) => !x.ok).length;
-      // Resumen por fuente en la barra (más información, no solo %).
-      const porFuente = r.results
-        .map((x) => `${esc(x.url.replace(/^https?:\/\//, "").replace("www.", "").slice(0, 24))}: ${x.ok ? `+${x.imported}${x.deactivated ? `/-${x.deactivated}` : ""}` : "error"}`)
-        .join(" · ");
-      prog.set(100, `${r.results.length} fuente(s) · ${imported} importados${deact ? ` · ${deact} sin stock` : ""} · ${porFuente}`, 3, failed > 0);
-      toast(`Listo: ${imported} productos, ${failed} con error${deact ? `. ${deact} ya no están en las fuentes (sin stock)` : ""}`, r.ok);
-      // Refrescar los lastRun de las filas sin re-render completo.
-      await refreshAutoLastRuns();
-    } catch (e) {
-      clearTimeout(ph2); clearTimeout(ph3);
-      prog.set(100, e instanceof Error ? e.message : "Error", 1, true);
-      toast(e instanceof Error ? e.message : "Error", false);
-    }
-    prog.done();
-    if (btn) btn.disabled = false;
-    setTimeout(() => box.remove(), 8000);
-  });
+  el.view.querySelector("#run-auto")?.addEventListener("click", () => void startAutoRun());
+  // Si había una corrida en curso y el usuario volvió a la pestaña, se repinta la barra.
+  restoreAutoRun();
   el.view.querySelectorAll(".auto-active").forEach((cb) => {
     cb.addEventListener("change", async () => {
       const id = (cb as HTMLInputElement).dataset.id;
