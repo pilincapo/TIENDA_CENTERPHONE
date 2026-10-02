@@ -2002,12 +2002,6 @@ async function viewOrders(statusFilter = ""): Promise<void> {
       } catch (e) { toast(e instanceof Error ? e.message : "Error", false); }
     });
   });
-  // Botón "Ya avisé": abre WhatsApp con mensaje pre-cargado al comprador y
-  // marca el pedido como notificado (fire-and-forget). El mensaje sigue el
-  // mismo estilo que el de la página /pedido/:id: saludo por nombre, tienda,
-  // detalle del pedido y total — cero texto genérico.
-  el.view.querySelectorAll<HTMLButtonElement>("button[data-ord-wa]").forEach((b) => {
-
   // Botón "🗂️ Archivar": con confirmación. Si el pedido ya está archivado,
   // restaurar (sin confirmación).
   el.view.querySelectorAll<HTMLButtonElement>("button[data-ord-archive]").forEach((b) => {
@@ -2075,6 +2069,11 @@ async function viewOrders(statusFilter = ""): Promise<void> {
     });
   });
 
+  // Botón "Ya avisé": abre WhatsApp con mensaje pre-cargado al comprador y
+  // marca el pedido como notificado (fire-and-forget). El mensaje sigue el
+  // mismo estilo que el de la página /pedido/:id: saludo por nombre, tienda,
+  // detalle del pedido y total — cero texto genérico.
+  el.view.querySelectorAll<HTMLButtonElement>("button[data-ord-wa]").forEach((b) => {
     b.addEventListener("click", () => {
       const phone = (b.dataset.waPhone ?? "").replace(/\D/g, "");
       const dest = phone.length > 0 ? (phone.startsWith("54") || phone.startsWith("9") ? phone : `549${phone}`) : "";

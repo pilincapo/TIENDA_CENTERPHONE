@@ -1,3 +1,10 @@
+## 2026-10-02 — Fix: el botón 🗂️ Archivar individual no abría el modal
+
+- **Bug**: el `forEach` del botón «Ya avisé» (`data-ord-wa`) quedó sin cerrar y el bloque de archivar quedó **anidado adentro** — los handlers de archivar solo se ataban si había botones de WhatsApp en la tabla. Con 0 botones «Ya avisé» (caso actual), clic en 🗂️ Archivar = nada, sin error en consola
+- Peor caso del mismo bug: con N botones WA, cada fila recibía N handlers de archivar (N modales superpuestos)
+- Fix: `data-ord-archive` y `data-ord-wa` ahora son dos bloques independientes con su propio `forEach`
+- 234/234 tests ✅, typecheck ✅, build ✅ (bundle `admin-BguwQkp_.js`)
+
 ## 2026-10-02 — Fix: faltaban los checkboxes de selección masiva en la tabla
 
 - El archivo masivo se había desplegado con el botón y los handlers, pero **sin los checkboxes**: no había forma de elegir pedidos (los pasos de HTML no se habían escrito)
