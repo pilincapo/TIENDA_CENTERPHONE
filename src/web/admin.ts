@@ -1636,7 +1636,9 @@ async function startAutoRun(jobs: AutoImport[]): Promise<void> {
       try {
         const r = await api<{ ok: boolean; result: { ok: boolean; imported: number; deactivated?: number; error: string | null } }>(
           "/sync",
-          { method: "POST", body: JSON.stringify({ jobId: job.id }) },
+          // skipSnapshot: cada fuente regeneraría el catálogo entero (5.000+ lecturas).
+          // Con 21 fuentes seguidas son 21 lecturas completas: al final se regenera una.
+          { method: "POST", body: JSON.stringify({ jobId: job.id, skipSnapshot: true }) },
         );
         const res = r.result;
         imported += res.imported;
@@ -1670,6 +1672,13 @@ async function startAutoRun(jobs: AutoImport[]): Promise<void> {
     toast(msg, false);
     autoRun.done = { text: msg, ok: false, at: Date.now() };
   } finally {
+    // Aunque se haya cancelado o alguna fuente haya fallado, el catálogo tiene que
+    // quedar consistente con lo que se importó: se regenera una sola vez.
+    if (desglose.length > 0) {
+      try {
+        await api("/snapshot", { method: "POST", body: "{}" });
+      } catch { /* el snapshot se regenera igual en la próxima importación */ }
+    }
     autoRun.running = false;
     autoRun.ctl = null;
     document.getElementById("auto-run-cancel")?.remove();

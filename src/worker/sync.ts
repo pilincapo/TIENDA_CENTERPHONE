@@ -97,7 +97,7 @@ export async function getSnapshot(env: Env): Promise<CatalogSnapshot | null> {
 export async function importItems(
   env: Env,
   rawItems: unknown[],
-  importOptions: { forceRuleId?: string | null; skipRules?: boolean; sourceUrl?: string | null; isLastChunk?: boolean } = {}
+  importOptions: { forceRuleId?: string | null; skipRules?: boolean; sourceUrl?: string | null; isLastChunk?: boolean; skipSnapshot?: boolean } = {}
 ): Promise<SyncOutcome> {
   const outcome = await importItemsChunk(env, rawItems, importOptions);
   // El importador manual manda los productos en chunks (para no exceder el límite
@@ -112,7 +112,7 @@ export async function importItems(
 async function importItemsChunk(
   env: Env,
   rawItems: unknown[],
-  importOptions: { forceRuleId?: string | null; skipRules?: boolean; sourceUrl?: string | null; isLastChunk?: boolean } = {}
+  importOptions: { forceRuleId?: string | null; skipRules?: boolean; sourceUrl?: string | null; isLastChunk?: boolean; skipSnapshot?: boolean } = {}
 ): Promise<SyncOutcome> {
   const startedAt = nowMs();
   const { products, categories, skipped } = normalizeExternalItems(rawItems);
@@ -150,7 +150,10 @@ async function importItemsChunk(
     deactivated = await hideProductsNotIn(env.DB, importOptions.sourceUrl, products.map((p) => p.id), now);
     await unhideProductsIn(env.DB, importOptions.sourceUrl, products.map((p) => p.id), now);
   }
-  await regenerateSnapshot(env);
+  // El snapshot lee TODO el catálogo: con 21 fuentes seguidas son 21 lecturas
+  // completas. Cuando el panel encola los jobs de a una, manda skipSnapshot y
+  // regenera una sola vez al terminar.
+  if (!importOptions.skipSnapshot) await regenerateSnapshot(env);
   // Corrida sin productos guardados: NO es una corrida "ok" (confunde en el
   // historial). Se marca con aviso explícito del motivo probable.
   if (saved === 0 && rawItems.length === 0) {

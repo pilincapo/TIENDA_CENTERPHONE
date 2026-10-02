@@ -2,7 +2,7 @@
 // vuelve a traer en los horarios configurados (hora Argentina).
 
 import { extractFromUrl } from "./extract";
-import { importItems } from "./sync";
+import { importItems, regenerateSnapshot } from "./sync";
 import { insertSyncLog, listAutoImports, upsertAutoImport, type Env } from "./db";
 import { newId, nowMs } from "./settings";
 import { KV_SYNC_STATE_KEY } from "../shared/types";
@@ -103,7 +103,7 @@ export async function markAutoImportRun(db: D1Database, id: string, status: stri
 /** Ejecuta UN job de auto-importación y registra todo (historial, estado, lastRun).
  *  Es el bloque compartido entre el cron, "Ejecutar ahora" y la sync manual
  *  fuente-por-fuente (una por request para no pasarse del límite de CPU del plan gratis). */
-async function runOneJob(env: Env, job: AutoImport, trigger: "cron" | "manual"): Promise<AutoImportOutcome["results"][number]> {
+async function runOneJob(env: Env, job: AutoImport, trigger: "cron" | "manual", skipSnapshot = false): Promise<AutoImportOutcome["results"][number]> {
   const startedAt = nowMs();
   try {
     const r = await extractFromUrl(job.url);
@@ -114,7 +114,7 @@ async function runOneJob(env: Env, job: AutoImport, trigger: "cron" | "manual"):
       updateSyncState(env, false, startedAt, motivo);
       return { id: job.id, url: job.url, ok: false, imported: 0, deactivated: 0, warnings: [], error: motivo };
     }
-    const outcome = await importItems(env, r.items, { forceRuleId: job.priceRuleId ?? null, sourceUrl: job.url });
+    const outcome = await importItems(env, r.items, { forceRuleId: job.priceRuleId ?? null, sourceUrl: job.url, skipSnapshot });
     await markAutoImportRun(env.DB, job.id, outcome.ok ? "ok" : "error", nowMs());
     await logRun(env, trigger, job.url, outcome.ok, { imported: outcome.imported, total: outcome.total, failed: outcome.failed, deactivated: outcome.deactivated, warnings: outcome.warnings, errors: outcome.errors }, startedAt);
     updateSyncState(env, outcome.ok, startedAt, outcome.ok ? null : (outcome.errors[0] ?? null));
@@ -156,18 +156,27 @@ export async function runAutoImports(env: Env): Promise<AutoImportOutcome> {
       await logRun(env, "cron", "(pendientes)", false, { imported: 0, total: null, failed: null, deactivated: 0, warnings: [], errors: [msg] }, Date.now());
       break;
     }
-    results.push(await runOneJob(env, job, "cron"));
+    // skipSnapshot: regenerar el catálogo entero por cada fuente quema la cuota
+    // diaria de lecturas de D1 (con 21 fuentes son 21 lecturas completas por hora).
+    // Se regenera una sola vez al terminar la corrida.
+    results.push(await runOneJob(env, job, "cron", true));
   }
+  if (ranAlgo(results)) await regenerateSnapshot(env);
   return { ok: results.length > 0 && results.every((r) => r.ok), warnings: results.flatMap((r) => r.warnings), results };
+}
+
+/** Hubo al menos una corrida real (las entradas "(pendientes)" no cuentan). */
+export function ranAlgo(results: AutoImportOutcome["results"]): boolean {
+  return results.some((r) => r.id !== "");
 }
 
 /** Corre UN solo job por id (para la sync manual fuente-por-fuente).
  *  Cada request procesa una única fuente para no exceder el límite de CPU
  *  del plan gratis de Cloudflare (varias fuentes grandes en un request mueren). */
-export async function runAutoImportById(env: Env, id: string): Promise<AutoImportOutcome["results"][number] | null> {
+export async function runAutoImportById(env: Env, id: string, skipSnapshot = false): Promise<AutoImportOutcome["results"][number] | null> {
   const job = (await listAutoImports(env.DB)).find((j) => j.id === id);
   if (!job) return null;
-  return runOneJob(env, job, "manual");
+  return runOneJob(env, job, "manual", skipSnapshot);
 }
 
 /** Ejecuta TODOS los jobs (activos o no) en un solo request. Solo apto para
@@ -178,7 +187,8 @@ export async function runAllAutoImportsNow(env: Env): Promise<AutoImportOutcome>
   const jobs = await listAutoImports(env.DB);
   const results: AutoImportOutcome["results"] = [];
   for (const job of jobs) {
-    results.push(await runOneJob(env, job, "manual"));
+    results.push(await runOneJob(env, job, "manual", true));
   }
+  if (ranAlgo(results)) await regenerateSnapshot(env);
   return { ok: results.length > 0 && results.every((r) => r.ok), warnings: results.flatMap((r) => r.warnings), results };
 }

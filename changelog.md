@@ -1,3 +1,13 @@
+## 2026-10-02 — Cuota de D1: el catálogo se regenera una vez por corrida, no una por fuente
+
+- **Incidente**: `D1_ERROR: Your account has exceeded D1's free tier daily row read limit` — se agotó la cuota diaria de filas leídas (5 M/día del plan gratis) y con ella la pestaña Auto-importaciones y el Dashboard empezó a devolver 500 «Error interno». Se restablece a medianoche UTC (21:00 Argentina)
+- **Causa**: cada importación regeneraba el snapshot, que **lee todo el catálogo**. Con 21 fuentes eso son 21 lecturas completas por corrida; el cron las repitía cada hora (~2,8 M filas/día solo en snapshots)
+- **Fix**: `importItems` acepta `skipSnapshot`; el cron, el «Ejecutar ahora» de un request y la corrida encolada del panel importan sin regenerar y **regeneran el snapshot una sola vez al terminar**. El panel lo hace en el `finally`, así que también queda consistente si se cancela a mitad
+- Con los 21 jobs: de 21 lecturas completas por corrida a 1 (~86 % menos). Verificado en local mirando las peticiones: 7 syncs + 1 `/snapshot`
+- `ranAlgo()` decide si vale la pena regenerar: la entrada «(pendientes)» que agrega el corte por tiempo del cron no cuenta (no hay nada nuevo que publicar)
+- Tests: +3 — **249/249** ✅, typecheck ✅, build ✅
+- **Pendiente de revisar**: cada alta/edición/baja manual de un producto desde el panel también regenera el snapshot completo; editar muchos productos seguidos va a comer cuota. Queda anotado para más adelante
+
 ## 2026-10-02 — Panel: «Ejecutar ahora» fuente por fuente, con progreso real y botón Cancelar
 
 - **Problema**: el botón mandaba **todas** las fuentes en un solo `POST /auto-imports/run`. El propio worker advierte que en producción eso corta el Worker por el límite de CPU del plan gratis y deja la sincronización a medias

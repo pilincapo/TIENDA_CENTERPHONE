@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isDueNow, nowArgentina } from "./autoimport";
+import { isDueNow, nowArgentina, ranAlgo } from "./autoimport";
 import type { AutoImport } from "../shared/autoimport";
 
 const job = (times: string[], active = true, lastRunAt: number | null = null): AutoImport => ({
@@ -41,5 +41,25 @@ describe("auto-importaciones", () => {
     // Inactivo o sin horarios jamás se recupera.
     expect(isDueNow(job(["08:00"], false, hace25h), "15:00")).toBe(false);
     expect(isDueNow(job([], true, hace25h), "15:00")).toBe(false);
+  });
+});
+
+describe("cuota de lecturas de D1 (skipSnapshot)", () => {
+  const res = (id: string) => ({ id, url: "u", ok: true, imported: 0, deactivated: 0, warnings: [] as string[], error: null });
+
+  it("regenera el snapshot solo si hubo alguna corrida real", () => {
+    // El snapshot lee TODO el catálogo: hay que evitar una lectura completa por fuente.
+    expect(ranAlgo([res("a"), res("b")])).toBe(true);
+  });
+
+  it("no cuenta la entrada \"(pendientes)\" que agrega el corte por tiempo", () => {
+    // Si el cron se corta por presupuesto y solo quedó el aviso de pendientes,
+    // no hay nada nuevo que publicar: regenerar gastaría lecturas al pedo.
+    expect(ranAlgo([{ ...res(""), url: "(pendientes)", ok: false }])).toBe(false);
+    expect(ranAlgo([{ ...res(""), url: "(pendientes)", ok: false }, res("a")])).toBe(true);
+  });
+
+  it("sin corridas no hay nada que regenerar", () => {
+    expect(ranAlgo([])).toBe(false);
   });
 });
