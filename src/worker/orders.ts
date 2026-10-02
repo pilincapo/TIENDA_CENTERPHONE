@@ -37,6 +37,9 @@ export function rowToOrder(row: Dict): Order {
     items = [];
   }
   const status = String(row.status ?? "pending") as OrderStatus;
+  // Estado previo al archivar (migración 010): inválido o 'archived' => null.
+  const preRaw = row.pre_archive_status == null ? null : (String(row.pre_archive_status) as OrderStatus);
+  const preArchiveStatus = preRaw != null && preRaw !== "archived" && ORDER_STATUSES.includes(preRaw) ? preRaw : null;
   return {
     id: String(row.id ?? ""),
     status: ORDER_STATUSES.includes(status) ? status : "pending",
@@ -53,6 +56,7 @@ export function rowToOrder(row: Dict): Order {
     archivedAt: row.archived_at == null ? null : num(row.archived_at),
     archivedBy: row.archived_by == null ? null : String(row.archived_by),
     archiveNote: row.archive_note == null ? null : String(row.archive_note),
+    preArchiveStatus,
     createdAt: num(row.created_at),
     updatedAt: num(row.updated_at),
   };
@@ -182,7 +186,8 @@ export async function adminSetOrderStatus(db: D1Database, id: string, status: Or
   return getOrder(db, id);
 }
 
-/** Archiva un pedido: pasa a estado 'archived' con fecha y autor.
+/** Archiva un pedido: pasa a estado 'archived' con fecha y autor, guardando
+ *  el estado previo en pre_archive_status para restaurarlo igual.
  *  Idempotente: si ya estaba archivado, no escribe ni cambia la fecha. */
 export async function adminSetOrderArchive(db: D1Database, id: string, archive: { archivedBy?: string | null; note?: string | null } = {}): Promise<Order | null> {
   const existing = await getOrder(db, id);
@@ -192,21 +197,23 @@ export async function adminSetOrderArchive(db: D1Database, id: string, archive: 
   const archivedBy = archive.archivedBy === undefined ? null : String(archive.archivedBy).slice(0, 120);
   const note = archive.note === undefined || archive.note === null ? null : (String(archive.note).trim().slice(0, 200) || null);
   await db
-    .prepare("UPDATE orders SET status = 'archived', archived_at = ?2, archived_by = ?3, archive_note = ?4, updated_at = ?5 WHERE id = ?1")
-    .bind(id, now, archivedBy, note, now)
+    .prepare("UPDATE orders SET status = 'archived', archived_at = ?2, archived_by = ?3, archive_note = ?4, updated_at = ?5, pre_archive_status = ?6 WHERE id = ?1")
+    .bind(id, now, archivedBy, note, now, existing.status)
     .run();
   return getOrder(db, id);
 }
 
-/** Restaura un pedido archivado: vuelve a paid si tiene paid_at (el archivo
- *  nunca toca paid_at), o a pending en caso contrario. */
+/** Restaura un pedido archivado: vuelve al estado previo al archivo
+ *  (pre_archive_status, migración 010). Fallback para filas archivadas
+ *  antes de la migración: paid si tiene paid_at (el archivo nunca toca
+ *  paid_at), o pending en caso contrario. */
 export async function adminSetOrderUnarchive(db: D1Database, id: string): Promise<Order | null> {
   const existing = await getOrder(db, id);
   if (!existing) return null;
   if (existing.status !== "archived") return existing;
-  const restored = existing.paidAt != null ? "paid" : "pending";
+  const restored: OrderStatus = existing.preArchiveStatus ?? (existing.paidAt != null ? "paid" : "pending");
   await db
-    .prepare("UPDATE orders SET status = ?2, archived_at = NULL, archived_by = NULL, archive_note = NULL, updated_at = ?3 WHERE id = ?1")
+    .prepare("UPDATE orders SET status = ?2, archived_at = NULL, archived_by = NULL, archive_note = NULL, pre_archive_status = NULL, updated_at = ?3 WHERE id = ?1")
     .bind(id, restored, Date.now())
     .run();
   return getOrder(db, id);

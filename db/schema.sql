@@ -74,7 +74,7 @@ CREATE INDEX IF NOT EXISTS idx_categories_parent ON categories(parent_id);
 -- intratable: la página pública /pedido/:id muestra el estado solo con ese link.
 CREATE TABLE IF NOT EXISTS orders (
   id                 TEXT PRIMARY KEY,
-  status             TEXT NOT NULL DEFAULT 'pending',  -- pending | paid | cancelled | rejected
+  status             TEXT NOT NULL DEFAULT 'pending',  -- pending | paid | cancelled | rejected | archived
   total_cents        INTEGER NOT NULL,
   currency           TEXT NOT NULL DEFAULT 'ARS',
   buyer_name         TEXT NOT NULL DEFAULT '',
@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS orders (
   archived_at        INTEGER,                           -- fecha del archivo (epoch ms)
   archived_by        TEXT,                              -- IP del panel que archivo
   archive_note       TEXT,                              -- motivo opcional del archivo
+  pre_archive_status TEXT,                              -- estado antes de archivar (para restaurar igual)
   created_at         INTEGER NOT NULL,
   updated_at         INTEGER NOT NULL
 );

@@ -21,6 +21,7 @@ function makeDb() {
         row.archived_by = args[2];
         row.archive_note = args[3];
         row.updated_at = args[4];
+        row.pre_archive_status = args[5]; // estado previo (migración 010)
       }
     } else if (/archived_at = NULL/.test(sql)) {
       // adminSetOrderUnarchive: vuelve a paid/pending y limpia el archivo.
@@ -30,6 +31,7 @@ function makeDb() {
         row.archived_at = null;
         row.archived_by = null;
         row.archive_note = null;
+        row.pre_archive_status = null;
         row.updated_at = args[2];
       }
     } else if (/UPDATE orders SET status/i.test(sql)) {
@@ -66,7 +68,7 @@ function seedOrders(orders: Map<string, Dict>, ids: string[]): void {
       id, status: "pending", total_cents: 100_000, currency: "ARS",
       buyer_name: "Prueba", buyer_phone: "5491100000000", payer_email: null,
       items_json: "[]", mp_preference_id: null, mp_payment_id: null,
-      paid_at: null, notified_wa: 0, archived_at: null, archived_by: null, archive_note: null,
+      paid_at: null, notified_wa: 0, archived_at: null, archived_by: null, archive_note: null, pre_archive_status: null,
       created_at: 1, updated_at: 1,
     });
   }
@@ -233,10 +235,62 @@ describe("POST /api/admin/orders/:id/archive y /unarchive (historial)", () => {
     expect(row.archived_by).toBeNull();
   });
 
+  it("restaura al estado previo: cancelled y rejected vuelven como estaban", async () => {
+    const { db, orders } = makeDb();
+    seedOrders(orders, [ORDER_ID]);
+    const env = mockEnv(db);
+    const cookie = await loginYCookie(env);
+    for (const status of ["cancelled", "rejected"]) {
+      orders.get(ORDER_ID)!.status = status;
+      await adminApp.request(
+        `/orders/${ORDER_ID}/archive`,
+        { method: "POST", headers: { "Content-Type": "application/json", Cookie: cookie }, body: "{}" },
+        env,
+      );
+      expect(orders.get(ORDER_ID)?.status).toBe("archived");
+      expect(orders.get(ORDER_ID)?.pre_archive_status).toBe(status);
+      await adminApp.request(
+        `/orders/${ORDER_ID}/unarchive`,
+        { method: "POST", headers: { "Content-Type": "application/json", Cookie: cookie }, body: "{}" },
+        env,
+      );
+      expect(orders.get(ORDER_ID)?.status).toBe(status);
+      expect(orders.get(ORDER_ID)?.pre_archive_status).toBeNull();
+    }
+  });
+
+  it("fila archivada antes de la migración 010 (sin pre_archive_status) cae al fallback paid/pending", async () => {
+    const { db, orders } = makeDb();
+    seedOrders(orders, [ORDER_ID]);
+    // Fila legada: archivada sin pre_archive_status (columna nueva).
+    orders.get(ORDER_ID)!.status = "archived";
+    orders.get(ORDER_ID)!.archived_at = 111;
+    orders.get(ORDER_ID)!.archived_by = "panel";
+    const env = mockEnv(db);
+    const cookie = await loginYCookie(env);
+    await adminApp.request(
+      `/orders/${ORDER_ID}/unarchive`,
+      { method: "POST", headers: { "Content-Type": "application/json", Cookie: cookie }, body: "{}" },
+      env,
+    );
+    expect(orders.get(ORDER_ID)?.status).toBe("pending");
+    // Con paid_at setado, el fallback restaura paid.
+    orders.get(ORDER_ID)!.status = "archived";
+    orders.get(ORDER_ID)!.archived_at = 222;
+    orders.get(ORDER_ID)!.paid_at = 999;
+    await adminApp.request(
+      `/orders/${ORDER_ID}/unarchive`,
+      { method: "POST", headers: { "Content-Type": "application/json", Cookie: cookie }, body: "{}" },
+      env,
+    );
+    expect(orders.get(ORDER_ID)?.status).toBe("paid");
+  });
+
   it("restaura a paid si el pedido tenia paid_at (el archivo no lo toca)", async () => {
     const { db, orders } = makeDb();
     seedOrders(orders, [ORDER_ID]);
     orders.get(ORDER_ID)!.paid_at = 12345; // pago confirmado antes de archivar
+    orders.get(ORDER_ID)!.status = "paid"; // y el pedido en estado pagado
     const env = mockEnv(db);
     const cookie = await loginYCookie(env);
     await adminApp.request(
@@ -386,6 +440,7 @@ describe("POST /api/admin/orders/archive-bulk (archivo masivo, una sola confirma
       expect(orders.get(id)?.status).toBe("archived");
       expect(orders.get(id)?.archive_note).toBe("Cancelados en lote");
       expect(orders.get(id)?.archived_at).not.toBeNull();
+      expect(orders.get(id)?.pre_archive_status).toBe("pending"); // estado previo capturado
     }
   });
 

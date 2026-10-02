@@ -1,3 +1,11 @@
+## 2026-10-02 — Restaurar devuelve el pedido a su estado anterior
+
+- **Bug**: al restaurar, un pedido cancelado/rechazado volvía como **pendiente** — `adminSetOrderUnarchive` solo distinguía paid/pending y perdía el estado previo
+- El archivo ahora guarda el estado previo en la nueva columna `pre_archive_status` (migración 010) y el restore vuelve **exactamente** a ese estado; el campo se limpia al restaurar
+- Filas archivadas antes de la migración (NULL) mantienen el fallback anterior: paid si `paid_at`, si no pending
+- Migración `db/migrations/010-orders-pre-archive-status.sql` (+ `schema.sql`, `Order.preArchiveStatus` opcional) — **pendiente aplicar a D1 remota al próximo deploy**
+- Tests: +2 (roundtrip cancelled/rejected con limpieza del campo, fallback de fila legada), mock y seed actualizados — **236/236** ✅, typecheck ✅, build ✅
+
 ## 2026-10-02 — Fix: el botón 🗂️ Archivar individual no abría el modal
 
 - **Bug**: el `forEach` del botón «Ya avisé» (`data-ord-wa`) quedó sin cerrar y el bloque de archivar quedó **anidado adentro** — los handlers de archivar solo se ataban si había botones de WhatsApp en la tabla. Con 0 botones «Ya avisé» (caso actual), clic en 🗂️ Archivar = nada, sin error en consola

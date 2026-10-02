@@ -85,6 +85,9 @@ export interface Order {
   archivedBy?: string | null;
   /** Motivo opcional del archivo, guardado en el historial. */
   archiveNote?: string | null;
+  /** Estado que tenía el pedido antes de archivarlo; al restaurar vuelve a
+   *  ese estado. Null en filas archivadas antes de la migración 010. */
+  preArchiveStatus?: OrderStatus | null;
   createdAt: number;
   updatedAt: number;
 }
