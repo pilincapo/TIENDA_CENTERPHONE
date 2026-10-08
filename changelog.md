@@ -1,3 +1,5 @@
+- **Deploy `efc3aa7a`** (commit `38acb7c`): columna Origen en producción. El panel sirve `assets/admin-CHa7Jm11.js`, que contiene el encabezado «Título / Origen / Precio» y la lógica del badge (✍️ Manual, «Importado de …»); el CSS servido trae `.badge--src` con `white-space:nowrap`.
+
 ## 2026-10-08 — Panel: la insignia de origen pasa a una columna propia
 
 - En la lista de Productos, la insignia de origen deja de estar pegada al título y ocupa una columna nueva «Origen» (entre Título y Precio), así no interrumpe el nombre del producto.
