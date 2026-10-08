@@ -1182,7 +1182,9 @@ async function viewImport(): Promise<void> {
       <div class="field"><label>Regla de precio a aplicar</label><select id="imp-rule"></select></div>
       <div class="row" style="margin-top:14px">
         <button class="btn btn-primary" id="imp-preview">Analizar</button>
+        <button class="btn" id="imp-tecnova" style="margin-left:8px">📥 Importar de Tecnova (catálogo completo)</button>
       </div>
+      <div id="imp-tecnova-result"></div>
       <div id="imp-result"></div>
     </div>`;
   const urlInput = el.view.querySelector("#imp-url") as HTMLInputElement;
@@ -1202,6 +1204,7 @@ async function viewImport(): Promise<void> {
     }, 150);
   });
   el.view.querySelector("#imp-preview")?.addEventListener("click", () => void doImportPreview());
+  el.view.querySelector("#imp-tecnova")?.addEventListener("click", () => void doTecnovaPreview());
 }
 
 interface PreviewResponse {
@@ -1428,6 +1431,158 @@ function renderImportPreview(out: HTMLElement, r: PreviewResponse, sourceUrl = "
   out.querySelector("#imp-confirm-top")?.addEventListener("click", () => void doConfirm());
   out.querySelector("#imp-confirm")?.addEventListener("click", () => void doConfirm());
   bindRepeatBox(out);
+}
+
+// ---- Importador de Tecnova (panel) ----
+// Descarga el catálogo completo de tecnova.com.ar vía su API pública y lo muestra
+// con el mapping de categorías editable. Al confirmar, importa por chunks con la
+// regla de precio elegida (misma mecánica que el importador por URL).
+
+interface TecnovaPreview {
+  total: number;
+  importables: number;
+  skipped: string[];
+  sample: { id: string; title: string; price_cents: number; categoryId: string; subcategoryId?: string; image_url?: string }[];
+  mappingSuggestions: Record<string, string>;
+  ownRoots: { id: string; name: string }[];
+  ownSubs: Record<string, { id: string; name: string }[]>;
+  rules: PriceRule[];
+}
+
+let tecnovaPreviewData: TecnovaPreview | null = null;
+
+async function doTecnovaPreview(): Promise<void> {
+  const out = el.view.querySelector("#imp-tecnova-result") as HTMLElement;
+  const prog = showProgress(out, "Consultando el catálogo de Tecnova…");
+  prog.set(10, "Descargando productos de la API…", 0);
+  try {
+    const r = await api<TecnovaPreview>("/import/tecnova/preview", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    tecnovaPreviewData = r;
+    prog.set(100, `${r.importables} de ${r.total} productos importables`, 2);
+    await new Promise((res) => setTimeout(res, 400));
+    prog.done();
+    renderTecnovaPreview(out, r);
+  } catch (e) {
+    prog.done();
+    out.innerHTML = `<div class="panel"><p class="err">${esc(e instanceof Error ? e.message : "Error")}</p></div>`;
+  }
+}
+
+function tecnovaCatOptions(preview: TecnovaPreview, selected: string): string {
+  const opts = ['<option value="">— Saltar categoría —</option>'];
+  for (const root of preview.ownRoots) {
+    opts.push(`<option value="${esc(root.id)}"${root.id === selected ? " selected" : ""}>${esc(root.name)}</option>`);
+    for (const sub of preview.ownSubs[root.id] ?? []) {
+      opts.push(`<option value="${esc(sub.id)}"${sub.id === selected ? " selected" : ""}>&nbsp;&nbsp;↳ ${esc(sub.name)}</option>`);
+    }
+  }
+  return opts.join("");
+}
+
+function renderTecnovaPreview(out: HTMLElement, r: TecnovaPreview): void {
+  const rows = Object.entries(r.mappingSuggestions).map(([cat, target]) => {
+    const count = r.sample.filter((p) => (p.categoryId ?? "") === target).length;
+    return `
+      <tr>
+        <td><strong>${esc(cat)}</strong></td>
+        <td>
+          <select class="tj-map" data-cat="${esc(cat)}">${tecnovaCatOptions(r, target)}</select>
+        </td>
+        <td><span class="muted">${count > 0 ? `${count} en la muestra` : ""}</span></td>
+      </tr>`;
+  }).join("");
+  const sampleRows = r.sample.slice(0, 20).map((p) => `
+    <tr>
+      <td>${p.image_url ? `<img class="thumb" src="${esc(p.image_url)}" alt=""/>` : '<div class="thumb"></div>'}</td>
+      <td><strong>${esc(p.title)}</strong></td>
+      <td>${formatPriceAdmin(p.price_cents)}</td>
+      <td>${esc(p.categoryId)}${p.subcategoryId ? ` › ${esc(p.subcategoryId)}` : ""}</td>
+    </tr>`).join("");
+  out.innerHTML = `
+    <div class="panel">
+      <div class="row"><h2 style="margin:0">Tecnova — catálogo completo</h2>
+        <span class="muted" style="margin-left:auto">${r.importables} importables de ${r.total} productos</span></div>
+      ${r.skipped.length ? `<p class="muted" style="margin-top:6px">${r.skipped.length} productos salteados (sin precio o categoría sin mapear):<br/>${r.skipped.slice(0, 5).map(esc).join("<br/>")}</p>` : ""}
+      <h3 style="margin-top:14px">Mapeo de categorías</h3>
+      <p class="muted">Elegí a qué categoría de tu catálogo va cada una. «Saltar categoría» no importa esos productos.</p>
+      <div class="table-scroll">
+      <table class="table" style="margin-top:8px">
+        <thead><tr><th>Categoría en Tecnova</th><th>Categoría en tu catálogo</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      </div>
+      <h3 style="margin-top:14px">Regla de precio</h3>
+      <p class="muted">El precio base es el minorista de la fuente. Elegí la regla o escala a aplicar (ej: 40-30-20), o «Automático» para usar tus reglas activas por rango.</p>
+      <select id="tj-rule" style="margin-top:6px">
+        <option value="">Automático (rangos de reglas activas)</option>
+        ${r.rules.map((rule) => `<option value="${esc(rule.id)}">${esc(rule.name)} (${rule.percent >= 0 ? "+" : ""}${rule.percent}%)</option>`).join("")}
+      </select>
+      <h3 style="margin-top:14px">Muestra de productos</h3>
+      <div class="table-scroll">
+      <table class="table" style="margin-top:8px">
+        <thead><tr><th></th><th>Título</th><th>Precio base</th><th>Categoría destino</th></tr></thead>
+        <tbody>${sampleRows}</tbody>
+      </table>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <span class="muted" id="tj-total"></span>
+        <button class="btn btn-primary" id="tj-import" style="margin-left:auto">Importar todo con este mapeo</button>
+      </div>
+    </div>`;
+  out.querySelector("#tj-import")?.addEventListener("click", () => void doTecnovaImport());
+}
+
+async function doTecnovaImport(): Promise<void> {
+  const preview = tecnovaPreviewData;
+  if (!preview) return;
+  const out = el.view.querySelector("#imp-tecnova-result") as HTMLElement;
+  // Arma el mapping desde los selects del preview (incluye los «saltar» como "").
+  const targets: Record<string, string> = {};
+  out.querySelectorAll<HTMLSelectElement>(".tj-map").forEach((sel) => {
+    targets[sel.dataset.cat ?? ""] = sel.value;
+  });
+  const skippedCats = Object.entries(targets).filter(([, v]) => v === "").map(([k]) => k);
+  if (skippedCats.length > 0) {
+    const ok = confirm(`${skippedCats.length} categoría(s) quedan sin importar:\n${skippedCats.join("\n")}\n\n¿Continuar?`);
+    if (!ok) return;
+  }
+  const priceRuleId = (out.querySelector("#tj-rule") as HTMLSelectElement | null)?.value ?? null;
+  const chunkSize = 50;
+  const chunkTotal = Math.max(1, Math.ceil(preview.importables / chunkSize));
+  const prog = showProgress(out, `Importando ${preview.importables} productos en ${chunkTotal} lote(s)…`);
+  const sleep = (ms: number): Promise<void> => new Promise((r2) => setTimeout(r2, ms));
+  let imported = 0;
+  let failed = 0;
+  try {
+    for (let ci = 0; ci < chunkTotal; ci++) {
+      if (ci > 0) {
+        prog.set(5 + Math.round((ci / chunkTotal) * 90), `Pausa antes del lote ${ci + 1}/${chunkTotal}…`, 0);
+        await sleep(800);
+      }
+      prog.set(5 + Math.round(((ci + 0.5) / chunkTotal) * 90), `Lote ${ci + 1}/${chunkTotal} · ${imported} importados hasta ahora`, 1);
+      const res = await api<{ imported: number; failed: number; ok: boolean }>("/import/tecnova/import", {
+        method: "POST",
+        body: JSON.stringify({ targets, subs: {}, priceRuleId, chunkIndex: ci, chunkTotal }),
+      });
+      imported += res.imported;
+      failed += res.failed;
+    }
+    prog.set(100, `Listo: ${imported} importados en ${chunkTotal} lote(s)`, 2);
+    await new Promise((res2) => setTimeout(res2, 500));
+    prog.done();
+    toast(`Importados ${imported} de Tecnova, fallidos ${failed}`, failed === 0);
+    mostrarBannerPendiente(false);
+    void refrescarEstadoCatalogo();
+    void render();
+  } catch (e) {
+    prog.set(100, e instanceof Error ? e.message : "Error", 1, true);
+    await new Promise((res3) => setTimeout(res3, 800));
+    prog.done();
+    toast(`${e instanceof Error ? e.message : "Error"} (importados hasta ahora: ${imported})`, false);
+  }
 }
 
 // ---- Reglas de precios ----

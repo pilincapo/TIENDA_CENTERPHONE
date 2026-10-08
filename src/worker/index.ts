@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { type CatalogSnapshot, KV_CATALOG_VERSION_KEY } from "../shared/types";
 import type { Env } from "./db";
 import { adminApp } from "./admin";
+import { tecnovaApp } from "./tecnova";
 import { forceHttpsUrl, getSettings } from "./settings";
 import { getProduct, listProducts } from "./db";
 import { getSnapshot, isSyncDue, regenerateSnapshot, runSync } from "./sync";
@@ -41,6 +42,7 @@ app.use("*", async (c, next) => {
 app.use("*", maintenanceMiddleware());
 
 app.route("/api/admin", adminApp);
+app.route("/api/admin/import/tecnova", tecnovaApp);
 app.route("/", checkoutApp);
 app.route("/", orderPageApp);
 app.route("/", seoApp);
