@@ -1,3 +1,10 @@
+## 2026-10-08 — Reglas: escalas (grupos) como unidad principal
+
+- **Selector de regla en Importar** (URL y Tecnova): primero los **grupos/escalas** (🗂️ con detalle de rangos, ej: «Prueba 40-30-20 (3 rangos: +50% · +40% · +30%)») y aparte, en un `optgroup`, las reglas sueltas. Así cada fuente usa su propia escala.
+- **Pestaña Reglas rediseñada**: las reglas con grupo se muestran agrupadas en tarjetas por escala (rangos ordenados por precio mínimo, con «Editar escala» y «Borrar escala» que borra todo el grupo), y las reglas sin grupo en su propia tabla. Botones: «+ Nueva escala (grupo)» y «+ Regla suelta».
+- **Nuevo editor de escala**: modal con filas dinámicas (mín / máx / recargo / nombre) — se crea o edita toda la escala de una vez. Al editar, borra los rangos viejos del grupo y crea los nuevos (la API no tiene PUT de grupo). Prioridad automática = orden de las filas.
+- Verificado en local: creada una escala de prueba 50/40/30 con 3 rangos, apareció agrupada en Reglas y como opción 🗂️ en el selector del importador de Tecnova; después borrada sin dejar residuos. Tests 281/281 ✅, typecheck ✅, build ✅.
+
 ## 2026-10-08 — Importador de Tecnova: catálogo completo desde su API pública
 
 - **Deploy `6d26c73c`** (commit `978eedf`): importador de Tecnova en producción. El panel sirve el asset `admin-C8pr9gap.js` (mismo hash que el build local con el botón) y `POST /api/admin/import/tecnova/preview` responde 401 sin sesión (montado y protegido). Verificación del flujo completo con login quedará en la primera importación real del admin.
