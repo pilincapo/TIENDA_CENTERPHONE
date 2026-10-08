@@ -1,5 +1,7 @@
 ## 2026-10-08 — Panel: insignia de origen en la lista de Productos
 
+- **Deploy `9d25cba9`** (commit `8ad2d92`): insignias de origen en producción. Panel sirve `admin-B_EUah_k.js` (hash idéntico al local, con `sourceBadge` dentro) y el CSS con `.badge--src`.
+
 - Cada fila de la lista muestra de dónde salió el producto: **🛰️ Tecnova** (azul), **🛰️ Hacetupedido** (verde), **🛰️ TiendaNegocio** (ámbar), **✍️ Manual** (gris, alta a mano) o el dominio para otras fuentes. Usa `source_url`, con tooltip «Importado de …».
 - Estilos nuevos `.badge--src*` en styles.css (compactos, 10px, junto al título).
 - Verificado en local con los tres casos: producto de alta manual, uno de hacetupedido y uno con source_url de Tecnova. Limpieza hecha, sin datos de prueba.
