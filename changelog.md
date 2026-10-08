@@ -1,3 +1,9 @@
+## 2026-10-08 — Panel: insignia de origen en la lista de Productos
+
+- Cada fila de la lista muestra de dónde salió el producto: **🛰️ Tecnova** (azul), **🛰️ Hacetupedido** (verde), **🛰️ TiendaNegocio** (ámbar), **✍️ Manual** (gris, alta a mano) o el dominio para otras fuentes. Usa `source_url`, con tooltip «Importado de …».
+- Estilos nuevos `.badge--src*` en styles.css (compactos, 10px, junto al título).
+- Verificado en local con los tres casos: producto de alta manual, uno de hacetupedido y uno con source_url de Tecnova. Limpieza hecha, sin datos de prueba.
+
 ## 2026-10-08 — Fix: los productos Tecnova aparecían «Sin stock» (ocultado por chunks)
 
 - **Síntoma**: tras importar el catálogo completo de Tecnova, solo 11 productos quedaban visibles y el resto mostraba «Sin stock» / desaparecía del catálogo.

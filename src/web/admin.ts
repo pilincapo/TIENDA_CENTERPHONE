@@ -709,6 +709,21 @@ interface ProductsPage {
 const prodState = { status: "published" as "published" | "hidden", page: 1, q: "" };
 let refocusSearch = false;
 
+/** Insignia de origen del producto (fuente de importación) para la lista del panel. */
+function sourceBadge(sourceUrl: string | null | undefined): string {
+  if (!sourceUrl) return '<span class="badge badge--src">✍️ Manual</span>';
+  const u = sourceUrl.toLowerCase();
+  if (u.includes("tecnova")) return '<span class="badge badge--src badge--src-tecnova" title="Importado de tecnova.com.ar">🛰️ Tecnova</span>';
+  if (u.includes("hacetupedido")) return '<span class="badge badge--src badge--src-hetu" title="Importado de hacetupedido.com">🛰️ Hacetupedido</span>';
+  if (u.includes("tiendanegocio")) return '<span class="badge badge--src badge--src-tn" title="Importado de TiendaNegocio">🛰️ TiendaNegocio</span>';
+  try {
+    const host = new URL(sourceUrl).hostname.replace(/^www\./, "");
+    return `<span class="badge badge--src" title="Importado de ${esc(host)}">🛰️ ${esc(host.slice(0, 20))}</span>`;
+  } catch {
+    return '<span class="badge badge--src">🛰️ Importado</span>';
+  }
+}
+
 async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void> {
   if (statusFilter) {
     if (prodState.status !== statusFilter) prodState.page = 1;
@@ -770,7 +785,7 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
           ${visible.map((p) => `
             <tr data-id="${esc(p.id)}">
               <td><input type="checkbox" class="prod-sel" data-id="${esc(p.id)}"/></td>
-              <td>${p.imageUrl ? `<img class="thumb" src="${esc(p.imageUrl)}" alt=""/>` : '<div class="thumb"></div>'}${esc(p.title)}<br/><span class="muted">${esc(p.id)}</span></td>
+              <td>${p.imageUrl ? `<img class="thumb" src="${esc(p.imageUrl)}" alt=""/>` : '<div class="thumb"></div>'}${esc(p.title)} ${sourceBadge(p.sourceUrl)}<br/><span class="muted">${esc(p.id)}</span></td>
               <td>${formatPriceAdmin(p.priceCents)}</td>
               <td>${esc(catName(p.categoryId))}</td>
               <td class="${p.status === "published" ? "ok" : "muted"}">${p.status === "published" ? "Publicado" : "Sin stock"}</td>
