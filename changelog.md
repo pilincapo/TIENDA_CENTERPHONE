@@ -1,3 +1,9 @@
+## 2026-10-08 — Panel: botones de la tabla de Productos compactos en mobile
+
+- En pantallas angostas (≤640px) los botones Editar/Borrar de la tabla pasan a padding 5px 8px y 12px (antes 9px 16px y 13px), y las celdas reducen su padding a 8px 6px.
+- Medido a 390px: botón 81→61px, celda Acciones 185→146px, scroll horizontal total de la tabla 720→681px (vs 788px original sin compactar nada). En desktop (1000px) no cambia nada.
+- Typecheck ✅, build ✅.
+
 ## 2026-10-08 — Panel: columna Origen compacta en mobile
 
 - En pantallas angostas (≤640px) el badge de origen de la lista de Productos muestra solo el ícono (🛰️ / ✍️) y esconde el nombre (`.badge-src-name { display:none }`); el nombre completo queda en el tooltip.

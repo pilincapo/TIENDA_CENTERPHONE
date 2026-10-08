@@ -210,6 +210,10 @@ img { max-width: 100%; display: block; }
 @media (max-width: 640px) {
   .badge--src { font-size: 11px; }
   .badge--src .badge-src-name { display: none; }
+  /* Botones de acción de la tabla de Productos: compactos para que la celda
+     Acciones deje de ser la más ancha de la fila en un teléfono. */
+  .table td .btn { padding: 5px 8px; font-size: 12px; gap: 0; }
+  .table td { padding: 8px 6px; }
 }
 
 /* ===== Botones ===== */
