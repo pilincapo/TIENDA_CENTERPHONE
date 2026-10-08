@@ -1,5 +1,7 @@
 ## 2026-10-08 — Reglas: escalas (grupos) como unidad principal
 
+- **Deploy `8f608c1d`** (commit `af73d49`): escalas en producción. El panel sirve `admin-BLm6-zBE.js` (mismo hash que el build local) y el asset contiene los marcadores del editor de escalas («Nueva escala (grupo)», vista de «Reglas sueltas (fuera de escala)»).
+
 - **Selector de regla en Importar** (URL y Tecnova): primero los **grupos/escalas** (🗂️ con detalle de rangos, ej: «Prueba 40-30-20 (3 rangos: +50% · +40% · +30%)») y aparte, en un `optgroup`, las reglas sueltas. Así cada fuente usa su propia escala.
 - **Pestaña Reglas rediseñada**: las reglas con grupo se muestran agrupadas en tarjetas por escala (rangos ordenados por precio mínimo, con «Editar escala» y «Borrar escala» que borra todo el grupo), y las reglas sin grupo en su propia tabla. Botones: «+ Nueva escala (grupo)» y «+ Regla suelta».
 - **Nuevo editor de escala**: modal con filas dinámicas (mín / máx / recargo / nombre) — se crea o edita toda la escala de una vez. Al editar, borra los rangos viejos del grupo y crea los nuevos (la API no tiene PUT de grupo). Prioridad automática = orden de las filas.
