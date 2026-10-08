@@ -1,5 +1,7 @@
 ## 2026-10-08 — Importador de Tecnova: catálogo completo desde su API pública
 
+- **Deploy `6d26c73c`** (commit `978eedf`): importador de Tecnova en producción. El panel sirve el asset `admin-C8pr9gap.js` (mismo hash que el build local con el botón) y `POST /api/admin/import/tecnova/preview` responde 401 sin sesión (montado y protegido). Verificación del flujo completo con login quedará en la primera importación real del admin.
+
 - **Fuente**: la web de tecnova.com.ar es una SPA, pero su bundle expone la API REST de Supabase que alimenta el sitio (`jimqifdqqgthrwzjiyfr.supabase.co/rest/v1/products`, clave anon pública de su frontend, solo lectura). 368 productos en 18 categorías con precio minorista/mayorista, stock, imágenes y flags oferta/nuevo/destacado.
 - **Reglas acordadas**: se importan TODAS las categorías (mapeo editable), sin mención del proveedor en el catálogo, precio base = minorista con regla de recargo elegible (ej: escala 40-30-20).
 - **Nuevo `src/shared/tecnova.ts`**: fetch paginado de la API, mapping default de las 18 categorías (ALMACENAMIENTO→computacion, CABLES Y ADAPTADORES→electronica, VARIOS/BAZAR/JUGUETES→hogar, etc.), normalización a items internos (id estable `tecnova-<id>`, tags desde flags, disponibilidad desde stock + on_demand_lead_time). El mapping explícito del panel pisa al default; `""` = saltar la categoría.
