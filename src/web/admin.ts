@@ -706,7 +706,7 @@ interface ProductsPage {
 }
 
 // Estado que sobrevive a los re-renders: editar o borrar no te manda a la página 1.
-const prodState = { status: "published" as "published" | "hidden", page: 1, q: "" };
+const prodState = { status: "published" as "published" | "hidden", page: 1, q: "", src: "" as "" | "tecnova" | "hacetupedido" | "manual" };
 let refocusSearch = false;
 
 /** Insignia de origen del producto (fuente de importación) para la lista del panel. */
@@ -733,6 +733,7 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
   const fetchPage = async (): Promise<ProductsPage> => {
     const params = new URLSearchParams({ page: String(prodState.page), limit: "50", status: prodState.status });
     if (prodState.q !== "") params.set("q", prodState.q);
+    if (prodState.src !== "") params.set("src", prodState.src);
     return api<ProductsPage>(`/products?${params.toString()}`);
   };
   let data = await fetchPage();
@@ -751,6 +752,9 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
   const catOptions = categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
   const chip = (v: "published" | "hidden", label: string, n: number): string =>
     `<button class="chip ${prodState.status === v ? "on" : ""}" data-pf="${v}">${label} <span class="muted">${n}</span></button>`;
+  const srcCounts = (data as { srcCounts?: { tecnova: number; hacetupedido: number; manual: number } }).srcCounts ?? { tecnova: 0, hacetupedido: 0, manual: 0 };
+  const srcChip = (v: "" | "tecnova" | "hacetupedido" | "manual", label: string, n: number): string =>
+    `<button class="chip ${prodState.src === v ? "on" : ""}" data-sf="${v}" title="Filtrar por origen">${label} <span class="muted">${n}</span></button>`;
   el.view.innerHTML = `
     <div class="panel">
       <div class="row">
@@ -763,6 +767,13 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
           value="${esc(prodState.q)}" style="max-width:240px; margin-left:10px"/>
         <span class="muted" id="prod-search-count" ${prodState.q !== "" ? "" : "hidden"}>${prodState.q !== "" ? `${data.total} coincidencias` : ""}</span>
         <button class="btn btn-primary" id="new-product" style="margin-left:auto">+ Nuevo producto</button>
+      </div>
+      <div class="row" style="margin-top:8px; gap:6px">
+        <span class="muted" style="font-size:12px">Origen:</span>
+        ${srcChip("", "Todos", data.counts.published + data.counts.hidden)}
+        ${srcChip("tecnova", "🛰️ Tecnova", srcCounts.tecnova)}
+        ${srcChip("hacetupedido", "🛰️ Hacetupedido", srcCounts.hacetupedido)}
+        ${srcChip("manual", "✍️ Manuales", srcCounts.manual)}
       </div>
       ${prodState.status === "hidden" ? `<p class="muted" style="margin:8px 0 0">No aparecen en el catálogo público porque la fuente ya no los trae (sin stock) o los ocultaste a mano. Si la fuente vuelve a traerlos, se re-publican solos.</p>
       <div class="row" style="margin-top:10px">
@@ -808,6 +819,13 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
     </div>`;
   el.view.querySelectorAll<HTMLButtonElement>("[data-pf]").forEach((b) => {
     b.addEventListener("click", () => void viewProducts((b.dataset.pf as "published" | "hidden") ?? "published"));
+  });
+  el.view.querySelectorAll<HTMLButtonElement>("[data-sf]").forEach((b) => {
+    b.addEventListener("click", () => {
+      prodState.src = (b.dataset.sf as typeof prodState.src) ?? "";
+      prodState.page = 1;
+      void viewProducts();
+    });
   });
   // ---- Paginación: cambia de página sin recargar el resto del panel ----
   el.view.querySelector("#pg-prev")?.addEventListener("click", () => {

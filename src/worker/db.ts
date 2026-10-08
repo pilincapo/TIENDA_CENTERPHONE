@@ -129,6 +129,8 @@ export async function listProducts(db: D1Database, all = false): Promise<Product
 export interface ProductPageFilter {
   status?: "" | "published" | "hidden"; // "" = todos
   q?: string; // búsqueda por título o código (id)
+  /** Filtro por origen: "tecnova" | "hacetupedido" | "manual" | "" = todos */
+  src?: string;
   limit?: number;
   offset?: number;
 }
@@ -138,7 +140,7 @@ function likePattern(q: string): string {
   return `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
 }
 
-function productWhere(status: "" | "published" | "hidden", q: string): { sql: string; args: string[] } {
+function productWhere(status: "" | "published" | "hidden", q: string, src = ""): { sql: string; args: string[] } {
   const conds: string[] = [];
   const args: string[] = [];
   if (status === "published" || status === "hidden") {
@@ -150,12 +152,19 @@ function productWhere(status: "" | "published" | "hidden", q: string): { sql: st
     conds.push("(title LIKE ? ESCAPE '\\' OR id LIKE ? ESCAPE '\\')");
     args.push(pat, pat);
   }
+  // Origen: dominio contenido en source_url, o NULL para alta manual.
+  if (src === "manual") {
+    conds.push("source_url IS NULL");
+  } else if (src !== "") {
+    conds.push("source_url LIKE ?");
+    args.push(`%${src}%`);
+  }
   return { sql: conds.length > 0 ? `WHERE ${conds.join(" AND ")}` : "", args };
 }
 
 /** Una página de productos (todos los estados según filtro), para el panel. */
 export async function listProductsPaged(db: D1Database, f: ProductPageFilter): Promise<Product[]> {
-  const { sql, args } = productWhere(f.status ?? "", f.q ?? "");
+  const { sql, args } = productWhere(f.status ?? "", f.q ?? "", f.src ?? "");
   const limit = Math.max(1, Math.min(200, f.limit ?? 50));
   const offset = Math.max(0, f.offset ?? 0);
   const { results } = await db
@@ -166,8 +175,8 @@ export async function listProductsPaged(db: D1Database, f: ProductPageFilter): P
 }
 
 /** Cantidad de productos que devuelve el mismo filtro (para las páginas). */
-export async function countProducts(db: D1Database, f: Pick<ProductPageFilter, "status" | "q">): Promise<number> {
-  const { sql, args } = productWhere(f.status ?? "", f.q ?? "");
+export async function countProducts(db: D1Database, f: Pick<ProductPageFilter, "status" | "q" | "src">): Promise<number> {
+  const { sql, args } = productWhere(f.status ?? "", f.q ?? "", f.src ?? "");
   const row = await db.prepare(`SELECT COUNT(*) AS n FROM products ${sql}`).bind(...args).first<Dict>();
   return Number(row?.n ?? 0);
 }
@@ -182,6 +191,20 @@ export async function countProductsByStatus(db: D1Database): Promise<{ published
     if (r.st === "hidden") hidden = Number(r.n ?? 0);
   }
   return { published, hidden, total: published + hidden };
+}
+
+/** Totales por origen (para los chips de origen del panel): dominio contenido en source_url. */
+export async function countProductsBySource(db: D1Database): Promise<{ tecnova: number; hacetupedido: number; manual: number }> {
+  const row = await db
+    .prepare(
+      `SELECT
+         SUM(CASE WHEN source_url LIKE '%tecnova%' THEN 1 ELSE 0 END) AS tecnova,
+         SUM(CASE WHEN source_url LIKE '%hacetupedido%' THEN 1 ELSE 0 END) AS hacetupedido,
+         SUM(CASE WHEN source_url IS NULL THEN 1 ELSE 0 END) AS manual
+       FROM products`
+    )
+    .first<Dict>();
+  return { tecnova: Number(row?.tecnova ?? 0), hacetupedido: Number(row?.hacetupedido ?? 0), manual: Number(row?.manual ?? 0) };
 }
 
 /** Cantidad de productos por categoría (publicados y totales) para el panel. */

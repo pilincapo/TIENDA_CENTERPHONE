@@ -1,3 +1,10 @@
+## 2026-10-08 — Panel: filtro por origen en Productos
+
+- Nueva fila de chips «Origen:» sobre la tabla: **Todos / 🛰️ Tecnova / 🛰️ Hacetupedido / ✍️ Manuales**, con la cantidad de productos de cada uno (una query SUM en vez de traer filas).
+- El filtro se aplica en SQL (`source_url LIKE '%dominio%'`, o `IS NULL` para manuales) combinable con la búsqueda por texto y los chips de estado; reinicia la paginación al cambiarlo.
+- Backend: `GET /api/admin/products?src=` con whitelist (tecnova/hacetupedido/manual), `ProductPageFilter.src` y `countProductsBySource()` en db.ts.
+- Verificado en local con datos de prueba de los tres orígenes: cada chip filtra y queda marcado, los conteos coinciden con D1 (1 Tecnova / 836 Hacetupedido / 1 manual). Limpieza hecha. Tests 281/281 ✅, typecheck ✅, build ✅.
+
 ## 2026-10-08 — Panel: insignia de origen en la lista de Productos
 
 - **Deploy `9d25cba9`** (commit `8ad2d92`): insignias de origen en producción. Panel sirve `admin-B_EUah_k.js` (hash idéntico al local, con `sourceBadge` dentro) y el CSS con `.badge--src`.

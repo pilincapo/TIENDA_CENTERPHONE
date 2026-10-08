@@ -7,7 +7,7 @@ import type { AutoImport } from "../shared/autoimport";
 import { TAGS } from "../shared/types";
 import type { Dict, Env } from "./db";
 import {
-  countProducts, countProductsByCategory, countProductsByStatus, deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct,
+  countProducts, countProductsByCategory, countProductsBySource, countProductsByStatus, deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct,
   getAutoImportByUrl, getProduct, insertSyncLog, lastSyncLogByDetail, listAutoImports, listCategories, listPriceRules,
   listProductsPaged, listSyncLog, listSyncLogByTrigger, upsertAutoImport, upsertCategory, upsertPriceRule, upsertProduct,
 } from "./db";
@@ -173,12 +173,16 @@ adminApp.get("/products", async (c) => {
   const statusParam = c.req.query("status");
   const status: "" | "published" | "hidden" =
     statusParam === "published" || statusParam === "hidden" ? statusParam : "";
+  // Origen: "tecnova" | "hacetupedido" | "manual"; cualquier otro valor = todos.
+  const srcParam = (c.req.query("src") ?? "").trim().toLowerCase();
+  const src = ["tecnova", "hacetupedido", "manual"].includes(srcParam) ? srcParam : "";
   const page = Math.max(1, Math.min(500, Math.trunc(Number(c.req.query("page") ?? 1)) || 1));
   const limit = Math.max(1, Math.min(200, Math.trunc(Number(c.req.query("limit") ?? 50)) || 50));
-  const [products, total, counts] = await Promise.all([
-    listProductsPaged(c.env.DB, { status, q, limit, offset: (page - 1) * limit }),
-    countProducts(c.env.DB, { status, q }),
+  const [products, total, counts, srcCounts] = await Promise.all([
+    listProductsPaged(c.env.DB, { status, q, src, limit, offset: (page - 1) * limit }),
+    countProducts(c.env.DB, { status, q, src }),
     countProductsByStatus(c.env.DB),
+    countProductsBySource(c.env.DB),
   ]);
   return c.json({
     products,
@@ -187,6 +191,7 @@ adminApp.get("/products", async (c) => {
     pages: Math.max(1, Math.ceil(total / limit)),
     limit,
     counts: { published: counts.published, hidden: counts.hidden },
+    srcCounts,
   });
 });
 
