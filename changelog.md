@@ -1,3 +1,9 @@
+## 2026-10-08 — Panel: la insignia de origen pasa a una columna propia
+
+- En la lista de Productos, la insignia de origen deja de estar pegada al título y ocupa una columna nueva «Origen» (entre Título y Precio), así no interrumpe el nombre del producto.
+- Filas y encabezado alineados (Título · Origen · Precio · Categoría · Estado · Tags); el badge no corta línea (`white-space: nowrap`) y un reemplazo intermedio había dejado la celda de Tags fuera de la fila: corregido.
+- Verificado en navegador local: 50 badges en su columna, búsqueda por código OK (badge en columna 3, no dentro del título), typecheck ✅ y build ✅.
+
 ## 2026-10-08 — Panel: filtro por origen en Productos
 
 - Nueva fila de chips «Origen:» sobre la tabla: **Todos / 🛰️ Tecnova / 🛰️ Hacetupedido / ✍️ Manuales**, con la cantidad de productos de cada uno (una query SUM en vez de traer filas).

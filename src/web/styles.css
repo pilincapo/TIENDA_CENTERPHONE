@@ -200,7 +200,7 @@ img { max-width: 100%; display: block; }
 .badge--stock-out { background: rgb(125 143 159 / .15); color: var(--muted); border: 1px solid var(--border-bright); }
 .badge--stock-pre { background: rgb(88 166 255 / .12); color: #58a6ff; border: 1px solid #58a6ff; }
 /* Origen del producto (lista del panel): fuente de importación o alta manual. */
-.badge--src { background: rgb(125 143 159 / .10); color: var(--muted); border: 1px solid var(--border-bright); font-size: 10px; padding: 1px 5px; }
+.badge--src { background: rgb(125 143 159 / .10); color: var(--muted); border: 1px solid var(--border-bright); font-size: 10px; padding: 2px 6px; white-space: nowrap; }
 .badge--src-tecnova { color: #58a6ff; border-color: #58a6ff; background: rgb(88 166 255 / .12); }
 .badge--src-hetu { color: var(--brand); border-color: var(--brand); background: var(--term-green-soft); }
 .badge--src-tn { color: var(--term-amber); border-color: var(--term-amber); background: var(--term-amber-soft); }

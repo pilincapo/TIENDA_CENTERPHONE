@@ -791,12 +791,13 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
       ${visible.length === 0 ? `<p class="muted" style="margin-top:14px">${prodState.q !== "" ? "Ningún producto coincide con la búsqueda." : prodState.status === "hidden" ? "No hay productos sin stock. 🎉" : "No hay productos todavía."}</p>` : `
       <div class="table-scroll">
       <table class="table" style="margin-top:14px">
-        <thead><tr><th><input type="checkbox" id="sel-all" title="Marcar todos (esta página)"/></th><th>Título</th><th>Precio</th><th>Categoría</th><th>Estado</th><th>Tags</th><th></th></tr></thead>
+        <thead><tr><th><input type="checkbox" id="sel-all" title="Marcar todos (esta página)"/></th><th>Título</th><th>Origen</th><th>Precio</th><th>Categoría</th><th>Estado</th><th>Tags</th><th></th></tr></thead>
         <tbody>
           ${visible.map((p) => `
             <tr data-id="${esc(p.id)}">
               <td><input type="checkbox" class="prod-sel" data-id="${esc(p.id)}"/></td>
-              <td>${p.imageUrl ? `<img class="thumb" src="${esc(p.imageUrl)}" alt=""/>` : '<div class="thumb"></div>'}${esc(p.title)} ${sourceBadge(p.sourceUrl)}<br/><span class="muted">${esc(p.id)}</span></td>
+              <td>${p.imageUrl ? `<img class="thumb" src="${esc(p.imageUrl)}" alt=""/>` : '<div class="thumb"></div>'}${esc(p.title)}<br/><span class="muted">${esc(p.id)}</span></td>
+              <td>${sourceBadge(p.sourceUrl)}</td>
               <td>${formatPriceAdmin(p.priceCents)}</td>
               <td>${esc(catName(p.categoryId))}</td>
               <td class="${p.status === "published" ? "ok" : "muted"}">${p.status === "published" ? "Publicado" : "Sin stock"}</td>
