@@ -124,11 +124,21 @@ tecnovaApp.post("/import", async (c) => {
     await ensureCategories(c.env, mapping);
     // Chunk de trabajo: solo la porción de este request (límite de CPU del free tier).
     const slice = internal.slice(chunkIndex * IMPORT_CHUNK, (chunkIndex + 1) * IMPORT_CHUNK);
+    // BUG del ocultado automático (fix): importItems oculta los productos de la
+    // fuente que NO estén en el chunk actual — correcto para una fuente de un
+    // solo request, pero con chunks de 50 el ÚLTIMO chunk ocultaba los 300+
+    // importados por los anteriores (los productos aparecían "Sin stock").
+    // El ocultado real lo hace el último chunk contra la lista COMPLETA de ids
+    // importables; los chunks intermedios solo guardan (skipHide).
+    const isLast = chunkIndex >= chunkTotal - 1;
+    const keepIds = isLast ? internal.map((i) => String(i.id)) : undefined;
     const outcome = await importItems(c.env, slice, {
       forceRuleId: body.priceRuleId ?? null,
       skipRules: false,
       sourceUrl: TECNOVA_SOURCE_URL,
-      isLastChunk: chunkIndex >= chunkTotal - 1,
+      isLastChunk: isLast,
+      skipHide: !isLast,
+      hideKeepIds: keepIds,
     });
     const motivos = [...outcome.errors, ...skipped].slice(0, 40).join("; ");
     void insertSyncLog(c.env.DB, {

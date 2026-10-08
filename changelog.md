@@ -1,3 +1,11 @@
+## 2026-10-08 — Fix: los productos Tecnova aparecían «Sin stock» (ocultado por chunks)
+
+- **Síntoma**: tras importar el catálogo completo de Tecnova, solo 11 productos quedaban visibles y el resto mostraba «Sin stock» / desaparecía del catálogo.
+- **Causa**: el ocultado automático de `importItems` compara contra los ids del lote actual. Con el importador por chunks de 50, el ÚLTIMO chunk solo traía 11 ids, así que `hideProductsNotIn` ocultó los otros 350 productos que sí habían venido en los chunks anteriores (quedaron `status=hidden` = «Sin stock» en la ficha). El bug afectaba también al importador por URL con selecciones de más de 50 items.
+- **Fix**: `importItems` acepta `skipHide` (chunks intermedios no ocultan) y `hideKeepIds` (el último chunk oculta contra la lista COMPLETA de ids de la fuente). El endpoint de Tecnova manda la lista completa de importables en el último chunk.
+- **Reparación de datos**: UPDATE directo en D1 de producción reactivó los 350 ocultos (361 published, 0 hidden). Pendiente «Publicar catálogo» o el próximo sync para regenerar el snapshot.
+- Verificado en local: importación completa de 8 chunks → 361 published, 0 deactivated; snapshot con 361 tecnova (344 in_stock, 17 preorder). Tests 281/281 ✅, typecheck ✅, build ✅.
+
 ## 2026-10-08 — Reglas: escalas (grupos) como unidad principal
 
 - **Deploy `8f608c1d`** (commit `af73d49`): escalas en producción. El panel sirve `admin-BLm6-zBE.js` (mismo hash que el build local) y el asset contiene los marcadores del editor de escalas («Nueva escala (grupo)», vista de «Reglas sueltas (fuera de escala)»).

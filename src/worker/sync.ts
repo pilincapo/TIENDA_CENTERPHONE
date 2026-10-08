@@ -133,7 +133,17 @@ export async function getSnapshot(env: Env): Promise<CatalogSnapshot | null> {
 export async function importItems(
   env: Env,
   rawItems: unknown[],
-  importOptions: { forceRuleId?: string | null; skipRules?: boolean; sourceUrl?: string | null; isLastChunk?: boolean; skipSnapshot?: boolean } = {}
+  importOptions: {
+    forceRuleId?: string | null;
+    skipRules?: boolean;
+    sourceUrl?: string | null;
+    isLastChunk?: boolean;
+    skipSnapshot?: boolean;
+    /** No ocultar nada en esta llamada (chunks intermedios). */
+    skipHide?: boolean;
+    /** Ocultar contra esta lista completa de ids en vez del chunk actual (ocultado del último chunk). */
+    hideKeepIds?: string[];
+  } = {}
 ): Promise<SyncOutcome> {
   const outcome = await importItemsChunk(env, rawItems, importOptions);
   // El importador manual manda los productos en chunks (para no exceder el límite
@@ -148,7 +158,17 @@ export async function importItems(
 async function importItemsChunk(
   env: Env,
   rawItems: unknown[],
-  importOptions: { forceRuleId?: string | null; skipRules?: boolean; sourceUrl?: string | null; isLastChunk?: boolean; skipSnapshot?: boolean } = {}
+  importOptions: {
+    forceRuleId?: string | null;
+    skipRules?: boolean;
+    sourceUrl?: string | null;
+    isLastChunk?: boolean;
+    skipSnapshot?: boolean;
+    /** No ocultar nada en esta llamada (chunks intermedios). */
+    skipHide?: boolean;
+    /** Ocultar contra esta lista completa de ids en vez del chunk actual. */
+    hideKeepIds?: string[];
+  } = {}
 ): Promise<SyncOutcome> {
   const startedAt = nowMs();
   const { products, categories, skipped } = normalizeExternalItems(rawItems);
@@ -182,9 +202,14 @@ async function importItemsChunk(
   // Si la fuente vino vacía (extracción fallida) NO se oculta nada: así un error
   // temporal de la web de origen no borra medio catálogo.
   let deactivated = 0;
-  if (importOptions.sourceUrl && saved > 0) {
-    deactivated = await hideProductsNotIn(env.DB, importOptions.sourceUrl, products.map((p) => p.id), now);
-    await unhideProductsIn(env.DB, importOptions.sourceUrl, products.map((p) => p.id), now);
+  if (!importOptions.skipHide && importOptions.sourceUrl && saved > 0) {
+    // hideKeepIds: cuando el importador trabaja por chunks, el ÚLTIMO chunk pasa
+    // la lista COMPLETA de ids de la fuente — si se comparara solo contra este
+    // chunk, todos los productos guardados por los chunks anteriores quedarían
+    // ocultos (bug de "Sin stock" masivo en el importador de Tecnova).
+    const keepIds = importOptions.hideKeepIds ?? products.map((p) => p.id);
+    deactivated = await hideProductsNotIn(env.DB, importOptions.sourceUrl, keepIds, now);
+    await unhideProductsIn(env.DB, importOptions.sourceUrl, keepIds, now);
   }
   // El snapshot lee TODO el catálogo: con 21 fuentes seguidas son 21 lecturas
   // completas. Cuando el panel encola los jobs de a una, manda skipSnapshot y
