@@ -711,16 +711,18 @@ let refocusSearch = false;
 
 /** Insignia de origen del producto (fuente de importación) para la lista del panel. */
 function sourceBadge(sourceUrl: string | null | undefined): string {
-  if (!sourceUrl) return '<span class="badge badge--src">✍️ Manual</span>';
+  // El nombre va en .badge-src-name: en pantallas angostas el CSS lo oculta y
+  // queda solo el ícono, para que la columna Origen no desalinee la fila.
+  if (!sourceUrl) return '<span class="badge badge--src" title="Alta manual">✍️<span class="badge-src-name"> Manual</span></span>';
   const u = sourceUrl.toLowerCase();
-  if (u.includes("tecnova")) return '<span class="badge badge--src badge--src-tecnova" title="Importado de tecnova.com.ar">🛰️ Tecnova</span>';
-  if (u.includes("hacetupedido")) return '<span class="badge badge--src badge--src-hetu" title="Importado de hacetupedido.com">🛰️ Hacetupedido</span>';
-  if (u.includes("tiendanegocio")) return '<span class="badge badge--src badge--src-tn" title="Importado de TiendaNegocio">🛰️ TiendaNegocio</span>';
+  if (u.includes("tecnova")) return '<span class="badge badge--src badge--src-tecnova" title="Importado de tecnova.com.ar">🛰️<span class="badge-src-name"> Tecnova</span></span>';
+  if (u.includes("hacetupedido")) return '<span class="badge badge--src badge--src-hetu" title="Importado de hacetupedido.com">🛰️<span class="badge-src-name"> Hacetupedido</span></span>';
+  if (u.includes("tiendanegocio")) return '<span class="badge badge--src badge--src-tn" title="Importado de TiendaNegocio">🛰️<span class="badge-src-name"> TiendaNegocio</span></span>';
   try {
     const host = new URL(sourceUrl).hostname.replace(/^www\./, "");
-    return `<span class="badge badge--src" title="Importado de ${esc(host)}">🛰️ ${esc(host.slice(0, 20))}</span>`;
+    return `<span class="badge badge--src" title="Importado de ${esc(host)}">🛰️<span class="badge-src-name"> ${esc(host.slice(0, 20))}</span></span>`;
   } catch {
-    return '<span class="badge badge--src">🛰️ Importado</span>';
+    return '<span class="badge badge--src" title="Importado">🛰️<span class="badge-src-name"> Importado</span></span>';
   }
 }
 

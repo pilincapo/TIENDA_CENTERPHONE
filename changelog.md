@@ -1,3 +1,9 @@
+## 2026-10-08 — Panel: columna Origen compacta en mobile
+
+- En pantallas angostas (≤640px) el badge de origen de la lista de Productos muestra solo el ícono (🛰️ / ✍️) y esconde el nombre (`.badge-src-name { display:none }`); el nombre completo queda en el tooltip.
+- Antes el badge forzaba 129px de columna y "se comía" medio viewport en un teléfono; ahora son 30px y el scroll horizontal de la tabla bajó de 788 a 720px a 390px de ancho. En desktop no cambia nada (nombre visible, verificado a 1000px).
+- Verificado en navegador local a 390px y 1000px. Typecheck ✅, build ✅.
+
 - **Deploy `efc3aa7a`** (commit `38acb7c`): columna Origen en producción. El panel sirve `assets/admin-CHa7Jm11.js`, que contiene el encabezado «Título / Origen / Precio» y la lógica del badge (✍️ Manual, «Importado de …»); el CSS servido trae `.badge--src` con `white-space:nowrap`.
 
 ## 2026-10-08 — Panel: la insignia de origen pasa a una columna propia

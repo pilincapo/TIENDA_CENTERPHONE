@@ -204,6 +204,13 @@ img { max-width: 100%; display: block; }
 .badge--src-tecnova { color: #58a6ff; border-color: #58a6ff; background: rgb(88 166 255 / .12); }
 .badge--src-hetu { color: var(--brand); border-color: var(--brand); background: var(--term-green-soft); }
 .badge--src-tn { color: var(--term-amber); border-color: var(--term-amber); background: var(--term-amber-soft); }
+/* En pantallas angostas la tabla hace scroll horizontal; el badge de origen se
+   compacta (solo el 🛰️, sin nombre) para que no se coma medio viewport y
+   desalinee la fila. */
+@media (max-width: 640px) {
+  .badge--src { font-size: 11px; }
+  .badge--src .badge-src-name { display: none; }
+}
 
 /* ===== Botones ===== */
 .btn {
