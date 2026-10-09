@@ -6,6 +6,7 @@
 import type { Product } from "../shared/types";
 import type { PublicSettings } from "./types-web";
 import { formatPrice } from "../shared/format";
+import { cartTransferBanner, discountPercentFrom } from "./transfer-banner";
 import {
   cartAdd, cartClear, cartLines, cartRemove, cartSetQty, cartCount, onCartChange,
   MAX_QTY_PER_ITEM,
@@ -318,10 +319,9 @@ function renderCart(): void {
   // El total a cobrar lo recalcula el worker: esto es solo anticipación visual.
   const surchargePercent = Math.min(50, Math.max(0, Math.round(Number(init.settings.mpSurchargePercent ?? 0))));
   const totalSurcharge = surchargePercent > 0 ? total + Math.round((total * surchargePercent) / 100) : total;
-  const discountPercent = Math.min(50, Math.max(0, Math.round(Number(init.settings.transferDiscountPercent ?? 0))));
-  const transferNote = discountPercent > 0
-    ? `<p class="cart-transfer">Pagando por transferencia tenés <b>${discountPercent}% de descuento</b>: total ${formatPrice(total - Math.round((total * discountPercent) / 100), symbol)}. Elegí "Consultar este pedido" y lo coordinamos por WhatsApp.</p>`
-    : "";
+  const discountPercent = discountPercentFrom(init.settings.transferDiscountPercent);
+  // Banner destacado (pastilla -N% + precio tachado + ahorro); vacío sin descuento.
+  const transferNote = cartTransferBanner(total, discountPercent, symbol);
   body.innerHTML = `
     <div class="cart-lines">${rows}</div>
     ${surchargePercent > 0 ? `<div class="cart-total cart-total-sub">Subtotal <b>${formatPrice(total, symbol)}</b></div>

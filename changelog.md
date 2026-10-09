@@ -1,3 +1,13 @@
+## 2026-10-09 — Descuento por transferencia resaltado: banner en el carrito y línea en la ficha
+
+- **Feedback del usuario** (anotado en la ficha de producción): el «10% de descuento» del carrito era un párrafo verde de 13px que no llamaba la atención.
+- **Nuevo `src/web/transfer-banner.ts`** (módulo puro sin DOM, testable en node): `discountPercentFrom` (clamp 0-50, igual que el worker), `discountCentsFor` (`Math.round` sobre el total, **misma fórmula que `finalizeOrder`** para que el número del banner coincida con el congelado en el pedido), `cartTransferBanner` (HTML del banner) y `productTransferLine` (línea compacta de la ficha).
+- **Carrito** (`src/web/cart-ui.ts`): el párrafo «Pagando por transferencia tenés N% de descuento» pasa a ser un bloque con pastilla «-N%», «Por transferencia», precio de lista tachado, total final en grande y «Ahorrás $X pagando por transferencia». Sin cambios de lógica: sigue apareciendo solo con descuento > 0 y el botón «Coordinar por transferencia» no se toca.
+- **Ficha de producto** (`src/web/product.ts`): debajo del precio aparece «Por transferencia: $final $lista(tachado)» con pastilla «-N%», solo en modo tienda (`sellsOnline`) y con descuento > 0 — antes el descuento no se veía en ningún lado hasta abrir el carrito.
+- **Estilos** (`src/web/styles.css`): `.cart-transfer` pasa a bloque con fondo `--term-green-soft` y borde `--brand`, pastilla verde con texto oscuro, tachado muted y total 19px bold; `.price-transfer` compacto para la ficha; ajuste ≤480px para el modal a pantalla completa.
+- **Tests**: `src/web/transfer-banner.test.ts` (clamp, redondeo igual al worker, HTML con/sin descuento, montos) — **9 nuevos, 306/306** ✅, typecheck ✅, build ✅.
+- Verificado en local (wrangler dev en 127.0.0.1:8788, el 8787 tenía un listener colgado): ficha con `-10% Por transferencia: $3.024 $3.360` (pill, tachado y verde aplicados), carrito con el banner completo (pastilla -10%, $3.360 tachado, $3.024 en grande, Ahorrás $336 y botón «Coordinar por transferencia» visible) y a 390px sin desborde (pill 15px / total 17px). Sin deploy (no se pidió).
+
 ## 2026-10-09 — Tecnova: la categoría propia «VARIOS» se unifica en la raíz «Varios»
 
 - **Cambio**: `DEFAULT_TECNOVA_CATEGORY_MAP` mapea `VARIOS` → `varios` (antes → `hogar`) en `src/shared/tecnova.ts`. Los 16 productos que Tecnova publica bajo su categoría propia «VARIOS» dejan de quedar perdidos en «Hogar» y pasan a la raíz **«Varios»**, junto a los que venían sin categoría (`""` → `varios`).

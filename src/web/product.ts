@@ -11,6 +11,7 @@ import { setupModals, fillStoreInfo } from "./store-modals";
 import { track } from "./track";
 import { isFresh, cdnSrcset } from "./catalog";
 import { setupCartUI } from "./cart-ui";
+import { productTransferLine, discountPercentFrom } from "./transfer-banner";
 
 interface DetailResponse {
   product: Product;
@@ -122,6 +123,11 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
        <button class="btn btn-secondary" data-add="${esc(product.id)}" type="button">Agregar al carrito</button>`
     : "";
 
+  // Descuento por transferencia (solo modo tienda: en catálogo no existe el flujo).
+  const transferLine = sellsOnline(settings)
+    ? productTransferLine(product.priceCents, discountPercentFrom(settings.transferDiscountPercent), symbol)
+    : "";
+
   el.app.innerHTML = `
     <div class="product-detail">
       <div class="img">${img}</div>
@@ -129,6 +135,7 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
         <div class="badges">${freshBadge} ${tags} ${stockBadge}</div>
         <h1>${esc(product.title)}</h1>
         <div class="price">${formatPrice(product.priceCents, symbol)}</div>
+        ${transferLine}
         <p class="desc">${esc(product.description || "Sin descripción.")}</p>
         ${hiddenNotice}
         <p class="muted">Disponibilidad: ${esc(availabilityLabel(product.availability))}</p>
