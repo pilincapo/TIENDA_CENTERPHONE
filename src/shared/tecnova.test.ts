@@ -93,6 +93,27 @@ describe("tecnovaItemsToInternal", () => {
     expect(skipped).toHaveLength(2);
   });
 
+  it("sin categoría (categories vacío) entra en la raíz de default \"varios\"", () => {
+    // 7 fichas de Tecnova vienen con categories: [] — antes se salteaban todas.
+    const { items, skipped } = tecnovaItemsToInternal([row({ categories: [] })], mapping);
+    expect(skipped).toEqual([]);
+    expect(items).toHaveLength(1);
+    expect(items[0]!.categoryId).toBe("varios");
+  });
+
+  it("el admin puede seguir saltando la clave \"\" si la mapea a vacío", () => {
+    const salta: TecnovaMapping = { targets: { "": "" }, subs: {} };
+    const { items, skipped } = tecnovaItemsToInternal([row({ categories: [] })], salta);
+    expect(items).toHaveLength(0);
+    expect(skipped).toHaveLength(1);
+  });
+
+  it("la categoría propia VARIOS de Tecnova cae en la raíz varios (unificación)", () => {
+    const { items, skipped } = tecnovaItemsToInternal([row({ categories: ["VARIOS"] })], mapping);
+    expect(skipped).toEqual([]);
+    expect(items[0]!.categoryId).toBe("varios");
+  });
+
   it("elige la primera categoría del array y describe en subId opcional", () => {
     const { items } = tecnovaItemsToInternal([row({ categories: ["AUDIO", "VARIOS"] })], mapping);
     expect(items[0]!.categoryId).toBe("electronica");

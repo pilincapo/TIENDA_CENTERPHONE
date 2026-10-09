@@ -23,19 +23,25 @@ interface MappingBody {
   subs?: Record<string, string>;
 }
 
-/** Lee el mapping guardado por el admin (KV) o devuelve los defaults. */
-async function readMapping(env: Env): Promise<TecnovaMapping> {
+/** Lee el mapping guardado por el admin (KV) y lo completa con los defaults.
+ *  Lo guardado pisa al default (una categoría que el admin marcó para saltar
+ *  sigue saltada), pero las claves NUEVAS del default siempre están: así la raíz
+ *  "Varios" (productos sin categoría) la ve también `ensureTecnovaCategories`,
+ *  aunque el mapping del KV sea viejo o esté vacío. Antes el merge no existía y
+ *  con un KV vacío el preview no mostraba ninguna fila para mapear. */
+export async function readTecnovaMapping(env: Env): Promise<TecnovaMapping> {
+  const base = { ...DEFAULT_TECNOVA_CATEGORY_MAP };
   const raw = await env.KV.get(TECNOVA_MAPPING_KEY);
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as Partial<TecnovaMapping>;
       return {
-        targets: parsed.targets ?? { ...DEFAULT_TECNOVA_CATEGORY_MAP },
+        targets: { ...base, ...(parsed.targets ?? {}) },
         subs: parsed.subs ?? {},
       };
     } catch { /* mapping corrupto: cae a defaults */ }
   }
-  return { targets: { ...DEFAULT_TECNOVA_CATEGORY_MAP }, subs: {} };
+  return { targets: base, subs: {} };
 }
 
 /** Guarda el mapping actualizado (write chico, solo cuando el admin confirma). */
@@ -47,7 +53,7 @@ async function saveMapping(env: Env, mapping: TecnovaMapping): Promise<void> {
  * Categorías propias ACTIVAS (activas = las que aparecen en el panel). El mapping
  * del admin introduce ids de raíz existente; si el admin tipea una nueva, la creamos.
  */
-async function ensureCategories(env: Env, mapping: TecnovaMapping): Promise<Set<string>> {
+export async function ensureTecnovaCategories(env: Env, mapping: TecnovaMapping): Promise<Set<string>> {
   const cats = await listCategories(env.DB);
   const existing = new Set(cats.filter((c) => c.active).map((c) => c.id));
   const roots = [...new Set(Object.values(mapping.targets).filter((v) => v !== ""))];
@@ -74,7 +80,7 @@ function prettyCatName(id: string): string {
 
 tecnovaApp.post("/preview", async (c) => {
   const body = await c.req.json<MappingBody>().catch(() => null);
-  const saved = await readMapping(c.env);
+  const saved = await readTecnovaMapping(c.env);
   const mapping: TecnovaMapping = {
     targets: body?.targets && Object.keys(body.targets).length > 0 ? body.targets : saved.targets,
     subs: body?.subs ?? saved.subs,
@@ -121,7 +127,7 @@ tecnovaApp.post("/import", async (c) => {
     if (errors.length > 0) return c.json({ error: errors.join("; ") }, 502);
     const { items: internal, skipped } = tecnovaItemsToInternal(items, mapping);
     // Crea las categorías raíz que el mapping pidió y no existían (alta nueva).
-    await ensureCategories(c.env, mapping);
+    await ensureTecnovaCategories(c.env, mapping);
     // Chunk de trabajo: solo la porción de este request (límite de CPU del free tier).
     const slice = internal.slice(chunkIndex * IMPORT_CHUNK, (chunkIndex + 1) * IMPORT_CHUNK);
     // BUG del ocultado automático (fix): importItems oculta los productos de la

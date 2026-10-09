@@ -2,6 +2,9 @@
 // vuelve a traer en los horarios configurados (hora Argentina).
 
 import { extractFromUrl } from "./extract";
+import { fetchTecnovaItems, tecnovaItemsToInternal } from "../shared/tecnova";
+import { isTecnovaSourceUrl, TECNOVA_SOURCE_URL } from "../shared/tecnova-url";
+import { ensureTecnovaCategories, readTecnovaMapping } from "./tecnova";
 import { importItems, regenerateSnapshot } from "./sync";
 import { insertSyncLog, listAutoImports, upsertAutoImport, type Env } from "./db";
 import { newId, nowMs } from "./settings";
@@ -100,25 +103,70 @@ export async function markAutoImportRun(db: D1Database, id: string, status: stri
   await upsertAutoImport(db, { ...job, lastRunAt: at, lastStatus: status }, at);
 }
 
+/** Resultado de bajar la fuente de un job: items ya listos para importar. */
+interface FuenteDescargada {
+  items: unknown[];
+  errors: string[];
+  /** Avisos no fatales (ej: productos saltados por categoría sin mapear). */
+  warnings: string[];
+  /** source_url con la que se guardan los productos (define el ocultado automático). */
+  sourceUrl: string;
+}
+
+/**
+ * Baja los items de la fuente del job.
+ * Las URLs de tecnova.com.ar (con o sin www) van por la API oficial de Tecnova:
+ * su web es una SPA de 2.7 KB sin JSON-LD de productos, así que `extractFromUrl`
+ * siempre terminaba en "La fuente no devolvió productos".
+ */
+async function fetchJobItems(env: Env, job: AutoImport): Promise<FuenteDescargada> {
+  if (!isTecnovaSourceUrl(job.url)) {
+    const r = await extractFromUrl(job.url);
+    return { items: r.items, errors: r.errors, warnings: [], sourceUrl: job.url };
+  }
+  const { items: raw, errors } = await fetchTecnovaItems();
+  if (errors.length > 0) return { items: [], errors, warnings: [], sourceUrl: TECNOVA_SOURCE_URL };
+  const mapping = await readTecnovaMapping(env);
+  const { items, skipped } = tecnovaItemsToInternal(raw, mapping);
+  // El historial se lleva el motivo real de cada salteo (título + causa), no solo
+  // el conteo: con el mapping completo hoy el único que queda es el sin precio.
+  const warnings = skipped.length > 0
+    ? [`${skipped.length} producto(s) de Tecnova sin importar: ${skipped.slice(0, 4).join("; ")}${skipped.length > 4 ? ` (+${skipped.length - 4} más)` : ""}`]
+    : [];
+  if (items.length === 0) {
+    return {
+      items: [],
+      errors: ["La API de Tecnova no devolvió productos importables — revisá el mapeo de categorías en Importar"],
+      warnings,
+      sourceUrl: TECNOVA_SOURCE_URL,
+    };
+  }
+  // Categorías raíz que el mapping pidió y no existen (alta nueva, igual que el import manual).
+  await ensureTecnovaCategories(env, mapping);
+  return { items, errors, warnings, sourceUrl: TECNOVA_SOURCE_URL };
+}
+
 /** Ejecuta UN job de auto-importación y registra todo (historial, estado, lastRun).
  *  Es el bloque compartido entre el cron, "Ejecutar ahora" y la sync manual
  *  fuente-por-fuente (una por request para no pasarse del límite de CPU del plan gratis). */
 async function runOneJob(env: Env, job: AutoImport, trigger: "cron" | "manual", skipSnapshot = false): Promise<AutoImportOutcome["results"][number]> {
   const startedAt = nowMs();
   try {
-    const r = await extractFromUrl(job.url);
+    const r = await fetchJobItems(env, job);
     if (r.items.length === 0) {
       const motivo = r.errors.length > 0 ? r.errors.join("; ") : "La fuente no devolvió productos";
       await markAutoImportRun(env.DB, job.id, "error", nowMs());
-      await logRun(env, trigger, job.url, false, { imported: 0, total: 0, failed: 0, deactivated: 0, warnings: [], errors: [motivo] }, startedAt);
+      await logRun(env, trigger, job.url, false, { imported: 0, total: 0, failed: 0, deactivated: 0, warnings: r.warnings, errors: [motivo] }, startedAt);
       updateSyncState(env, false, startedAt, motivo);
-      return { id: job.id, url: job.url, ok: false, imported: 0, deactivated: 0, warnings: [], error: motivo };
+      return { id: job.id, url: job.url, ok: false, imported: 0, deactivated: 0, warnings: r.warnings, error: motivo };
     }
-    const outcome = await importItems(env, r.items, { forceRuleId: job.priceRuleId ?? null, sourceUrl: job.url, skipSnapshot });
+    const outcome = await importItems(env, r.items, { forceRuleId: job.priceRuleId ?? null, sourceUrl: r.sourceUrl, skipSnapshot });
+    // Los avisos de la bajada (productos saltados) se suman a los de la importación.
+    const warnings = [...r.warnings, ...outcome.warnings];
     await markAutoImportRun(env.DB, job.id, outcome.ok ? "ok" : "error", nowMs());
-    await logRun(env, trigger, job.url, outcome.ok, { imported: outcome.imported, total: outcome.total, failed: outcome.failed, deactivated: outcome.deactivated, warnings: outcome.warnings, errors: outcome.errors }, startedAt);
+    await logRun(env, trigger, job.url, outcome.ok, { imported: outcome.imported, total: outcome.total, failed: outcome.failed, deactivated: outcome.deactivated, warnings, errors: outcome.errors }, startedAt);
     updateSyncState(env, outcome.ok, startedAt, outcome.ok ? null : (outcome.errors[0] ?? null));
-    return { id: job.id, url: job.url, ok: outcome.ok, imported: outcome.imported, deactivated: outcome.deactivated, warnings: outcome.warnings, error: outcome.ok ? null : (outcome.errors[0] ?? "Error") };
+    return { id: job.id, url: job.url, ok: outcome.ok, imported: outcome.imported, deactivated: outcome.deactivated, warnings, error: outcome.ok ? null : (outcome.errors[0] ?? "Error") };
   } catch (e) {
     // Registrar el motivo completo (con ubicación en el código si hay stack).
     const raw = e instanceof Error ? e.message : String(e);

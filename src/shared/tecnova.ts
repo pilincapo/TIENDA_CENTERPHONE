@@ -25,8 +25,9 @@ export const TECNOVA_API_BASE = "https://jimqifdqqgthrwzjiyfr.supabase.co/rest/v
 /** Clave anon pública de su frontend (solo lectura, mismo trato que cualquier source). */
 export const TECNOVA_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppbXFpZmRxcWd0aHJ3emppeWZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3NzU5MTYsImV4cCI6MjA4OTM1MTkxNn0.WV7RypsqnFaMff65IVcSaWDKC55qpNWxPznxJWtMtHs";
 
-/** Etiqueta técnica de la fuente en `products.source_url` (para el ocultado automático). */
-export const TECNOVA_SOURCE_URL = "https://tecnova.com.ar/";
+// URLs de la fuente: viven en un módulo chico sin dependencias para que el panel
+// pueda detectar una URL de Tecnova sin llevarse el importador de la API completo.
+export { TECNOVA_SOURCE_URL, TECNOVA_PUBLIC_URL, isTecnovaSourceUrl } from "./tecnova-url";
 
 /** Clave KV donde el panel guarda el mapping de categorías Tecnova → catálogo propio. */
 export const TECNOVA_MAPPING_KEY = "tecnova:mapping:v1";
@@ -43,13 +44,20 @@ const PAGE_SIZE = 1000;
  * y se muestran pre-cargados en el preview).
  */
 export const DEFAULT_TECNOVA_CATEGORY_MAP: Record<string, string> = {
+  // Productos de Tecnova SIN categoría (`categories: []` en su API): la clave es ""
+  // porque tecnovaCatKey de un string vacío da "". Sin esta entrada se salteaban
+  // (7 fichas en 10/2026); van a una raíz propia "Varios" que el worker da de alta
+  // si no existe. Es un default editable desde el mapping del panel.
+  "": "varios",
   "CABLES Y ADAPTADORES": "electronica",
   "COMPONENTES Y ACCESORIOS DE PC": "computacion",
   "ELECTRÓNICA GENERAL": "electronica",
   "ELECTRONICA GENERAL": "electronica",
   AUDIO: "electronica",
   "CELULARES Y ACCESORIOS": "electronica",
-  VARIOS: "hogar",
+  // La categoría propia "VARIOS" de Tecnova va a la raíz «Varios» (unificación
+  // pedida 10/2026): 16 productos que antes quedaban perdidos en «Hogar».
+  VARIOS: "varios",
   ILUMINACION: "electronica",
   "CARGADORES Y PILAS": "electronica",
   "JUGUETES Y REGALOS": "hogar",

@@ -260,8 +260,6 @@ export function chunkSizeFor(bindsPerRow: number, reserved = 1): number {
   return Math.max(1, Math.floor(libres / perRow));
 }
 
-// 13 binds por producto (created_at y updated_at comparten el último) + 1 de now.
-const PRODUCT_CHUNK = chunkSizeFor(13); // 7 productos -> 92 parámetros
 // 4 binds por categoría + 1 de now.
 const CATEGORY_CHUNK = chunkSizeFor(4); // 24 categorías -> 97 parámetros
 // 1 bind por id + source_url (?1) + updated_at al final: 2 reservados (99 daba 101 y
@@ -284,38 +282,76 @@ export async function upsertCategoriesBatch(db: D1Database, cats: Category[], no
   }
 }
 
-/** Inserta/actualiza productos de a chunks (un solo statement por chunk).
+/**
+ * Filas por statement en el upsert de productos.
+ * Las filas viajan dentro de UN bind (JSON) y se expanden con `json_each`, así que
+ * el límite de 100 parámetros por sentencia deja de ser el cuello de botella:
+ * con la versión anterior (7 filas por statement por sus 13 binds) una fuente de
+ * 370 productos eran 53 statements y reventaba las 50 queries por invocación que
+ * permite el plan gratis de Cloudflare — justamente lo que necesitaba la
+ * auto-importación de Tecnova (catálogo completo en una sola corrida).
+ */
+const PRODUCT_JSON_CHUNK = 50;
+
+// `WHERE true` no es redundante: sin una cláusula WHERE el parser de SQLite confunde
+// el `ON CONFLICT` del upsert con el `ON` de un JOIN de la sentencia SELECT.
+// `now` viaja en cada fila del JSON (created_at/updated_at) para usar un solo bind.
+const UPSERT_PRODUCTS_SQL = `
+  INSERT INTO products (id, title, description, price_cents, category_id, subcategory_id, tags, image_url, status, availability, sort_order, created_at, updated_at, source_url, brand)
+  SELECT
+    j.value ->> '$.id',
+    j.value ->> '$.title',
+    COALESCE(j.value ->> '$.description', ''),
+    CAST(j.value ->> '$.priceCents' AS INTEGER),
+    j.value ->> '$.categoryId',
+    j.value ->> '$.subcategoryId',
+    COALESCE(j.value ->> '$.tags', '[]'),
+    COALESCE(j.value ->> '$.imageUrl', ''),
+    COALESCE(j.value ->> '$.status', 'published'),
+    COALESCE(j.value ->> '$.availability', 'in_stock'),
+    COALESCE(CAST(j.value ->> '$.sortOrder' AS INTEGER), 0),
+    CAST(j.value ->> '$.now' AS INTEGER),
+    CAST(j.value ->> '$.now' AS INTEGER),
+    j.value ->> '$.sourceUrl',
+    j.value ->> '$.brand'
+  FROM json_each(?1) AS j
+  WHERE true
+  ON CONFLICT(id) DO UPDATE SET
+    title = excluded.title, description = excluded.description, price_cents = excluded.price_cents,
+    category_id = excluded.category_id,
+    subcategory_id = COALESCE(excluded.subcategory_id, products.subcategory_id), tags = excluded.tags,
+    image_url = excluded.image_url, status = excluded.status, availability = excluded.availability,
+    sort_order = excluded.sort_order, updated_at = excluded.updated_at,
+    source_url = COALESCE(excluded.source_url, products.source_url),
+    brand = COALESCE(excluded.brand, products.brand)`;
+
+/** Inserta/actualiza productos de a chunks (un solo statement por chunk de JSON).
  *  created_at solo se setea en el INSERT (nuevo producto); en el UPDATE se
  *  preserva el original para que el badge "Nuevo" no se reinicie en cada sync.
  *  Devuelve los productos cuyo upsert falló con el MOTIVO real (para el historial). */
 export async function upsertProductsBatch(db: D1Database, prods: Product[], now: number): Promise<{ title: string; reason: string }[]> {
   const failed: { title: string; reason: string }[] = [];
   if (prods.length === 0) return failed;
-  for (let i = 0; i < prods.length; i += PRODUCT_CHUNK) {
-    const chunk = prods.slice(i, i + PRODUCT_CHUNK);
-    // 13 binds por producto + 1 de now = 13n + 1; PRODUCT_CHUNK (7) lo deja en 92, dentro
-    // del limite de 100 parametros de D1 (con 30 productos la sentencia fallaba siempre
-    // y caia al upsert producto por producto, sin el COALESCE de subcategoria).
-    const stmt = db.prepare(
-      `INSERT INTO products (id, title, description, price_cents, category_id, subcategory_id, tags, image_url, status, availability, sort_order, created_at, updated_at, source_url, brand)
-       VALUES ${chunk.map((_, j) => `(?${j * 13 + 1}, ?${j * 13 + 2}, ?${j * 13 + 3}, ?${j * 13 + 4}, ?${j * 13 + 5}, ?${j * 13 + 6}, ?${j * 13 + 7}, ?${j * 13 + 8}, ?${j * 13 + 9}, ?${j * 13 + 10}, ?${j * 13 + 11}, ?${chunk.length * 13 + 1}, ?${chunk.length * 13 + 1}, ?${j * 13 + 12}, ?${j * 13 + 13})`).join(",")}
-       ON CONFLICT(id) DO UPDATE SET
-         title = excluded.title, description = excluded.description, price_cents = excluded.price_cents,
-         category_id = excluded.category_id,
-         subcategory_id = COALESCE(excluded.subcategory_id, products.subcategory_id), tags = excluded.tags,
-         image_url = excluded.image_url, status = excluded.status, availability = excluded.availability,
-         sort_order = excluded.sort_order, updated_at = excluded.updated_at,
-         source_url = COALESCE(excluded.source_url, products.source_url),
-         brand = COALESCE(excluded.brand, products.brand)`
-    );
-    const binds: unknown[] = [];
-    for (const p of chunk) {
-      binds.push(p.id, p.title, p.description, p.priceCents, p.categoryId, p.subcategoryId,
-        JSON.stringify(p.tags), p.imageUrl, p.status, p.availability, p.sortOrder, p.sourceUrl ?? null, p.brand ?? null);
-    }
-    binds.push(now);
+  for (let i = 0; i < prods.length; i += PRODUCT_JSON_CHUNK) {
+    const chunk = prods.slice(i, i + PRODUCT_JSON_CHUNK);
+    const payload = JSON.stringify(chunk.map((p) => ({
+      id: p.id,
+      title: p.title,
+      description: p.description,
+      priceCents: p.priceCents,
+      categoryId: p.categoryId,
+      subcategoryId: p.subcategoryId,
+      tags: JSON.stringify(p.tags),
+      imageUrl: p.imageUrl,
+      status: p.status,
+      availability: p.availability,
+      sortOrder: p.sortOrder,
+      sourceUrl: p.sourceUrl ?? null,
+      brand: p.brand ?? null,
+      now,
+    })));
     try {
-      await stmt.bind(...binds).run();
+      await db.prepare(UPSERT_PRODUCTS_SQL).bind(payload).run();
     } catch (e) {
       // Un chunk completo falló (dato inválido en algún producto): reintentar producto por producto
       // para aislar el culpable y poder continuar con el resto. Se registra el

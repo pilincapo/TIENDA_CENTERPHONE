@@ -6,6 +6,7 @@ import type { AutoImport } from "../shared/autoimport";
 import type { PriceRule } from "../shared/pricing";
 import { findOverlaps, groupNames } from "../shared/pricing";
 import { normalizePhone } from "../shared/whatsapp";
+import { isTecnovaSourceUrl, TECNOVA_PUBLIC_URL } from "../shared/tecnova-url";
 
 const el = {
   login: document.getElementById("login") as HTMLElement,
@@ -707,6 +708,9 @@ interface ProductsPage {
 
 // Estado que sobrevive a los re-renders: editar o borrar no te manda a la página 1.
 const prodState = { status: "published" as "published" | "hidden", page: 1, q: "", src: "" as "" | "tecnova" | "hacetupedido" | "manual" };
+// Pedido de abrir el formulario de auto-importación ya con la fuente elegida
+// ("Programar actualización" en Importar salta a la pestaña Auto-importaciones).
+let pendingAutoFuente: "url" | "tecnova" | null = null;
 let refocusSearch = false;
 
 /** Insignia de origen del producto (fuente de importación) para la lista del panel. */
@@ -1219,6 +1223,7 @@ async function viewImport(): Promise<void> {
       <div class="row" style="margin-top:14px">
         <button class="btn btn-primary" id="imp-preview">Analizar</button>
         <button class="btn" id="imp-tecnova" style="margin-left:8px">📥 Importar de Tecnova (catálogo completo)</button>
+        <button class="btn" id="imp-tecnova-auto" style="margin-left:8px" title="Programa la actualización diaria del catálogo de Tecnova en la pestaña Auto-importaciones">⏰ Programar actualización</button>
       </div>
       <div id="imp-tecnova-result"></div>
       <div id="imp-result"></div>
@@ -1241,6 +1246,11 @@ async function viewImport(): Promise<void> {
   });
   el.view.querySelector("#imp-preview")?.addEventListener("click", () => void doImportPreview());
   el.view.querySelector("#imp-tecnova")?.addEventListener("click", () => void doTecnovaPreview());
+  // Atajo exclusivo de Tecnova: va a Auto-importaciones con la fuente ya elegida.
+  el.view.querySelector("#imp-tecnova-auto")?.addEventListener("click", () => {
+    pendingAutoFuente = "tecnova";
+    location.hash = "#auto";
+  });
 }
 
 interface PreviewResponse {
@@ -2190,6 +2200,10 @@ async function viewAutoImports(): Promise<void> {
     return `<br/><span class="err-detail" style="font-size:12px;display:inline-block;max-width:280px;white-space:normal" title="${esc(err)}">⚠ ${esc(err.slice(0, 90))}${err.length > 90 ? "…" : ""}</span>`;
   };
   const staleMs = 24 * 60 * 60 * 1000;
+  // Insignia de la fuente exclusiva de Tecnova (su web no se puede leer por URL).
+  const tecnovaBadge = (url: string): string => isTecnovaSourceUrl(url)
+    ? ' <span class="badge badge--src badge--src-tecnova" title="Fuente exclusiva: se sincroniza con la API oficial de Tecnova (catálogo completo)">🛰️<span class="badge-src-name"> Tecnova</span></span>'
+    : "";
   const rows = jobs
     .map((j) => {
       const atrasado = j.active && j.times.length > 0 && j.lastRunAt != null && Date.now() - j.lastRunAt > staleMs;
@@ -2198,7 +2212,7 @@ async function viewAutoImports(): Promise<void> {
         <td>
           <label class="checks"><input type="checkbox" class="auto-active" data-id="${esc(j.id)}" ${j.active ? "checked" : ""}/> Activa</label>
         </td>
-        <td><strong>${esc(j.label || j.url)}</strong><br/><span class="muted" style="font-size:12px">${esc(j.url)}</span></td>
+        <td><strong>${esc(j.label || j.url)}</strong>${tecnovaBadge(j.url)}<br/><span class="muted" style="font-size:12px">${esc(j.url)}</span></td>
         <td>${esc(ruleOrAutoLabel(j.priceRuleId, rules))}</td>
         <td>${j.times.length ? j.times.map((t) => `<span class="badge">${esc(t)}</span>`).join(" ") : '<span class="muted">sin horarios</span>'}</td>
         <td>${j.lastStatus ? `<span class="${j.lastStatus === "ok" && !atrasado ? "ok" : "err"}">${j.lastStatus}</span><br/><span class="${atrasado ? "err" : "muted"}" style="font-size:12px">${new Date(j.lastRunAt ?? 0).toLocaleString("es-AR")}${atrasado ? ' <span class="badge" style="background:#7a1f1f;color:#fff" title="El job tiene horarios configurados pero no corre hace más de 24 horas — verificá que siga activo y que el cron lo esté ejecutando">⚠ atrasado >24h</span>' : ""}</span>${lastErrHtml(j.url)}` : '<span class="muted">nunca</span>'}</td>
@@ -2219,7 +2233,9 @@ async function viewAutoImports(): Promise<void> {
       </div>
       <p class="muted" style="margin-bottom:0">Los links que importaste manualmente quedan anotados acá.
       Activá uno, elegile regla o grupo de precios y horarios (hora Argentina): el sistema lo vuelve a
-      importar solo en esos momentos, todos los días.</p>
+      importar solo en esos momentos, todos los días. También podés dar de alta la fuente exclusiva de
+      <strong>Tecnova</strong> (catálogo completo vía su API oficial): con <strong>+ Nueva → Fuente: Tecnova</strong> o desde
+      el botón ⏰ de la pestaña Importar.</p>
       ${jobs.length === 0 ? '<p class="muted">Todavía no hay links. Importá uno desde la pestaña Importar y va a aparecer acá.</p>' : `
       <div class="table-scroll">
       <table class="table" style="margin-top:14px">
@@ -2268,6 +2284,13 @@ async function viewAutoImports(): Promise<void> {
       void render();
     });
   });
+  // Vinimos de Importar con "⏰ Programar actualización": se abre el formulario
+  // con la fuente de Tecnova ya elegida.
+  if (pendingAutoFuente) {
+    const f = pendingAutoFuente;
+    pendingAutoFuente = null;
+    openAutoForm(null, rules, groups, f);
+  }
 }
 
 /** Grilla de 24 horarios (hora Argentina) reutilizable: modal de auto-importaciones
@@ -2360,12 +2383,19 @@ async function repeatAsk(): Promise<void> {
   }
 }
 
-function openAutoForm(job: AutoImport | null, rules: PriceRule[], groups: string[]): void {
+function openAutoForm(job: AutoImport | null, rules: PriceRule[], groups: string[], fuenteInicial?: "url" | "tecnova"): void {
+  const fuentePre = fuenteInicial ?? (isTecnovaSourceUrl(job?.url ?? "") ? "tecnova" : "url");
   const back = openModal(`
     <h2>${job ? "Editar auto-importación" : "Nueva auto-importación"}</h2>
     <form id="a-form">
+      <div class="field"><label>Fuente</label>
+        <select name="fuente" id="a-fuente">
+          <option value="url" ${fuentePre === "url" ? "selected" : ""}>🔗 Link de catálogo (cualquier URL)</option>
+          <option value="tecnova" ${fuentePre === "tecnova" ? "selected" : ""}>🛰️ Tecnova — catálogo completo (API oficial)</option>
+        </select></div>
       <div class="field"><label>Link del catálogo o producto</label>
-        <input name="url" required value="${esc(job?.url ?? "")}" placeholder="https://…"/></div>
+        <input name="url" required value="${esc(job?.url ?? "")}" placeholder="https://…"/>
+        <p class="muted" id="a-url-hint" hidden style="margin-top:6px"></p></div>
       <div class="field"><label>Nombre (opcional)</label>
         <input name="label" value="${esc(job?.label ?? "")}" placeholder="ej: Mascotas hacetupedido"/></div>
       <div class="field"><label>Regla de precio</label>
@@ -2387,6 +2417,26 @@ function openAutoForm(job: AutoImport | null, rules: PriceRule[], groups: string
     </form>`);
   const form = back.querySelector("#a-form") as HTMLFormElement;
   back.querySelector(".btn-cancel")?.addEventListener("click", () => back.remove());
+  // Fuente exclusiva de Tecnova: la URL se fija y queda en solo lectura (su web es
+  // una SPA sin productos en el HTML; el worker la ejecuta contra la API oficial).
+  const urlInput = back.querySelector('input[name="url"]') as HTMLInputElement;
+  const fuenteSel = back.querySelector("#a-fuente") as HTMLSelectElement;
+  const urlHint = back.querySelector("#a-url-hint") as HTMLElement;
+  const aplicarFuente = (): void => {
+    const tecnova = fuenteSel.value === "tecnova";
+    urlInput.readOnly = tecnova;
+    if (tecnova) {
+      urlInput.value = TECNOVA_PUBLIC_URL;
+      urlHint.textContent = "Se sincroniza con la API oficial de Tecnova (catálogo completo): su web no publica los productos en el HTML, por eso esta fuente no usa una URL genérica.";
+      urlHint.hidden = false;
+    } else {
+      if (urlInput.value === TECNOVA_PUBLIC_URL) urlInput.value = "";
+      urlHint.hidden = true;
+      urlHint.textContent = "";
+    }
+  };
+  fuenteSel.addEventListener("change", aplicarFuente);
+  aplicarFuente();
   // Límite de 3 horarios seleccionados, con contador en vivo.
   const hint = back.querySelector("#a-hours-hint") as HTMLElement;
   const refreshHint = (): void => {

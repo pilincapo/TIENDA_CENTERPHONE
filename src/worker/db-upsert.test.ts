@@ -1,0 +1,73 @@
+// El plan gratis de Cloudflare permite 50 queries D1 por invocación. El upsert de
+// productos manda las filas dentro de UN bind (JSON) y las expande con json_each:
+// con la versión anterior (7 filas por statement por el límite de 100 parámetros)
+// una fuente de 370 productos —el catálogo de Tecnova— eran 53 statements y la
+// importación completa se pasaba del límite.
+import { describe, expect, it } from "vitest";
+import { upsertProductsBatch } from "./db";
+import type { Product } from "../shared/types";
+
+const NOW = 1_770_000_000_000;
+
+function makeDb(): { db: D1Database; statements: { sql: string; binds: unknown[] }[] } {
+  const statements: { sql: string; binds: unknown[] }[] = [];
+  const prepare = (sql: string) => ({
+    bind: (...binds: unknown[]) => ({
+      run: async () => {
+        statements.push({ sql, binds });
+        return { success: true, meta: { changes: binds.length } };
+      },
+    }),
+  });
+  return { db: { prepare } as unknown as D1Database, statements };
+}
+
+function producto(i: number): Product {
+  return {
+    id: `p-${i}`,
+    title: `Producto ${i}`,
+    description: "Descripción ".repeat(20),
+    priceCents: 1000 + i,
+    categoryId: "celulares",
+    subcategoryId: i % 2 === 0 ? "accesorios" : null,
+    tags: ["new"],
+    imageUrl: `https://ejemplo.com/${i}.jpg`,
+    status: "published",
+    availability: "in_stock",
+    sortOrder: i,
+    createdAt: NOW - 1000,
+    sourceUrl: "https://tecnova.com.ar/",
+    brand: null,
+  };
+}
+
+describe("upsertProductsBatch (límite de 50 queries por invocación)", () => {
+  it("370 productos salen en 8 statements (50 filas por bind), no en 53", async () => {
+    const { db, statements } = makeDb();
+    const failed = await upsertProductsBatch(db, Array.from({ length: 370 }, (_, i) => producto(i)), NOW);
+    expect(failed).toEqual([]);
+    expect(statements.length).toBe(8);
+    // 8 statements + consultas auxiliares de la corrida: cómodo bajo las 50 del free.
+    expect(statements.length).toBeLessThan(50);
+  });
+
+  it("cada statement expande un JSON con hasta 50 productos y el timestamp", async () => {
+    const { db, statements } = makeDb();
+    await upsertProductsBatch(db, Array.from({ length: 60 }, (_, i) => producto(i)), NOW);
+    expect(statements.map((s) => s.sql.includes("json_each(?1)"))).toEqual([true, true]);
+    const payload = JSON.parse(String(statements[0]!.binds[0])) as Record<string, unknown>[];
+    expect(payload).toHaveLength(50);
+    expect(statements[1]!.binds).toHaveLength(1);
+    const resto = JSON.parse(String(statements[1]!.binds[0])) as Record<string, unknown>[];
+    expect(resto).toHaveLength(10);
+    expect(payload[0]).toMatchObject({ id: "p-0", priceCents: 1000, now: NOW });
+    // subcategoryId ausente/NULL viaja igual (la sentencia lo respeta con COALESCE).
+    expect(payload[1]).toMatchObject({ id: "p-1", subcategoryId: null });
+  });
+
+  it("sin productos no prepara ningún statement", async () => {
+    const { db, statements } = makeDb();
+    expect(await upsertProductsBatch(db, [], NOW)).toEqual([]);
+    expect(statements).toHaveLength(0);
+  });
+});
