@@ -1,3 +1,11 @@
+## 2026-10-13 — Commit, push y deploy de accesibilidad + 404 real
+
+- **Commit `25eea58`** y push a `main` (`b78ab3f..25eea58`, exit 0): 6 archivos (+147/−12) — `admin/index.html`, `src/web/admin.ts`, `src/web/form-labels.ts` (nuevo), `src/web/styles.css`, `src/worker/index.ts` y `changelog.md`.
+- **Deploy `202beb9f-2a26-48b5-b052-30b8c3a9b432`** (exit 0): 9 assets, bindings (KV/D1/ASSETS/EMAIL/vars) y cron `0 * * * *` intactos, startup 3 ms.
+- **Verificado en producción**: `/no-existe-xyz` y `/producto/no-existe-zzz` responden **404** con la página de error (antes 200); `/producto/5469` 200 con las metas OG inyectadas; `/`, `/admin/`, `/sitemap.xml` y `/robots.txt` 200; `/seguimiento` 302; `/api/nope` 404 JSON. Se sirve el CSS nuevo (`/assets/whatsapp-Dpo2cG19.css`, con `min-height:24px`, `padding:3px 0`, `.sr-only`) y el bundle nuevo del panel (`/assets/admin-D7x4iBt9.js`, con el módulo de etiquetas y su `MutationObserver`), más el `<label class="sr-only" for="login-password">` en el HTML de `/admin/`.
+- **En el navegador sobre `centerphone.com.ar`**: home a 373px y 1280px, ficha a 308px → **0 elementos interactivos por debajo de 24×24** en header, chips y footer, desborde 0, alto de barra intacto (58px a 1280, 50px a ≤480) y el carrito visible en 24×24. El login del panel se anuncia como `textbox "Contraseña"` en el árbol de accesibilidad. Queda el link "Inicio" del breadcrumb de la ficha (19px): fuera de lo pedido y cubierto por la excepción de espaciado de la SC 2.5.8.
+- **Nota**: como esta entrada registra el deploy, no está en el asset desplegado — llega con el próximo. Es el patrón que ya seguía este changelog.
+
 ## 2026-10-13 — Accesibilidad (área táctil y etiquetas del panel) y 404 real
 
 - **Pedido**: "arreglá lo que quedó de la auditoría de accesibilidad: targets táctiles de al menos 24px en header, chips y footer, y labels asociados en los formularios del panel" + "corregí el soft 404 de producción". Todo medido en el navegador sobre el dev server (8787), no leído del CSS.
