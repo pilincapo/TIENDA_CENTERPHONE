@@ -711,6 +711,9 @@ interface ProductsPage {
   pages: number;
   limit: number;
   counts: { published: number; hidden: number };
+  srcCounts?: { tecnova: number; hacetupedido: number; manual: number };
+  /** Productos marcados para el catálogo de WhatsApp (ver Ajustes → Catálogo de WhatsApp). */
+  waCount?: number;
 }
 
 // Estado que sobrevive a los re-renders: editar o borrar no te manda a la página 1.
@@ -788,6 +791,7 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
         ${srcChip("hacetupedido", "🛰️ Hacetupedido", srcCounts.hacetupedido)}
         ${srcChip("manual", "✍️ Manuales", srcCounts.manual)}
       </div>
+      <p class="muted" style="margin:8px 0 0; font-size:12px">📱 Catálogo de WhatsApp: <strong>${data.waCount ?? 0}</strong> producto${(data.waCount ?? 0) === 1 ? "" : "s"} marcado${(data.waCount ?? 0) === 1 ? "" : "s"} — seleccioná filas y usá «Publicar en WhatsApp». La URL del feed se configura en Ajustes.</p>
       ${prodState.status === "hidden" ? `<p class="muted" style="margin:8px 0 0">No aparecen en el catálogo público porque la fuente ya no los trae (sin stock) o los ocultaste a mano. Si la fuente vuelve a traerlos, se re-publican solos.</p>
       <div class="row" style="margin-top:10px">
         <button class="btn btn-primary" id="unhide-all" ${data.counts.hidden === 0 ? "disabled" : ""}>▶ Re-publicar todos</button>
@@ -799,6 +803,8 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
         </select>
         <button class="btn btn-danger" id="bulk-cat-del">Vaciar categoría</button>
         <button class="btn btn-danger" id="bulk-del" hidden>🗑️ Borrar seleccionados</button>
+        <button class="btn" id="bulk-wa-on" hidden>📱 Publicar en WhatsApp</button>
+        <button class="btn" id="bulk-wa-off" hidden>📱 Quitar de WhatsApp</button>
         <span class="muted" id="bulk-count" hidden></span>
       </div>`}
       ${visible.length === 0 ? `<p class="muted" style="margin-top:14px">${prodState.q !== "" ? "Ningún producto coincide con la búsqueda." : prodState.status === "hidden" ? "No hay productos sin stock. 🎉" : "No hay productos todavía."}</p>` : `
@@ -813,7 +819,7 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
               <td>${sourceBadge(p.sourceUrl)}</td>
               <td>${formatPriceAdmin(p.priceCents)}</td>
               <td>${esc(catName(p.categoryId))}</td>
-              <td class="${p.status === "published" ? "ok" : "muted"}">${p.status === "published" ? "Publicado" : "Sin stock"}</td>
+              <td class="${p.status === "published" ? "ok" : "muted"}">${p.status === "published" ? "Publicado" : "Sin stock"}${p.waPublish ? `<br/><span class="badge badge--wa" title="Se publica en el catálogo de WhatsApp">📱 WhatsApp</span>` : ""}</td>
               <td>${p.tags.map((t) => `<span class="badge badge--${t}">${t === "new" ? "Nuevo" : t === "featured" ? "Destacado" : "Oferta"}</span>`).join(" ") || "—"}</td>
               <td style="white-space:nowrap">
                 <button class="btn btn-edit" data-id="${esc(p.id)}">Editar</button>
@@ -899,11 +905,15 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
   const selAll = el.view.querySelector("#sel-all") as HTMLInputElement | null;
   const bulkBtn = el.view.querySelector("#bulk-del") as HTMLButtonElement | null;
   const bulkCount = el.view.querySelector("#bulk-count") as HTMLElement | null;
+  const waOnBtn = el.view.querySelector("#bulk-wa-on") as HTMLButtonElement | null;
+  const waOffBtn = el.view.querySelector("#bulk-wa-off") as HTMLButtonElement | null;
   const selected = (): string[] =>
     [...el.view.querySelectorAll<HTMLInputElement>(".prod-sel:checked")].map((cb) => cb.dataset.id ?? "").filter(Boolean);
   const refreshBulk = (): void => {
     const n = selected().length;
     if (bulkBtn) bulkBtn.hidden = n === 0;
+    if (waOnBtn) waOnBtn.hidden = n === 0;
+    if (waOffBtn) waOffBtn.hidden = n === 0;
     if (bulkCount) {
       bulkCount.textContent = n > 0 ? `${n} seleccionado${n > 1 ? "s" : ""}` : "";
       bulkCount.hidden = n === 0;
@@ -937,6 +947,32 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
     }
     void viewProducts();
   });
+
+  // ---- Catálogo de WhatsApp: marcar/quitar los productos seleccionados ----
+  // No cambia nada del sitio: Meta descarga el feed (ver Ajustes → Catálogo de
+  // WhatsApp) y recién ahí se refleja en el catálogo de WhatsApp.
+  const marcarWhatsApp = async (publish: boolean): Promise<void> => {
+    const ids = selected();
+    if (ids.length === 0) return;
+    try {
+      const r = await api<{ updated: number }>("/products/whatsapp", {
+        method: "POST",
+        body: JSON.stringify({ ids, publish }),
+      });
+      const n = r.updated;
+      toast(
+        publish
+          ? `${n} producto${n !== 1 ? "s" : ""} marcado${n !== 1 ? "s" : ""} para WhatsApp (Meta los baja en la próxima descarga del feed)`
+          : `${n} producto${n !== 1 ? "s" : ""} fuera del catálogo de WhatsApp`
+      );
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Error", false);
+    }
+    // Se recarga la página actual: los badges 📱 y el contador salen del servidor.
+    void viewProducts();
+  };
+  waOnBtn?.addEventListener("click", () => void marcarWhatsApp(true));
+  waOffBtn?.addEventListener("click", () => void marcarWhatsApp(false));
 
   // ---- Vaciar categoría entera (borra en el servidor, de todas las páginas) ----
   el.view.querySelector("#bulk-cat-del")?.addEventListener("click", async () => {
@@ -2964,6 +3000,26 @@ async function viewSettings(): Promise<void> {
           </div>
         </details>
         <details class="cfg-group">
+          <summary>📱 Catálogo de WhatsApp <span class="cfg-hint">publicá productos elegidos en tu catálogo de WhatsApp</span></summary>
+          <div class="cfg-body">
+            <p class="muted" style="margin:0">WhatsApp no tiene carga masiva: Meta descarga solo el archivo de abajo (cada hora o cada día) y con eso agrega, actualiza precios y saca productos del catálogo. Vos elegís qué publicar en la pestaña <strong>Productos</strong>: seleccioná las filas y tocá <strong>📱 Publicar en WhatsApp</strong>.</p>
+            <div class="field"><label>URL del feed (se pega en Commerce Manager → tu catálogo → Fuentes de datos → Feed programado)</label>
+              <input id="wa-feed-url" readonly/>
+            </div>
+            <div class="row" style="margin-top:8px">
+              <button type="button" class="btn" id="wa-feed-copy">📋 Copiar URL</button>
+              <button type="button" class="btn" id="wa-feed-rotate">🔄 Regenerar URL</button>
+            </div>
+            <p class="muted">Productos marcados ahora: <strong id="wa-feed-count">…</strong></p>
+            <p class="muted">Cómo conectarlo (una sola vez):<br>
+            1. Commerce Manager → tu catálogo → <strong>Fuentes de datos</strong> → <strong>Agregar fuente</strong> → <strong>Feed programado</strong> (por URL).<br>
+            2. Pegá esta URL, elegí la frecuencia (lo más seguido que permite Meta es cada hora) y el tipo de feed.<br>
+            3. Esperá la primera descarga (hasta 1 hora) y revisá <strong>Productos</strong> en Commerce Manager: los rechazados dicen qué campo falla.</p>
+            <p class="muted">Tipo de feed: con <strong>reemplazo completo</strong> desmarcar un producto (o que la fuente deje de traerlo) lo saca del catálogo de WhatsApp; con <strong>actualización</strong> solo se agregan y actualizan, y lo que ya no va queda visible. Si no hay ningún producto marcado, el feed responde con error a propósito, para que Meta no vacíe el catálogo.</p>
+            <p class="muted">Entran solo los productos <strong>publicados (en stock) y con foto</strong>; el precio se publica en <strong>ARS</strong> y los que no traen descripción o marca reciben un texto de respaldo armado con el título, la categoría y el nombre de la tienda.</p>
+          </div>
+        </details>
+        <details class="cfg-group">
           <summary>Mantenimiento <span class="cfg-hint">cerrar la tienda al público</span></summary>
           <div class="cfg-body">
             <div class="field field--check">
@@ -3030,6 +3086,45 @@ async function viewSettings(): Promise<void> {
       });
       toast("Configuración guardada");
       dirtyGuardArmed = false; // guardado OK: salir de la pestaña ya no avisa
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Error", false);
+    }
+  });
+
+  // ---- Catálogo de WhatsApp: URL del feed (+ rotación del token) ----
+  // La URL se genera sola la primera vez que se abre esta pestaña: el token vive
+  // en los ajustes y NO viaja en el formulario, así que guardar configuración
+  // nunca lo pisa (el input tampoco tiene name: no entra al FormData).
+  const waUrl = form.querySelector<HTMLInputElement>("#wa-feed-url");
+  const waFeedCount = form.querySelector<HTMLElement>("#wa-feed-count");
+  if (waUrl) {
+    waUrl.placeholder = "Obteniendo…";
+    try {
+      const info = await api<{ url: string; count: number }>("/whatsapp/feed-url");
+      waUrl.value = info.url;
+      if (waFeedCount) waFeedCount.textContent = String(info.count);
+    } catch {
+      waUrl.placeholder = "No se pudo obtener la URL (recargá la pestaña)";
+    }
+    waUrl.addEventListener("click", () => waUrl.select());
+  }
+  form.querySelector("#wa-feed-copy")?.addEventListener("click", () => {
+    const url = waUrl?.value ?? "";
+    if (url === "") return;
+    void navigator.clipboard
+      .writeText(url)
+      .then(() => toast("URL copiada"))
+      .catch(() => {
+        waUrl?.select();
+        toast("Copiala con Ctrl+C", false);
+      });
+  });
+  form.querySelector("#wa-feed-rotate")?.addEventListener("click", async () => {
+    if (!confirm("¿Regenerar la URL del feed?\n\nLa que está configurada en Commerce Manager deja de funcionar: hay que pegar la nueva allá.")) return;
+    try {
+      const info = await api<{ url: string }>("/whatsapp/feed-url/rotate", { method: "POST" });
+      if (waUrl) waUrl.value = info.url;
+      toast("URL regenerada: actualizala en Commerce Manager");
     } catch (e) {
       toast(e instanceof Error ? e.message : "Error", false);
     }

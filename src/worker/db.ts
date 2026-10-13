@@ -65,6 +65,7 @@ export function rowToProduct(row: Dict): Product {
     availability: (["in_stock", "out_of_stock", "preorder"].includes(String(row.availability))
       ? String(row.availability)
       : "in_stock") as Product["availability"],
+    waPublish: num(row.wa_publish) === 1,
     sortOrder: num(row.sort_order),
     createdAt: num(row.created_at),
     sourceUrl: row.source_url == null ? null : String(row.source_url),
@@ -455,6 +456,54 @@ export async function unhideProductsIn(db: D1Database, sourceUrl: string, ids: s
     unhid += r.meta.changes ?? 0;
   }
   return unhid;
+}
+
+// ---- Catálogo de WhatsApp (feed CSV que descarga Meta) ----
+
+/**
+ * Productos marcados para el catálogo de WhatsApp: SOLO los publicados (un
+ * producto oculto —sin stock en la fuente— no debe seguir visible en WhatsApp).
+ * Es la consulta que alimenta el feed de src/worker/wa-feed.ts.
+ */
+export async function listWhatsAppFeedProducts(db: D1Database): Promise<Product[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM products WHERE wa_publish = 1 AND status = 'published' ORDER BY sort_order, created_at")
+    .all<Dict>();
+  return (results ?? []).map(rowToProduct);
+}
+
+/**
+ * Cuántos productos se están publicando en WhatsApp, para el panel. Se cuentan
+ * SOLO los publicados: es exactamente lo que sale en el feed (un producto marcado
+ * que después quedó sin stock no se publica), así el contador coincide con el
+ * archivo que descarga Meta y no promete productos que no están.
+ */
+export async function countWhatsAppProducts(db: D1Database): Promise<number> {
+  const row = await db
+    .prepare("SELECT COUNT(*) AS n FROM products WHERE wa_publish = 1 AND status = 'published'")
+    .first<Dict>();
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * Marca/desmarca productos para el catálogo de WhatsApp (acción masiva del panel).
+ * Se hace por chunks por el límite de 100 parámetros por sentencia de D1: 98 ids
+ * + wa_publish + updated_at = 100 exactos.
+ * NO toca `status` ni el snapshot público: la marca no cambia el catálogo del sitio.
+ */
+export async function setProductsWaPublish(db: D1Database, ids: string[], publish: boolean, now: number): Promise<number> {
+  if (ids.length === 0) return 0;
+  let updated = 0;
+  for (let i = 0; i < ids.length; i += ID_CHUNK) {
+    const chunk = ids.slice(i, i + ID_CHUNK);
+    const marks = chunk.map((_, j) => `?${j + 3}`).join(",");
+    const r = await db
+      .prepare(`UPDATE products SET wa_publish = ?1, updated_at = ?2 WHERE id IN (${marks})`)
+      .bind(publish ? 1 : 0, now, ...chunk)
+      .run();
+    updated += r.meta.changes ?? 0;
+  }
+  return updated;
 }
 
 // ---- Sync log ----

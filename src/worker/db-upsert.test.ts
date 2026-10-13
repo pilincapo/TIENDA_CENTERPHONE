@@ -4,7 +4,7 @@
 // una fuente de 370 productos —el catálogo de Tecnova— eran 53 statements y la
 // importación completa se pasaba del límite.
 import { describe, expect, it } from "vitest";
-import { upsertCategoriesBatch, upsertProductsBatch } from "./db";
+import { setProductsWaPublish, upsertCategoriesBatch, upsertProduct, upsertProductsBatch } from "./db";
 import type { Product } from "../shared/types";
 
 const NOW = 1_770_000_000_000;
@@ -127,5 +127,54 @@ describe("texto saneado al escribir en D1", () => {
     expect(statements[0]!.binds[0]).toBe("electronica");
     expect(statements[0]!.binds[1]).toBe("Electrónica");
     expect(statements[0]!.binds[2]).toBe("ra\u00c3\u00adz");
+  });
+});
+
+// La marca del catálogo de WhatsApp (`products.wa_publish`) la administra el
+// panel, no las fuentes: si el upsert de importación la escribiera, cada sync
+// borraría la selección hecha a mano y el feed de Meta quedaría vacío.
+describe("importación y marca del catálogo de WhatsApp", () => {
+  it("el upsert por lotes no escribe wa_publish", async () => {
+    const { db, statements } = makeDb();
+    await upsertProductsBatch(db, [producto(0), producto(1)], NOW);
+    expect(statements.length).toBeGreaterThan(0);
+    for (const s of statements) {
+      expect(s.sql.toLowerCase()).not.toContain("wa_publish");
+    }
+  });
+
+  it("el upsert individual (alta/edición del panel) tampoco la escribe", async () => {
+    const { db, statements } = makeDb();
+    await upsertProduct(db, { ...producto(0), waPublish: true }, NOW);
+    expect(statements).toHaveLength(1);
+    expect(statements[0]!.sql.toLowerCase()).not.toContain("wa_publish");
+  });
+});
+
+describe("setProductsWaPublish (acción masiva del panel)", () => {
+  it("marca por lotes de 98 ids: ids desde ?3, dentro del límite de 100 parámetros de D1", async () => {
+    const { db, statements } = makeDb();
+    const ids = Array.from({ length: 100 }, (_, i) => `p-${i}`);
+    const actualizados = await setProductsWaPublish(db, ids, true, NOW);
+    expect(statements).toHaveLength(2);
+    expect(statements[0]!.sql).toContain("SET wa_publish = ?1, updated_at = ?2 WHERE id IN (?3");
+    // 98 ids + wa_publish + updated_at = 100 parámetros exactos.
+    expect(statements[0]!.binds).toHaveLength(100);
+    expect(statements[0]!.binds[0]).toBe(1);
+    expect(statements[0]!.binds[1]).toBe(NOW);
+    expect(statements[0]!.binds[99]).toBe("p-97");
+    expect(statements[1]!.binds[0]).toBe(1);
+    expect(statements[1]!.binds[2]).toBe("p-98");
+    expect(statements[1]!.binds[3]).toBe("p-99");
+    expect(actualizados).toBeGreaterThan(0);
+  });
+
+  it("desmarcar escribe 0 y sin ids no prepara ninguna consulta", async () => {
+    const { db, statements } = makeDb();
+    expect(await setProductsWaPublish(db, [], true, NOW)).toBe(0);
+    expect(statements).toHaveLength(0);
+    await setProductsWaPublish(db, ["a"], false, NOW);
+    expect(statements).toHaveLength(1);
+    expect(statements[0]!.binds[0]).toBe(0);
   });
 });

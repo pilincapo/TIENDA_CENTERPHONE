@@ -39,5 +39,7 @@ seoApp.get("/sitemap.xml", async (c) => {
 
 seoApp.get("/robots.txt", (c) => {
   c.header("Content-Type", "text/plain; charset=utf-8");
-  return c.body(`User-agent: *\nAllow: /\nDisallow: /admin\n\nSitemap: https://centerphone.com.ar/sitemap.xml\n`);
+  // El feed del catálogo de WhatsApp queda fuera del rastreo: es una URL con token
+  // para Meta y no una página del sitio.
+  return c.body(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/whatsapp/feed.csv\n\nSitemap: https://centerphone.com.ar/sitemap.xml\n`);
 });

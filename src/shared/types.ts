@@ -23,6 +23,10 @@ export interface Product {
   imageUrl: string;
   status: ProductStatus;
   availability: Availability;
+  /** Publicado también en el catálogo de WhatsApp (el feed CSV que descarga Meta,
+   *  ver src/worker/wa-feed.ts). Lo marca el panel desde Productos; los syncs de
+   *  las fuentes y la edición manual no lo tocan. */
+  waPublish?: boolean;
   sortOrder: number;
   /** Fecha de alta del producto (epoch ms). Con <48h el frontend le pone badge "Nuevo". */
   createdAt: number;
@@ -119,6 +123,10 @@ export interface StoreSettings {
   syncUrl: string;
   syncIntervalMinutes: number;
   syncToken: string;
+  /** Token de la URL del feed del catálogo de WhatsApp (ver src/worker/wa-feed.ts).
+   *  No se edita desde el formulario de Configuración: lo genera y rota el panel en
+   *  Ajustes → Catálogo de WhatsApp. Vacío = el feed no existe (404). */
+  whatsappFeedToken: string;
   // Datos del comercio para popups/footer (configurables desde el panel).
   storeName: string;
   storeAddress: string;
@@ -176,6 +184,8 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   syncUrl: "",
   syncIntervalMinutes: 60,
   syncToken: "",
+  // Se genera solo la primera vez que el panel pide la URL del feed de WhatsApp.
+  whatsappFeedToken: "",
   storeName: "CenterPhone Celulares",
   storeAddress: "Mendoza 2974 · Santa Fe",
   storeMapUrl: "https://maps.google.com/?q=Mendoza+2974+Santa+Fe",

@@ -7,9 +7,9 @@ import type { AutoImport } from "../shared/autoimport";
 import { TAGS } from "../shared/types";
 import type { Dict, Env } from "./db";
 import {
-  countProducts, countProductsByCategory, countProductsBySource, countProductsByStatus, deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct,
+  countProducts, countProductsByCategory, countProductsBySource, countProductsByStatus, countWhatsAppProducts, deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct,
   getAutoImportByUrl, getProduct, insertSyncLog, lastSyncLogByDetail, listAutoImports, listCategories, listPriceRules,
-  listProductsPaged, listSyncLog, listSyncLogByTrigger, repararNombreCategoria, repararTextoProducto, upsertAutoImport,
+  listProductsPaged, listSyncLog, listSyncLogByTrigger, repararNombreCategoria, repararTextoProducto, setProductsWaPublish, upsertAutoImport,
   upsertCategory, upsertPriceRule, upsertProduct,
 } from "./db";
 import { markAutoImportRun, nowArgentina, runAllAutoImportsNow, runAutoImportById, runAutoImports } from "./autoimport";
@@ -23,7 +23,7 @@ import { forceHttpsUrl, getSettings, isStoreMode, newId, nowMs, saveSettings } f
 import { configProblem, fetchSecurityEvents } from "./security-log";
 import { adminSetOrderStatus, adminSetOrderArchive, adminSetOrderUnarchive, countOrders, countOrdersByStatus, listOrdersPaged, setOrderNotifiedWa } from "./orders";
 import {
-  clearSessionCookieHeader, createSessionToken, readSessionCookie,
+  clearSessionCookieHeader, createSessionToken, randomToken, readSessionCookie,
   SESSION_TTL_MS, sessionCookieHeader, verifySessionToken,
 } from "./auth";
 import { changeAdminPassword, getRevocationEpoch, getSessionSecret, revokeActiveSessions, verifyAdminPassword } from "./admin-credentials";
@@ -179,11 +179,12 @@ adminApp.get("/products", async (c) => {
   const src = ["tecnova", "hacetupedido", "manual"].includes(srcParam) ? srcParam : "";
   const page = Math.max(1, Math.min(500, Math.trunc(Number(c.req.query("page") ?? 1)) || 1));
   const limit = Math.max(1, Math.min(200, Math.trunc(Number(c.req.query("limit") ?? 50)) || 50));
-  const [products, total, counts, srcCounts] = await Promise.all([
+  const [products, total, counts, srcCounts, waCount] = await Promise.all([
     listProductsPaged(c.env.DB, { status, q, src, limit, offset: (page - 1) * limit }),
     countProducts(c.env.DB, { status, q, src }),
     countProductsByStatus(c.env.DB),
     countProductsBySource(c.env.DB),
+    countWhatsAppProducts(c.env.DB),
   ]);
   return c.json({
     products,
@@ -193,6 +194,8 @@ adminApp.get("/products", async (c) => {
     limit,
     counts: { published: counts.published, hidden: counts.hidden },
     srcCounts,
+    // Cuántos productos están marcados para el catálogo de WhatsApp (contador del panel).
+    waCount,
   });
 });
 
@@ -284,6 +287,49 @@ adminApp.post("/products/bulk", async (c) => {
   return c.json({ ok: true, deleted, pending: true });
 });
 
+// ---- Catálogo de WhatsApp (feed que descarga Meta) ----
+
+// Marcar/desmarcar productos para el catálogo de WhatsApp: { ids: [...], publish }.
+// Es una acción masiva del panel y NO toca el catálogo del sitio: solo cambia la
+// marca que alimenta el feed de src/worker/wa-feed.ts (el snapshot público y el
+// "pendiente de publicar" no cambian por esto).
+adminApp.post("/products/whatsapp", async (c) => {
+  const body = await c.req.json<{ ids?: unknown; publish?: unknown }>().catch(() => null);
+  const ids = Array.isArray(body?.ids)
+    ? body.ids.filter((x): x is string => typeof x === "string" && x.trim() !== "")
+    : [];
+  if (ids.length === 0) return c.json({ error: "Pasá ids: [...]" }, 400);
+  const publish = body?.publish !== false;
+  const updated = await setProductsWaPublish(c.env.DB, ids, publish, nowMs());
+  return c.json({ ok: true, updated, publish });
+});
+
+/**
+ * URL del feed (con el token incluido) + cuántos productos hay marcados. La primera
+ * vez genera el token y lo guarda con los ajustes; el formulario de Configuración
+ * guarda campo por campo, así que el token nunca se pisa al guardar.
+ */
+async function whatsAppFeedUrl(env: Env, forceNewToken: boolean): Promise<{ url: string; token: string; count: number }> {
+  const settings = await getSettings(env.KV);
+  let token = settings.whatsappFeedToken ?? "";
+  if (token === "" || forceNewToken) {
+    token = randomToken();
+    await saveSettings(env.KV, { whatsappFeedToken: token });
+  }
+  const origin = (env.CF_SITE_ORIGIN ?? "").replace(/\/+$/, "");
+  return { url: `${origin}/api/whatsapp/feed.csv?t=${token}`, token, count: await countWhatsAppProducts(env.DB) };
+}
+
+adminApp.get("/whatsapp/feed-url", async (c) => {
+  return c.json(await whatsAppFeedUrl(c.env, false));
+});
+
+// Rotar el token: la URL vieja deja de servir (si se filtró o si alguien que ya no
+// debe descargar el feed la tenía guardada en Commerce Manager).
+adminApp.post("/whatsapp/feed-url/rotate", async (c) => {
+  return c.json(await whatsAppFeedUrl(c.env, true));
+});
+
 function sanitizeProduct(p: Partial<Product>, id: string): Product {
   // Se sanea el texto acá además de en el upsert para que lo que devuelve el
   // panel sea igual a lo que queda en D1 (el upsert cubre a los importadores,
@@ -305,6 +351,9 @@ function sanitizeProduct(p: Partial<Product>, id: string): Product {
     createdAt: 0, // upsertProduct solo setea created_at en el INSERT (nuevos)
     sourceUrl: p.sourceUrl ?? null,
     brand: p.brand ?? null,
+    // La marca de WhatsApp se administra con la acción masiva (POST /products/whatsapp),
+    // no con el formulario: acá se conserva la que ya tenía el producto.
+    waPublish: p.waPublish === true,
   });
 }
 

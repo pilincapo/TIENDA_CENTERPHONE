@@ -105,6 +105,41 @@ Lo que queda es dentro de Google (no hay conector de Google para automatizarlo):
 2. Enviar `https://centerphone.com.ar/sitemap.xml` (un clic) si todavía no está enviado; la propiedad de dominio cubre `www` también.
 3. Mirar **Rendimiento** (consultas, impresiones, clics, posición), **Páginas** (qué se indexó) y los informes de **datos estructurados**.
 
+### ⚠️ Soft 404: qué URLs quedaron indexadas y cómo limpiarlas (2026-10-13)
+
+Hasta el deploy `22cb6e14-7946-41a7-a213-d52f40f9f7d4` el worker devolvía el cuerpo de `public/404.html` con el **200** del asset: cualquier URL inexistente respondía 200 con la página de error, y una ficha de producto sin producto devolvía el shell con 200. Google puede guardar eso como **página válida** (o como «Soft 404»), así que las URLs que ya no existen podían seguir en el índice.
+
+**Del lado del sitio ya está resuelto** (medido sobre producción, deploy `22cb6e14`):
+
+| Check | Resultado |
+|---|---|
+| `/no-existe-xyz`, `/a/b/c`, `/no-existe.jpg`, `/wp-login.php` | **404** con la página de error |
+| `/producto/` y `/producto/%20` (id vacío) | **404** |
+| `/producto/<id inexistente>` | **404** |
+| `/producto/5469` y 24 URLs muestreadas del sitemap | 200 (con las metas OG inyectadas) |
+| Cabeceras del 404 | `Cache-Control: public, max-age=0, must-revalidate` → el borde revalida, no sirve un 200 viejo |
+| `/sitemap.xml` | 1388 URLs (1365 productos + 22 categorías + home), todas vivas |
+
+**La lista de URLs afectadas NO se puede sacar de los datos del sitio** (dos caminos ya probados, para no repetirlos):
+
+- `stats_events` (visitas) guarda `product_id` **truncado a 64 caracteres** (`slice(0, 64)` en `stats.ts`). Comparando crudo parecen **28 productos muertos con tráfico**, pero los 28 son **falsos positivos**: son productos vivos con id más largo que el recorte. Y no se puede verificar por `LIKE '<prefijo>%'` porque D1 rechaza el patrón largo (`LIKE or GLOB pattern too complex`, error 7500): hay que usar `substr(p.id, 1, length(e.product_id)) = e.product_id`.
+- `orders.items_json` sí guarda el id completo, pero solo de lo vendido: de 18 pedidos, 15 productos siguen vivos y el único id ausente es el ítem sintético `descuento-transferencia` (no es una URL real).
+- El ciclo normal del catálogo no deja URLs muertas: cuando la fuente deja de traer un producto queda `status = hidden` (13 hoy) y **se sigue sirviendo con 200**. Muerto de verdad es solo lo borrado a mano en el panel, o una URL histórica de un sitio anterior.
+
+Conclusión: **la lista sale de Google, no de D1.**
+
+**Cómo hacerlo en Search Console** (requiere tu cuenta; no hay conector de Google para automatizarlo):
+
+1. **Páginas** (Indexación de páginas) → mirar los grupos **«Soft 404»** y **«Página detectada, pero no indexada»**: ahí están las URLs que el soft 404 dejó pasar como válidas.
+2. En el grupo **Soft 404** → botón **«Validar corrección»**. Google vuelve a rastrear esas URLs y ahora reciben 404 real, así que el grupo se vacía solo (tarda días, no es instantáneo).
+3. Para las que además no querés seguir viendo en resultados (un producto discontinuado que aún aparece con la foto vieja): **Quitar → Quitar temporalmente**, con la URL exacta. Dura ~6 meses y no exige que la página deje de existir.
+4. **Sitemaps** → reenviar `https://centerphone.com.ar/sitemap.xml` para que el recrawl arranque con la lista limpia.
+5. Confirmar en **Rendimiento → Páginas** que las URLs 404 dejan de sumar impresiones.
+
+**Handoff**: en «Páginas» cada grupo se puede **exportar** (CSV / Google Sheets). Si me pasás ese export, clasifico cada URL (viva / 404 / redirigida), chequeo el status actual de cada una contra producción y armo la lista de remociones lista para pegar.
+
+**Alternativa sin Search Console** (para tener la lista desde el sitio): el worker ya tiene Workers Logs activo (`observability` en `wrangler.jsonc`), pero hoy no registra los 404. Un `console.warn` en `notFoundPage()` daría, con pocos días de rastreo, las URLs reales que los bots piden y ya no existen.
+
 ### Verificación del SEO técnico (2026-10-13, sobre producción)
 
 | Check | Resultado |
@@ -115,6 +150,41 @@ Lo que queda es dentro de Google (no hay conector de Google para automatizarlo):
 | URL larga | el sitemap entra cómodo en el límite de 50.000 URLs / 50 MB |
 
 **Hallazgo menor, no corregido**: `/admin/` no lleva `noindex` (sí está `Disallow`-eado en `robots.txt` y con `Cache-Control: no-store`, y no está linkeado ni en el sitemap). Agregar `<meta name="robots" content="noindex">` a `admin/index.html` sería el cierre prolijo.
+
+### 📱 Catálogo de WhatsApp: publicar productos elegidos (feed programado, 2026-10-13)
+
+El catálogo de WhatsApp no tiene carga masiva —ni en la app ni desde ningún panel—: el catálogo de WhatsApp **es** un catálogo de Meta (Commerce Manager) vinculado a la cuenta, y Meta lo llena **descargando periódicamente un archivo de una URL pública**. Por eso acá no se "suben" productos: se **marcan** en el panel y el worker sirve el archivo que Meta baja solo.
+
+**Cómo se usa:**
+
+1. En el panel, pestaña **Productos**: seleccionás las filas (los checkboxes de siempre) y usás **📱 Publicar en WhatsApp** o **📱 Quitar de WhatsApp**. Los marcados muestran el badge 📱 y la barra dice cuántos se están publicando.
+2. **Ajustes → 📱 Catálogo de WhatsApp** muestra la **URL del feed** (con el token en la query), cuántos productos se publican y permite **copiarla** o **regenerarla**. Al regenerarla, la URL vieja deja de servir: hay que actualizarla en Commerce Manager.
+
+**Pasos en Meta (una sola vez):**
+
+1. Commerce Manager → tu catálogo → **Fuentes de datos** → **Agregar fuente** → **Feed programado** (por URL).
+2. Pegá la URL del panel, elegí la frecuencia (lo más seguido que permite Meta es **cada hora**) y el tipo de feed: **reemplazo completo** (recomendado: desmarcar un producto, o que la fuente deje de traerlo, lo saca del catálogo) o **actualización** (solo agrega y actualiza; lo desmarcado queda visible y hay que borrarlo a mano).
+3. Esperar la primera descarga (hasta 1 hora) y revisar **Productos** en Commerce Manager: los rechazados indican el campo que falla.
+4. **Validar primero 2-3 productos** y confirmar que el precio en **ARS** se ve bien antes de marcar todo el catálogo (la documentación de Meta no confirma ARS para todos los mercados).
+
+**Qué lleva el feed** (`src/shared/wa-feed.ts`): `id`, `title`, `description`, `availability`, `condition`, `price` (`3360.00 ARS`), `link` (`/producto/<id>`), `image_link` y `brand`.
+
+| Check | Resultado (verificado en local) |
+|---|---|
+| Feed con token y 2 productos marcados | **200**, CSV con encabezado + 2 filas y 9 columnas por fila (parser RFC 4180) |
+| Sin token / token inválido / token viejo tras rotar | **404** |
+| 0 productos marcados | **500** (guarda anti-vaciado; Meta deja el catálogo como estaba) |
+| Producto sin stock marcado a mano | no entra al feed, y el contador del panel lo refleja |
+| Desmarcar un producto | sale del feed en la descarga siguiente |
+| Guardar Configuración (formulario) | el token **no** se pisa: la URL queda idéntica y el feed sigue en 200 |
+| Rotar el token (Ajustes) | token viejo 404, nuevo 200 |
+
+Detalles a tener en cuenta:
+
+- Entran **solo los publicados y con foto**: sin `image_link` Meta rechaza el feed completo, así que esos productos se saltean y quedan en Workers Logs (`wa-feed: …`) junto con el motivo.
+- **995 de 1365 productos no tienen descripción** y **solo 150 tienen marca**: se generan textos de respaldo con el título, la categoría y el nombre de la tienda, porque Meta exige ambos campos.
+- El feed **sigue sirviéndose en modo mantenimiento** (el catálogo de WhatsApp es el mismo canal de venta) y está excluido del rastreo en `robots.txt`.
+- El token vive en los ajustes y **no** se edita en Configuración: se genera solo la primera vez que se abre la sección y se rota desde el botón (si se filtra la URL, rotar y actualizar Commerce Manager).
 
 ## Verificación post-deploy
 

@@ -18,6 +18,10 @@ const BYPASS_PREFIXES = [
   "/api/orders/",
   "/api/payments/webhook",
   "/seguimiento",
+  // El feed del catálogo de WhatsApp se sigue sirviendo en mantenimiento: el sitio
+  // puede estar cerrado, pero el catálogo de WhatsApp es el mismo canal de venta y
+  // no debe quedar desactualizado (ni vaciarse si la fuente es de reemplazo).
+  "/api/whatsapp/feed.csv",
   // Estáticos que podrían quedar referenciados (favicon, 404, assets).
   "/assets/",
   "/_app/",

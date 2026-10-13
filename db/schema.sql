@@ -23,7 +23,10 @@ CREATE TABLE IF NOT EXISTS products (
   created_at     INTEGER NOT NULL,
   updated_at     INTEGER NOT NULL,
   source_url     TEXT,
-  brand          TEXT
+  brand          TEXT,
+  -- Marca de "publicar en el catálogo de WhatsApp" (feed de Meta, ver
+  -- src/worker/wa-feed.ts). 0 = no publicado. Los syncs no la tocan.
+  wa_publish     INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS sync_log (

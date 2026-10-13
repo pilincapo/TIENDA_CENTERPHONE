@@ -19,6 +19,7 @@ import { ogTagsHtml } from "./og";
 import { validateCart, type CartInput } from "./orders";
 import { orderPageApp } from "./orders-page";
 import { maintenanceMiddleware } from "./maintenance";
+import { waFeedApp } from "./wa-feed";
 import { runWeeklyDigest } from "./digest";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -49,6 +50,8 @@ app.route("/api/admin/import/tecnova", tecnovaApp);
 app.route("/", checkoutApp);
 app.route("/", orderPageApp);
 app.route("/", seoApp);
+// Feed CSV del catálogo de WhatsApp: lo descarga Meta (ver wa-feed.ts).
+app.route("/", waFeedApp);
 
 // Snapshot público (servido desde KV, con regeneración de emergencia).
 // Caché edge real vía Cache API del propio worker (funciona en workers.dev y en
