@@ -262,7 +262,10 @@ app.get("/", (c) => c.env.ASSETS.fetch(new Request(c.req.url)));
 app.get("/producto/*", async (c) => {
   const res = await c.env.ASSETS.fetch(new Request(new URL("/product.html", c.req.url)));
   const id = decodeURIComponent(c.req.path.replace(/^\/producto\//, "")).trim();
-  if (!res.ok || id === "") return res;
+  if (!res.ok) return res; // asset roto: no hay template que servir
+  // Sin id (/producto/ o /producto/%20) tampoco existe la ficha: misma regla que
+  // un id desconocido, no el shell con 200.
+  if (id === "") return notFoundPage(c);
   const product = await getProduct(c.env.DB, id);
   if (!product) return notFoundPage(c);
   const html = await res.text();
