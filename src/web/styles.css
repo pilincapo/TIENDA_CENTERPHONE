@@ -105,6 +105,11 @@ img { max-width: 100%; display: block; }
 }
 .topbar-link { color: var(--muted); white-space: nowrap; }
 .topbar-link:hover { color: var(--brand); }
+/* Panel: "Ver sitio" y "Salir" empujados a la derecha del topbar (el brand queda a la izquierda). */
+.topbar-site { margin-left: auto; }
+@media (max-width: 480px) {
+  .topbar .topbar-site { padding: 7px 10px; font-size: 12px; }
+}
 
 /* ===== Hero del home ===== */
 .hero { max-width: 1280px; margin: 0 auto; padding: 40px 24px 6px; }

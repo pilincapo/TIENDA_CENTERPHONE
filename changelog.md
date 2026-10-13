@@ -1,3 +1,15 @@
+## 2026-10-13 — Panel: botón «🌐 Ver sitio» en el topbar
+
+- **Pedido del usuario**: un link o botón en la parte superior del panel que lleve a la página principal / catálogo.
+- **`admin/index.html`**: en el `<header class="topbar">`, entre el brand y «Salir», nuevo
+  `<a class="btn btn-ghost topbar-site" href="/" target="_blank" rel="noopener">🌐 Ver sitio</a>` —
+  reutiliza `.btn .btn-ghost` (mismo estilo que «Salir») y abre el catálogo en otra pestaña para no perder la sesión del panel.
+- **`src/web/styles.css`**: `.topbar-site { margin-left: auto }` («Ver sitio» y «Salir» quedan alineados a la derecha,
+  el brand a la izquierda) y ajuste mobile ≤480px (`.topbar .topbar-site { padding: 7px 10px; font-size: 12px }`).
+- Verificado en local (wrangler dev 8787): desktop y 390px — los dos botones a la derecha del topbar, sin desborde
+  horizontal, `href="/"` con `target="_blank"` y la regla mobile aplicada. Typecheck ✅, **327/327 tests** ✅, build ✅.
+- Sin deploy ni commit todavía.
+
 ## 2026-10-10 — Cotizador de envíos con Andreani (solo informativo)
 
 - **Pedido del usuario**: calcular el costo de envío con la API de Andreani. Decisión: el precio es **solo informativo** — no entra al total de MercadoPago ni de transferencia; el cierre sigue por WhatsApp como hoy.
