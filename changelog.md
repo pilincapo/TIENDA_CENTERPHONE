@@ -1,3 +1,10 @@
+## 2026-10-13 — Commit, push y deploy de los arreglos de diseño y contraste
+
+- **Commit `497c6fe`** y push a `main` (`aca5976..497c6fe`, exit 0): 5 archivos (+90/−12) — `src/web/styles.css`, `src/web/cart-ui.ts`, `index.html`, `product.html` y `changelog.md`.
+- **Deploy `21b35866-569a-4e2b-b5cb-095bccc14f20`** (exit 0): 9 assets (home, ficha, 404, panel, los 4 bundles nuevos y `/changelog.md`), bindings (KV/D1/ASSETS/EMAIL/vars) y cron `0 * * * *` intactos, startup 3 ms.
+- **Verificado en producción**: `/`, `/admin/`, `/sitemap.xml` y `/robots.txt` en 200; el CSS servido (`/assets/whatsapp-Bs1zf4Xx.css`) trae `minmax(0,1fr)`, `.modal-body`, `--muted-2`, `min-width:70px` y `:not(.cart-btn)`, con **0 restos** de `#65676b` ni `#e7f6ee`. En el navegador sobre `centerphone.com.ar`: home a 373px y ficha a 339px con **desborde 0**, carrito visible de 24px, `← Volver` en 71px, grilla 349=349, **0 fallas de contraste**, el modal sin recortes con la ✕ fija y clickeable tras agregar 18 pasos, y el **beacon de Cloudflare sigue inyectado** (la analítica no se rompió).
+- **Nota**: como esta entrada registra el deploy, no está en el asset desplegado — llega con el próximo. Es el patrón que ya seguía este changelog.
+
 ## 2026-10-13 — Auditoría de diseño y contraste: header móvil, grilla y modales
 
 - **Pedido**: "audita el diseño y los contrastes. verificar tambien los modaels ques no se corten en escritorio ni movil". Todo medido en el navegador sobre el dev server (8787), no leído del CSS.
