@@ -12,6 +12,7 @@ import { track } from "./track";
 import { isFresh, cdnSrcset } from "./catalog";
 import { setupCartUI } from "./cart-ui";
 import { productTransferLine, discountPercentFrom } from "./transfer-banner";
+import { shippingQuoteHtml, quoteInitialState, fetchQuote, savePostalCode, savedPostalCode, errorState, doneState, type QuoteState } from "./shipping-quote";
 
 interface DetailResponse {
   product: Product;
@@ -136,6 +137,7 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
         <h1>${esc(product.title)}</h1>
         <div class="price">${formatPrice(product.priceCents, symbol)}</div>
         ${transferLine}
+        <div id="product-ship" class="product-ship"></div>
         <p class="desc">${esc(product.description || "Sin descripción.")}</p>
         ${hiddenNotice}
         <p class="muted">Disponibilidad: ${esc(availabilityLabel(product.availability))}</p>
@@ -185,7 +187,13 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
   fillStoreInfo(settings);
   // Carrito + pago online (solo el producto de la ficha en el cache local).
   // Modo catálogo: la ficha solo muestra precio y WhatsApp, sin carrito.
-  if (sellsOnline(settings)) setupCartUI(settings, [product]);
+  if (sellsOnline(settings)) {
+    setupCartUI(settings, [product]);
+    // Cotizador bajo el precio/descuento (solo modo tienda y disponible).
+    if (settings.shippingAndreaniEnabled && product.availability === "in_stock" && !product.hiddenNoStock) {
+      wireProductShip(product, symbol, settings);
+    }
+  }
 
   // Tracking de clics a WhatsApp (botón inline y flotante).
   document.querySelectorAll("[data-wa-track]").forEach((a) => {
@@ -222,3 +230,56 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
 }
 
 void init();
+
+// ---- Cotizador de envíos en la ficha ----
+
+/**
+ * Renderiza el bloque de envío de la ficha: con CP guardado cotiza directo;
+ * sin CP muestra el formito. Igual que el carrito: informativo, no se aplica
+ * al total (el pago y el cierre siguen igual).
+ */
+function wireProductShip(product: Product, symbol: string, settings: PublicSettings): void {
+  const target = document.getElementById("product-ship");
+  if (!target) return;
+  let state: QuoteState = quoteInitialState(settings, [{ id: product.id, qty: 1 }]);
+  const render = (): void => {
+    target.innerHTML = shippingQuoteHtml(state, symbol);
+    const goBtn = target.querySelector<HTMLButtonElement>("[data-ship-go]");
+    const cpInput = target.querySelector<HTMLInputElement>(".ship-quote-cp");
+    const editBtn = target.querySelector<HTMLButtonElement>("[data-ship-edit]");
+    if (goBtn && cpInput) {
+      const run = (): void => {
+        const cp = cpInput.value.replace(/\D/g, "");
+        if (!/^[0-9]{4,8}$/.test(cp)) return;
+        savePostalCode(cp);
+        state = { status: "loading", cp, priceCents: 0 };
+        render();
+        void ask(cp);
+      };
+      goBtn.addEventListener("click", run);
+      cpInput.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") run();
+      });
+    }
+    if (editBtn) {
+      editBtn.addEventListener("click", () => {
+        state = { status: "input", cp: savedPostalCode() ?? "", priceCents: 0 };
+        render();
+        target.querySelector<HTMLInputElement>(".ship-quote-cp")?.focus();
+      });
+    }
+  };
+  const ask = async (cp: string): Promise<void> => {
+    const res = await fetchQuote(cp, [{ id: product.id, qty: 1 }]);
+    if (res.disabled) {
+      state = { status: "done", cp: "", priceCents: 0, hidden: true };
+    } else if (res.ok && typeof res.priceCents === "number") {
+      state = doneState(cp, res.priceCents);
+    } else {
+      state = errorState(cp, res.error || "No se pudo cotizar");
+    }
+    render();
+  };
+  render();
+  if (state.status === "loading" && state.cp) void ask(state.cp);
+}

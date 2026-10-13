@@ -421,6 +421,7 @@ img { max-width: 100%; display: block; }
 }
 .field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
 .field textarea { min-height: 90px; resize: vertical; }
+.field--row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 /* Lista de horarios (máx. 3) del formulario de auto-importaciones */
 .hour-list {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
@@ -931,6 +932,47 @@ a.topnav-btn {
 
 /* Checkout por transferencia */
 .cart-transfer-btn { margin-top: 8px; width: 100%; background: #e7f6ee; color: #059669; border: 1px solid #b5e3c9; }
+
+/* ---- Cotizador de envíos (Andreani) ---- */
+/* Bloque informativo en el carrito (dentro del body del modal) y en la ficha. */
+.ship-quote { margin: 8px 0 0; border: 1px solid var(--border-bright); background: var(--panel-2); }
+.ship-quote details { margin: 0; }
+.ship-quote summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; font-size: 13px; font-weight: 700; color: var(--text);
+}
+.ship-quote summary::-webkit-details-marker { display: none; }
+.ship-quote summary::after { content: "▾"; margin-left: auto; color: var(--muted); }
+.ship-quote details[open] summary::after { content: "▴"; }
+.ship-quote-form { display: flex; gap: 8px; padding: 0 12px 12px; }
+.ship-quote-cp {
+  flex: 1; min-width: 0; padding: 8px 10px; font-size: 14px; font-family: var(--font-mono, var(--font-sans));
+  border: 1px solid var(--border-bright); background: var(--panel); color: var(--text);
+}
+.ship-quote-cp:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+.ship-quote-go {
+  padding: 8px 14px; font-size: 13px; font-weight: 700;
+  background: var(--brand); color: #04180a; border: 1px solid var(--brand); cursor: pointer;
+}
+.ship-quote-go:hover { background: var(--brand-dark); }
+.ship-quote-error { padding: 0 12px 12px; font-size: 12px; color: var(--danger); margin: 0; }
+/* Estado cotizado: fila compacta con precio a la derecha */
+.ship-quote--done { padding: 10px 12px; }
+.ship-quote--done .ship-quote-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ship-quote-ic { font-size: 16px; }
+.ship-quote-label { font-size: 13px; color: var(--muted); }
+.ship-quote-price { font-size: 15px; font-weight: 800; color: var(--text); }
+.ship-quote-edit {
+  margin-left: auto; padding: 4px 10px; font-size: 11px; font-weight: 600;
+  background: none; border: 1px solid var(--border-bright); color: var(--muted); cursor: pointer;
+}
+.ship-quote-edit:hover { color: var(--text); border-color: var(--text); }
+/* En la ficha: sin caja extra, integrado bajo el precio */
+.product-ship .ship-quote { margin: -4px 0 14px; }
+@media (max-width: 480px) {
+  .ship-quote-form { flex-direction: column; }
+  .ship-quote-go { width: 100%; }
+}
 
 /* CBU/alias visible en el cierre por transferencia */
 .cbu-box { margin: 12px 0 0; padding: 12px 14px; background: var(--panel-2); border: 1px dashed var(--brand); text-align: left; }

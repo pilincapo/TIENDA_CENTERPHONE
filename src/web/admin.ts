@@ -2930,6 +2930,30 @@ async function viewSettings(): Promise<void> {
           </div>
         </details>
         <details class="cfg-group">
+          <summary>📦 Envíos (Andreani) <span class="cfg-hint">cotizá el costo de envío con el CP del comprador</span></summary>
+          <div class="cfg-body">
+            <div class="field field--check">
+              <label><input type="checkbox" name="shippingAndreaniEnabled" ${(settings.shippingAndreaniEnabled ?? false) ? "checked" : ""}/> Mostrar el cotizador de envíos en carrito y ficha</label>
+            </div>
+            <div class="field"><label>N° de contrato de Andreani (lo da tu agente; ej. AND00EST)</label>
+              <input name="shippingAndreaniContrato" value="${esc(settings.shippingAndreaniContrato ?? "")}" maxlength="40" placeholder="AND00EST"/></div>
+            <div class="field"><label>N° de cliente Andreani (ej. CL0003750)</label>
+              <input name="shippingAndreaniCliente" value="${esc(settings.shippingAndreaniCliente ?? "")}" maxlength="40" placeholder="CL0003750"/></div>
+            <div class="field"><label>Código postal del local (origen de los envíos)</label>
+              <input name="shippingPostalCode" value="${esc(settings.shippingPostalCode ?? "")}" maxlength="8" placeholder="3000"/></div>
+            <div class="field field--row">
+              <div><label>Peso por unidad (kg)</label>
+                <input name="shippingPackageKilos" type="number" min="0" max="1000" step="0.01" value="${settings.shippingPackageKilos ?? 0.5}"/></div>
+              <div><label>Volumen por unidad (cm³)</label>
+                <input name="shippingPackageVolumen" type="number" min="0" max="1000000" step="1" value="${settings.shippingPackageVolumen ?? 1080}"/></div>
+            </div>
+            <p class="muted">El comprador escribe su código postal y la cotización llama a la API de Andreani con el peso/volumen configurados. El envío es <strong>informativo</strong>: no suma al total del pago, se coordina al cerrar la venta.</p>
+            <p class="muted">Las credenciales <strong>no</strong> se configuran acá: son secrets del worker.<br>
+            • Local: agregá <code>ANDREANI_USER=…</code> y <code>ANDREANI_PASSWORD=…</code> a <code>.dev.vars</code>.<br>
+            • Producción: <code>npx wrangler secret put ANDREANI_USER</code> y <code>ANDREANI_PASSWORD</code>.</p>
+          </div>
+        </details>
+        <details class="cfg-group">
           <summary>Mantenimiento <span class="cfg-hint">cerrar la tienda al público</span></summary>
           <div class="cfg-body">
             <div class="field field--check">
@@ -2983,6 +3007,12 @@ async function viewSettings(): Promise<void> {
           mpSurchargePercent: Number(fd.get("mpSurchargePercent") ?? 0),
           transferDiscountPercent: Number(fd.get("transferDiscountPercent") ?? 0),
           transferCbu: fd.get("transferCbu"),
+          shippingAndreaniEnabled: (fd.get("shippingAndreaniEnabled") ?? "") === "on",
+          shippingAndreaniContrato: fd.get("shippingAndreaniContrato"),
+          shippingAndreaniCliente: fd.get("shippingAndreaniCliente"),
+          shippingPostalCode: fd.get("shippingPostalCode"),
+          shippingPackageKilos: Number(fd.get("shippingPackageKilos") ?? 0.5),
+          shippingPackageVolumen: Number(fd.get("shippingPackageVolumen") ?? 1080),
           maintenanceMode: (fd.get("maintenanceMode") ?? "") === "on",
           maintenanceMessage: fd.get("maintenanceMessage"),
         }),

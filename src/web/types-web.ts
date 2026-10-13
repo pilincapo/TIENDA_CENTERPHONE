@@ -31,6 +31,13 @@ export interface PublicSettings {
   transferCbu: string;
   /** Modo mantenimiento activo: el catálogo muestra la página de contacto. */
   maintenanceMode: boolean;
+  /** Envíos: cotizador Andreani activo (requiere secrets ANDREANI_* del worker). */
+  shippingAndreaniEnabled: boolean;
+  /** CP del local (origen de envíos); informativo, el cálculo lo hace el worker. */
+  shippingPostalCode: string;
+  /** Peso/volumen por unidad: informativo para el UI (el cálculo es server-side). */
+  shippingPackageKilos: number;
+  shippingPackageVolumen: number;
 }
 
 /**

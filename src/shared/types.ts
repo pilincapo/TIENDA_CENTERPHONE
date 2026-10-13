@@ -139,6 +139,19 @@ export interface StoreSettings {
   // redes; el panel, los pedidos y el webhook siguen funcionando.
   maintenanceMode: boolean;
   maintenanceMessage: string;
+  // ---- Envíos con Andreani (cotización server-side) ----
+  /** Cotizador de envíos activo: muestra el precio en carrito y ficha. Sin credenciales del worker queda inerte. */
+  shippingAndreaniEnabled: boolean;
+  /** N° de contrato con Andreani (lo da el agente comercial; ej. AND00EST). */
+  shippingAndreaniContrato: string;
+  /** N° de cliente Andreani (ej. CL0003750). */
+  shippingAndreaniCliente: string;
+  /** Código postal del local: origen de los envíos (ej. 3000 Santa Fe). */
+  shippingPostalCode: string;
+  /** Peso en kg de cada unidad de producto (un celular ≈ 0.5 kg con caja). */
+  shippingPackageKilos: number;
+  /** Volumen en cm³ de cada unidad (ej. caja de celular 18×10×6 ≈ 1080 cm³). */
+  shippingPackageVolumen: number;
 }
 
 export const TAGS: Tag[] = ["new", "featured", "offer"];
@@ -188,6 +201,13 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   transferCbu: "",
   maintenanceMode: false,
   maintenanceMessage: "",
+  // Envíos: apagado por defecto; sin secrets ANDREANI_* el worker rechaza igual.
+  shippingAndreaniEnabled: false,
+  shippingAndreaniContrato: "",
+  shippingAndreaniCliente: "",
+  shippingPostalCode: "",
+  shippingPackageKilos: 0.5,
+  shippingPackageVolumen: 1080,
 };
 
 export const KV_SNAPSHOT_KEY = "catalog:snapshot:v1";

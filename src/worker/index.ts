@@ -12,8 +12,10 @@ import { runAutoImports } from "./autoimport";
 import { seoApp } from "./seo";
 import { trackEvent, pruneStats, type StatEventType } from "./stats";
 import { isValidPhone } from "../shared/whatsapp";
-import { applySecurityHeaders, isAllowedTrackOrigin, newNonce } from "./security";
+import { applySecurityHeaders, isAllowedTrackOrigin } from "./security";
 import { checkoutApp } from "./checkout";
+import { armarBulto, andreaniQuote } from "./andreani";
+import { validateCart, type CartInput } from "./orders";
 import { orderPageApp } from "./orders-page";
 import { maintenanceMiddleware } from "./maintenance";
 import { runWeeklyDigest } from "./digest";
@@ -119,12 +121,77 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     transferDiscountPercent: s.transferDiscountPercent,
     transferCbu: s.transferCbu,
     maintenanceMode: s.maintenanceMode,
+    // Envíos (cotizador Andreani): solo los campos que el frontend necesita.
+    shippingAndreaniEnabled: s.shippingAndreaniEnabled,
+    shippingPostalCode: s.shippingPostalCode,
+    shippingPackageKilos: s.shippingPackageKilos,
+    shippingPackageVolumen: s.shippingPackageVolumen,
   };
 }
 
 // Settings públicos para el frontend (sin exponer tokens ni URLs de sync).
 app.get("/api/public/settings", async (c) => {
   return c.json(publicSettings(await getSettings(c.env.KV)));
+});
+
+// ---- Cotizador de envíos (Andreani) ----
+// GET /api/shipping/quote?cp=3000&items=id:qty,id2:qty2
+// El cliente SOLO manda CP + {id, qty} del carrito: los productos se re-verifican
+// en D1 (misma regla anti-fraude del checkout) y el peso/volumen/contrato salen
+// de settings. Solo muestra el precio: nunca entra al total que cobra el worker.
+// Rate limit simple en memoria por isolate (igual que checkout).
+const quoteAttempts = new Map<string, { count: number; resetAt: number }>();
+
+app.get("/api/shipping/quote", async (c) => {
+  const settings = await getSettings(c.env.KV);
+  if (!settings.shippingAndreaniEnabled) return c.json({ ok: false, error: "Cotizador de envíos deshabilitado", disabled: true });
+  const user = c.env.ANDREANI_USER ?? "";
+  const password = c.env.ANDREANI_PASSWORD ?? "";
+  if (user === "" || password === "") return c.json({ ok: false, error: "Cotizador no configurado", disabled: true });
+
+  // Rate limit: 20 cotizaciones por minuto por IP (el modal re-cotiza al editar el CP).
+  const ip = c.req.header("CF-Connecting-IP") ?? "local";
+  const now = Date.now();
+  const entry = quoteAttempts.get(ip);
+  if (entry && entry.resetAt >= now && entry.count >= 20) {
+    return c.json({ ok: false, error: "Demasiadas cotizaciones. Probá en un minuto." });
+  }
+  if (!entry || entry.resetAt < now) quoteAttempts.set(ip, { count: 1, resetAt: now + 60_000 });
+  else entry.count += 1;
+
+  // CP destino: 4-8 dígitos (solo Argentina, ej 3000 o B1655 como número).
+  const cp = (c.req.query("cp") ?? "").replace(/\D/g, "");
+  if (cp.length < 4 || cp.length > 8) return c.json({ ok: false, error: "Código postal inválido" });
+
+  // Items: "id:qty,id:qty" — mismos límites que el carrito (validateCart).
+  const itemsRaw = (c.req.query("items") ?? "")
+    .split(",")
+    .slice(0, 20)
+    .map((s) => {
+      const [id, qty] = s.split(":");
+      return { id: (id ?? "").trim(), qty: Number(qty ?? "1") };
+    })
+    .filter((i) => i.id !== "");
+  if (itemsRaw.length === 0) return c.json({ ok: false, error: "Carrito vacío" });
+  const cart = validateCart(itemsRaw as CartInput[], await listProducts(c.env.DB));
+  if (!cart.ok) return c.json({ ok: false, error: cart.error ?? "Carrito inválido" });
+
+  if ((settings.shippingAndreaniContrato ?? "") === "" || (settings.shippingAndreaniCliente ?? "") === "") {
+    return c.json({ ok: false, error: "Falta config de Andreani en el panel", disabled: true });
+  }
+
+  const bulto = armarBulto(cart.items ?? [], {
+    kilos: Math.max(0.1, Number(settings.shippingPackageKilos) || 0.5),
+    volumen: Math.max(100, Number(settings.shippingPackageVolumen) || 1080),
+  });
+  const quote = await andreaniQuote(c.env, {
+    cpDestino: cp,
+    contrato: settings.shippingAndreaniContrato,
+    cliente: settings.shippingAndreaniCliente,
+    bultos: [{ kilos: bulto.kilos, volumen: bulto.volumen, valorDeclarado: bulto.valorDeclarado }],
+  });
+  if (!quote.ok) return c.json({ ok: false, error: quote.error ?? "No se pudo cotizar el envío" });
+  return c.json({ ok: true, priceCents: quote.tarifa, pesoAforado: quote.pesoAforado });
 });
 
 // Tracking de estadísticas (beacon del frontend). La geo viene de request.cf,
@@ -183,7 +250,8 @@ app.get("/admin", (c) => c.redirect("/admin/", 301));
 app.get("/changelog.md", (c) => c.text("No autorizado", 401));
 // Atajo a la página de seguimiento de envíos: redirige a la URL configurada
 // en el panel (302 temporal, así siempre respeta el valor actual) con fallback
-// al track-lite de RepairPro si el campo está vacío.
+// al track-lite de RepairPro si el campo está vacío. Deriva directo: sin página
+// intermedia ni espera, para que no se aburra el usuario.
 app.get("/seguimiento", async (c) => {
   // Registro el uso del atajo (interés en envíos/seguimiento de pedidos).
   const cf = c.req.raw.cf as Record<string, string> | undefined;
@@ -205,67 +273,7 @@ app.get("/seguimiento", async (c) => {
   // http:// antes de la validación; el fallback ya es https). Si el valor
   // guardado no es una URL válida/https, se usa el fallback.
   const dest = forceHttpsUrl(settings.trackUrl, 300) || "https://repairpro.centerphone.com.ar/track-lite";
-  // Página intermedia en vez de redirect puro: muestra "Volver al catálogo"
-  // y auto-deriva al seguimiento a los 3 segundos (el destino está en data-attr
-  // para que la página funcione también sin JS).
-  const esc = (s: string): string => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
-  // CSP con nonce: el único <script> inline del sitio es el auto-redirect de
-  // esta página; sin nonce la CSP 'self' lo bloquearía.
-  const nonce = newNonce();
-  c.header("Content-Security-Policy", `default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'nonce-${nonce}' 'strict-dynamic'`);
-  const html = `<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<title>Redirigiendo al seguimiento…</title>
-<style>
-  :root{--bg:#0b0f14;--panel:#10161d;--panel-2:#161e27;--border-bright:#33475e;
-        --text:#d7e2ea;--muted:#7d8f9f;--brand:#3fb950;--brand-dark:#2e9e3f;
-        --shadow:4px 4px 0 rgb(0 0 0 / .55);
-        --font:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
-       min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center}
-  body::before{content:"";position:fixed;inset:0;z-index:9;pointer-events:none;
-       background:repeating-linear-gradient(to bottom,transparent 0 2px,rgb(0 0 0/.12) 3px,transparent 4px);mix-blend-mode:multiply}
-  .card{background:var(--panel);border:1px solid var(--border-bright);box-shadow:var(--shadow);
-        padding:36px 28px;max-width:440px;width:100%;position:relative;z-index:10}
-  .emoji{font-size:44px}
-  h1{font-size:18px;margin:16px 0 8px;font-weight:800}
-  p{color:var(--muted);margin:0 0 24px;font-size:14px;line-height:1.5}
-  p b{color:var(--brand)}
-  a.btn{display:block;background:var(--brand);color:#04180a;text-decoration:none;
-        padding:14px;font-weight:700;font-size:14px;border:1px solid var(--brand);
-        box-shadow:2px 2px 0 rgb(0 0 0/.45)}
-  a.btn:hover{background:var(--brand-dark);border-color:var(--brand-dark)}
-  a.back{display:block;margin-top:12px;color:var(--muted);text-decoration:underline;font-size:14px}
-  a.back:hover{color:var(--brand)}
-</style>
-</head>
-<body>
-<div class="card">
-  <div class="emoji">📦</div>
-  <h1>Te llevamos al seguimiento</h1>
-  <p>Continuando en <b id="count">3</b> segundos… Si no ocurre nada, tocá el botón.</p>
-  <a class="btn" id="go" href="${esc(dest)}">Ir al seguimiento ahora</a>
-  <a class="back" href="/">← Volver al catálogo</a>
-</div>
-<script nonce="${nonce}">
-  // Auto-redirect con cuenta visible; cancelado si el usuario navega por su cuenta.
-  var n = 3;
-  var t = setInterval(function () {
-    n--;
-    var el = document.getElementById("count");
-    if (el) el.textContent = String(n);
-    if (n <= 0) { clearInterval(t); location.replace(document.getElementById("go").href); }
-  }, 1000);
-</script>
-</body>
-</html>`;
-  return c.html(html, 200, { "Cache-Control": "no-store" });
+  return c.redirect(dest, 302);
 });
 
 // Fallback: 404.html para páginas, JSON para la API.

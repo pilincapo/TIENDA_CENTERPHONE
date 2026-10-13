@@ -16,6 +16,10 @@ export interface Env {
   // Pago online (MercadoPago): secret. Vacío = pagos deshabilitados aunque el
   // panel tenga el toggle activado.
   MERCADOPAGO_ACCESS_TOKEN?: string;
+  // Envíos por Andreani: credenciales como secrets. Vacíos = cotizador apagado
+  // aunque el panel tenga el toggle activado (igual que MercadoPago).
+  ANDREANI_USER?: string;
+  ANDREANI_PASSWORD?: string;
   // Opcionales: habilitan la purga del caché edge de /api/catalog al regenerar
   // el snapshot. Sin ellos, la purga se omite silenciosamente (el sitio funciona igual).
   CF_ZONE_ID?: string;

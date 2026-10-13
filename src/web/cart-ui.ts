@@ -8,6 +8,10 @@ import type { PublicSettings } from "./types-web";
 import { formatPrice } from "../shared/format";
 import { cartTransferBanner, discountPercentFrom } from "./transfer-banner";
 import {
+  shippingQuoteHtml, quoteInitialState, fetchQuote, savePostalCode, savedPostalCode,
+  errorState, doneState, cartItemsParam, type QuoteState,
+} from "./shipping-quote";
+import {
   cartAdd, cartClear, cartLines, cartRemove, cartSetQty, cartCount, onCartChange,
   MAX_QTY_PER_ITEM,
 } from "./cart";
@@ -64,6 +68,7 @@ function ensureModal(): void {
       <h2>Tu carrito</h2>
       <div id="cart-body"></div>
       <p class="cart-note" id="cart-note"></p>
+      <div id="cart-ship"></div>
       <div id="cart-checkout" hidden>
         <div class="cart-fields">
           <input id="cart-name" type="text" placeholder="Tu nombre" maxlength="80" autocomplete="name" />
@@ -267,6 +272,65 @@ function updateBadge(): void {
   badge.hidden = n === 0;
 }
 
+// ---- Cotizador de envíos dentro del carrito ----
+let shipState: QuoteState | null = null;
+// Snapshot "id:qty,id:qty" del carrito cuando se hizo/encoló la última cotización:
+// si cambia (agregar/quitar/cantidad), el bloque vuelve a cotizar.
+let shipLinesSnapshot = "";
+
+/** Renderiza el bloque de envío en el modal y conecta sus interacciones. */
+function renderShipBlock(): void {
+  if (!init) return;
+  // El bloque vive dentro de cart-body (#cart-ship-inline): se repinta en cada render.
+  const target = document.getElementById("cart-ship-inline") ?? document.getElementById("cart-ship");
+  if (!target) return;
+  if (!shipState || shipState.hidden) {
+    target.innerHTML = "";
+    return;
+  }
+  const symbol = init.settings.currencySymbol || "$";
+  target.innerHTML = shippingQuoteHtml(shipState, symbol);
+  const goBtn = target.querySelector<HTMLButtonElement>("[data-ship-go]");
+  const cpInput = target.querySelector<HTMLInputElement>(".ship-quote-cp");
+  const editBtn = target.querySelector<HTMLButtonElement>("[data-ship-edit]");
+  if (goBtn && cpInput) {
+    const run = (): void => {
+      const cp = cpInput.value.replace(/\D/g, "");
+      if (!/^[0-9]{4,8}$/.test(cp)) return;
+      savePostalCode(cp);
+      shipState = { status: "loading", cp, priceCents: 0 };
+      renderShipBlock();
+      void runQuote(cp);
+    };
+    goBtn.addEventListener("click", run);
+    cpInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") run();
+    });
+  }
+  if (editBtn) {
+    editBtn.addEventListener("click", () => {
+      shipState = { status: "input", cp: savedPostalCode() ?? "", priceCents: 0 };
+      renderShipBlock();
+      target.querySelector<HTMLInputElement>(".ship-quote-cp")?.focus();
+    });
+  }
+}
+
+/** Pide la cotización al worker y repinta el bloque. */
+async function runQuote(cp: string): Promise<void> {
+  if (!init) return;
+  const res = await fetchQuote(cp, cartLines());
+  if (!shipState || shipState.cp !== cp) return; // el usuario ya cambió algo
+  if (res.disabled) {
+    shipState = null;
+  } else if (res.ok && typeof res.priceCents === "number") {
+    shipState = doneState(cp, res.priceCents);
+  } else {
+    shipState = errorState(cp, res.error || "No se pudo cotizar");
+  }
+  renderShipBlock();
+}
+
 function renderCart(): void {
   const body = document.getElementById("cart-body");
   const checkout = document.getElementById("cart-checkout");
@@ -322,11 +386,28 @@ function renderCart(): void {
   const discountPercent = discountPercentFrom(init.settings.transferDiscountPercent);
   // Banner destacado (pastilla -N% + precio tachado + ahorro); vacío sin descuento.
   const transferNote = cartTransferBanner(total, discountPercent, symbol);
+  // Cotizador de envíos: estado inicial al abrir el modal; si el carrito cambió
+  // después de cotizar, vuelve a cotizar. El precio mostrado NO se suma al total.
+  const shipInitial = quoteInitialState(init.settings, lines);
+  const snapshot = cartItemsParam(lines);
+  if (shipInitial.hidden) {
+    shipState = null;
+    shipLinesSnapshot = "";
+  } else if (shipState === null || shipState.hidden) {
+    shipState = shipInitial;
+    shipLinesSnapshot = snapshot;
+    if (shipState.status === "loading" && shipState.cp) void runQuote(shipState.cp);
+  } else if (snapshot !== shipLinesSnapshot && shipState.status === "done" && shipState.cp) {
+    shipLinesSnapshot = snapshot;
+    shipState = { status: "loading", cp: shipState.cp, priceCents: 0 };
+    void runQuote(shipState.cp);
+  }
   body.innerHTML = `
     <div class="cart-lines">${rows}</div>
     ${surchargePercent > 0 ? `<div class="cart-total cart-total-sub">Subtotal <b>${formatPrice(total, symbol)}</b></div>
     <div class="cart-total">Total con pago online <b>${formatPrice(totalSurcharge, symbol)}</b> <small class="muted">(incluye recargo de ${surchargePercent}%)</small></div>` : `<div class="cart-total">Total <b>${formatPrice(total, symbol)}</b></div>`}
     ${transferNote}
+    <div id="cart-ship-inline"></div>
     ${anyInvalid ? `<p class="cart-warn">Hay productos que ya no están disponibles: se quitarán al confirmar.</p>` : ""}
     ${consult}`;
   if (checkout) checkout.hidden = false;
@@ -356,6 +437,9 @@ function renderCart(): void {
       cartRemove(b.dataset.rm ?? "");
       renderCart();
     }));
+  // Cotizador de envíos: se repinta después de las líneas (usa #cart-ship-inline
+  // que acabamos de escribir con body.innerHTML).
+  renderShipBlock();
 }
 
 // Aviso al llegar al tope por producto (inline y temporario, sin alert()).

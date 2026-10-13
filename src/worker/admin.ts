@@ -550,6 +550,13 @@ function clampPercent(v: unknown): number {
   return Number.isFinite(n) && n > 0 && n <= 50 ? n : 0;
 }
 
+/** Número decimal acotado (peso/volumen de bultos). Fuera de rango = fallback. */
+function clampNum(v: unknown, min: number, max: number, fallback: number): number {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < min || n > max) return fallback;
+  return Math.round(n * 100) / 100;
+}
+
 /** Número de WhatsApp normalizado: solo dígitos (sin +, espacios ni guiones).
  *  wa.me necesita el número puro; se normaliza al guardar para que el valor
  *  guardado siempre cumpla lo que el propio panel le pide al usuario. */
@@ -584,6 +591,14 @@ adminApp.put("/settings", async (c) => {
     transferCbu: String(body.transferCbu ?? "").slice(0, 120),
     maintenanceMode: body.maintenanceMode === true,
     maintenanceMessage: String(body.maintenanceMessage ?? "").slice(0, 300),
+    // Envíos Andreani: config pura (las credenciales son secrets del worker).
+    shippingAndreaniEnabled: body.shippingAndreaniEnabled === true,
+    shippingAndreaniContrato: String(body.shippingAndreaniContrato ?? "").trim().slice(0, 40),
+    shippingAndreaniCliente: String(body.shippingAndreaniCliente ?? "").trim().slice(0, 40),
+    shippingPostalCode: String(body.shippingPostalCode ?? "").replace(/\D/g, "").slice(0, 8),
+    // Peso/volumen por unidad: números no negativos acotados (0-1000 kg, 0-10 m³/cm³×10⁴).
+    shippingPackageKilos: clampNum(body.shippingPackageKilos, 0, 1000, 0.5),
+    shippingPackageVolumen: clampNum(body.shippingPackageVolumen, 0, 1_000_000, 1080),
   };
   // Modo del sitio ("tienda" | "catalogo"). Solo se toca si viene: si falta,
   // se conserva el que ya estaba (no se cae a catálogo por un body parcial).
