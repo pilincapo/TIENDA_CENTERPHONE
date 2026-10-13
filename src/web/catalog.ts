@@ -9,6 +9,8 @@ import { fillStoreInfo, setupModals } from "./store-modals";
 import { track } from "./track";
 import { setupCartUI } from "./cart-ui";
 import { inCategorySet } from "./category-filter";
+import { renderAnnouncement } from "./announcement";
+import { localBusinessJsonLd, webSiteJsonLd } from "./schema";
 
 type SortMode = "default" | "price-asc" | "price-desc" | "random";
 
@@ -50,8 +52,16 @@ async function init(): Promise<void> {
     const sres = await fetch("/api/public/settings");
     state.settings = sres.ok ? ((await sres.json()) as PublicSettings) : null;
     setupWaFloat();
-    const catParam = new URLSearchParams(location.search).get("cat");
+    const params = new URLSearchParams(location.search);
+    const catParam = params.get("cat");
     if (catParam) state.category = catParam;
+    // ?q=… : el buscador también funciona por URL (lo usa el SearchAction de
+    // Google y sirve para compartir una búsqueda por WhatsApp).
+    const qParam = (params.get("q") ?? "").trim();
+    if (qParam !== "") {
+      state.search = qParam;
+      el.search.value = qParam;
+    }
     el.search.addEventListener("input", () => {
       state.search = el.search.value;
       resetPager();
@@ -73,6 +83,11 @@ async function init(): Promise<void> {
       // Modo catálogo: sin carrito ni pagos (botón del header, modal y checkout).
       // Los botones "Comprar"/"Agregar" tampoco se renderizan (ver cardHtml).
       if (sellsOnline(state.settings)) setupCartUI(state.settings, state.snapshot?.products ?? []);
+      // Cinta de anuncio configurable desde el panel (vacía = no se muestra).
+      renderAnnouncement(state.settings);
+      // Datos estructurados del home: local (dirección, teléfono, horarios) +
+      // sitio con buscador. Google ejecuta JS y los lee del DOM.
+      injectHomeJsonLd(state.settings);
       if (state.settings.storeName) {
         // El nombre del panel manda: title + og:title/og:description dinámicos.
         const fullTitle = `${state.settings.storeName} — Catálogo`;
@@ -95,6 +110,23 @@ async function init(): Promise<void> {
     track("home_view", {}, true);
   } catch (e) {
     renderError(e instanceof Error ? e : new Error(String(e)));
+  }
+}
+
+/** JSON-LD del home: Store (SEO local) + WebSite con buscador. Idempotente
+ *  (se reemplaza si ya existe, así un reintento no acumula nodos). */
+function injectHomeJsonLd(settings: PublicSettings): void {
+  const nodos: [string, string][] = [
+    ["json-ld-store", localBusinessJsonLd(settings)],
+    ["json-ld-site", webSiteJsonLd(settings.storeName)],
+  ];
+  for (const [id, json] of nodos) {
+    document.getElementById(id)?.remove();
+    const script = document.createElement("script");
+    script.type = "application/ld+json";
+    script.id = id;
+    script.textContent = json;
+    document.head.appendChild(script);
   }
 }
 
@@ -496,4 +528,7 @@ function render(): void {
   renderGrid();
 }
 
-void init();
+// El bundle del catálogo también se carga en la ficha (product.ts importa de
+// acá isFresh/cdnSrcset), y ahí no existe #content: sin este guard el init del
+// catálogo corría sobre una página que no es suya y tiraba una excepción.
+if (document.getElementById("content")) void init();

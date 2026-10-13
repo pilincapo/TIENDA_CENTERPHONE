@@ -591,6 +591,8 @@ adminApp.put("/settings", async (c) => {
     transferCbu: String(body.transferCbu ?? "").slice(0, 120),
     maintenanceMode: body.maintenanceMode === true,
     maintenanceMessage: String(body.maintenanceMessage ?? "").slice(0, 300),
+    // Cinta de anuncio: texto de una línea (el HTML se escapa al renderizar).
+    announcementBar: String(body.announcementBar ?? "").trim().slice(0, 120),
     // Envíos Andreani: config pura (las credenciales son secrets del worker).
     shippingAndreaniEnabled: body.shippingAndreaniEnabled === true,
     shippingAndreaniContrato: String(body.shippingAndreaniContrato ?? "").trim().slice(0, 40),

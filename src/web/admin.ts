@@ -2889,6 +2889,9 @@ async function viewSettings(): Promise<void> {
             </div>
             <div class="field"><label>Nota de retiro del modal (vacía = "Retiro en el local: {dirección}")</label>
               <input name="howPickupNote" value="${esc(settings.howPickupNote)}" placeholder="📍 Retiro en el local: Mendoza 2974"/></div>
+            <div class="field"><label>Cinta de anuncio (barra arriba de todo; vacía = no se muestra)</label>
+              <input name="announcementBar" value="${esc(settings.announcementBar ?? "")}" maxlength="120" placeholder="📦 Envío gratis en Santa Fe · Cuotas sin interés"/>
+              <p class="muted" style="margin:6px 0 0;font-size:12px">Se ve en el catálogo y en las fichas de producto. Ideal para promos cortas.</p></div>
             <div class="field"><label>Badge "Nuevo" automático (productos cargados hace menos de…)</label>
               <select name="freshHours">
                 <option value="24" ${settings.freshHours === 24 ? "selected" : ""}>24 horas</option>
@@ -3001,6 +3004,7 @@ async function viewSettings(): Promise<void> {
           howSteps: fd.get("howSteps"),
           howTitle: fd.get("howTitle"),
           howPickupNote: fd.get("howPickupNote"),
+          announcementBar: fd.get("announcementBar"),
           freshHours: Number(fd.get("freshHours")),
           storeMode: fd.get("storeMode") === "catalogo" ? "catalogo" : "tienda",
           checkoutNote: fd.get("checkoutNote"),

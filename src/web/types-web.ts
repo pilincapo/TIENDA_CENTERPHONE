@@ -31,6 +31,8 @@ export interface PublicSettings {
   transferCbu: string;
   /** Modo mantenimiento activo: el catálogo muestra la página de contacto. */
   maintenanceMode: boolean;
+  /** Cinta de anuncio sobre el topbar; vacía = no se renderiza. */
+  announcementBar: string;
   /** Envíos: cotizador Andreani activo (requiere secrets ANDREANI_* del worker). */
   shippingAndreaniEnabled: boolean;
   /** CP del local (origen de envíos); informativo, el cálculo lo hace el worker. */

@@ -12,6 +12,7 @@ import { track } from "./track";
 import { isFresh, cdnSrcset } from "./catalog";
 import { setupCartUI } from "./cart-ui";
 import { productTransferLine, discountPercentFrom } from "./transfer-banner";
+import { renderAnnouncement } from "./announcement";
 import { shippingQuoteHtml, quoteInitialState, fetchQuote, savePostalCode, savedPostalCode, errorState, doneState, type QuoteState } from "./shipping-quote";
 
 interface DetailResponse {
@@ -185,6 +186,8 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
   // Botón "Cómo comprar" del header: modal compartido con el home.
   setupModals(settings);
   fillStoreInfo(settings);
+  // Cinta de anuncio configurable desde el panel (vacía = no se muestra).
+  renderAnnouncement(settings);
   // Carrito + pago online (solo el producto de la ficha en el cache local).
   // Modo catálogo: la ficha solo muestra precio y WhatsApp, sin carrito.
   if (sellsOnline(settings)) {

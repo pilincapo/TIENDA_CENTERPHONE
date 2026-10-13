@@ -139,6 +139,8 @@ export interface StoreSettings {
   // redes; el panel, los pedidos y el webhook siguen funcionando.
   maintenanceMode: boolean;
   maintenanceMessage: string;
+  /** Cinta de anuncio sobre el topbar (ej. "📦 Envío gratis en Santa Fe"). Vacía = no se muestra. */
+  announcementBar: string;
   // ---- Envíos con Andreani (cotización server-side) ----
   /** Cotizador de envíos activo: muestra el precio en carrito y ficha. Sin credenciales del worker queda inerte. */
   shippingAndreaniEnabled: boolean;
@@ -201,6 +203,8 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   transferCbu: "",
   maintenanceMode: false,
   maintenanceMessage: "",
+  // Cinta de anuncio: vacía por defecto (no se muestra nada hasta configurarla).
+  announcementBar: "",
   // Envíos: apagado por defecto; sin secrets ANDREANI_* el worker rechaza igual.
   shippingAndreaniEnabled: false,
   shippingAndreaniContrato: "",

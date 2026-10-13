@@ -22,6 +22,11 @@ for (const f of ["favicon.png", "logo.jpg"]) {
 }
 console.log("✔ favicon.png y logo.jpg copiados a public/");
 
+// Manifest de la web app (color, logo y nombre en Android): se sirve desde la
+// raíz y por eso se recopia en cada build.
+copyFileSync("site.webmanifest", join(dist, "manifest.webmanifest"));
+console.log("✔ public/manifest.webmanifest copiado");
+
 // Historial de cambios del sitio: se copia a assets para que el panel lo muestre
 // (pestaña Changelog). Se sirve como asset estático en /api/admin/changelog.md.
 copyFileSync("changelog.md", join(dist, "changelog.md"));

@@ -15,6 +15,7 @@ import { isValidPhone } from "../shared/whatsapp";
 import { applySecurityHeaders, isAllowedTrackOrigin } from "./security";
 import { checkoutApp } from "./checkout";
 import { armarBulto, andreaniQuote } from "./andreani";
+import { ogTagsHtml } from "./og";
 import { validateCart, type CartInput } from "./orders";
 import { orderPageApp } from "./orders-page";
 import { maintenanceMiddleware } from "./maintenance";
@@ -121,6 +122,8 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     transferDiscountPercent: s.transferDiscountPercent,
     transferCbu: s.transferCbu,
     maintenanceMode: s.maintenanceMode,
+    // Cinta de anuncio configurable (texto plano; el frontend lo escapa).
+    announcementBar: s.announcementBar,
     // Envíos (cotizador Andreani): solo los campos que el frontend necesita.
     shippingAndreaniEnabled: s.shippingAndreaniEnabled,
     shippingPostalCode: s.shippingPostalCode,
@@ -241,9 +244,34 @@ app.use("*", async (c, next) => {
 app.get("/", (c) => c.env.ASSETS.fetch(new Request(c.req.url)));
 // (se pide la URL original: con run_worker_first en "/", pedir "/index.html"
 // dentro del worker devuelve 404 porque ese asset ya no pasa por el worker)
-app.get("/producto/*", (c) =>
-  c.env.ASSETS.fetch(new Request(new URL("/product.html", c.req.url)))
-);
+// La ficha inyecta las metas Open Graph del producto en el HTML inicial: los
+// scrapers de WhatsApp/Facebook no ejecutan JS, así que la imagen y el nombre
+// del producto tienen que venir ya resueltos. El bloque <!--OG:START-->...
+// <!--OG:END--> del template se reemplaza; si el producto no existe (o el asset
+// falla) queda el bloque genérico del propio template.
+app.get("/producto/*", async (c) => {
+  const res = await c.env.ASSETS.fetch(new Request(new URL("/product.html", c.req.url)));
+  const id = decodeURIComponent(c.req.path.replace(/^\/producto\//, "")).trim();
+  if (!res.ok || id === "") return res;
+  const product = await getProduct(c.env.DB, id);
+  if (!product) return res;
+  const html = await res.text();
+  if (!html.includes("<!--OG:START-->")) return new Response(html, { status: res.status, headers: res.headers });
+  const settings = await getSettings(c.env.KV);
+  const tags = ogTagsHtml({
+    title: product.title,
+    description: product.description,
+    imageUrl: product.imageUrl,
+    path: `/producto/${encodeURIComponent(product.id)}`,
+    storeName: settings.storeName || "CenterPhone Celulares",
+    priceCents: product.priceCents,
+    currencySymbol: settings.currencySymbol,
+    availability: product.availability,
+    hiddenNoStock: product.hiddenNoStock,
+  });
+  const conTags = html.replace(/<!--OG:START-->[\s\S]*?<!--OG:END-->/, `<!--OG:START-->\n    ${tags}\n    <!--OG:END-->`);
+  return new Response(conTags, { status: res.status, headers: res.headers });
+});
 app.get("/admin", (c) => c.redirect("/admin/", 301));
 // /changelog.md es documentación interna (el panel la lee vía /api/admin/changelog,
 // autenticado): el asset directo queda bloqueado con una respuesta vacía.

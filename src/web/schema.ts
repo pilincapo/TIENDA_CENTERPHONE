@@ -45,6 +45,63 @@ export interface BreadcrumbItem {
   url: string;
 }
 
+export interface LocalBusinessInfo {
+  storeName: string;
+  storeAddress: string;
+  whatsappPhone: string;
+  storeHours: string;
+  storeMapUrl: string;
+  instagramUrl: string;
+  facebookUrl: string;
+}
+
+/**
+ * Store (subtipo de LocalBusiness): SEO local — que Google pueda mostrar el
+ * local con dirección, teléfono y horarios en las búsquedas de la ciudad.
+ * Se arma desde la config del panel; los campos vacíos se omiten (un nodo con
+ * valor vacío da warning en Search Console).
+ */
+export function localBusinessJsonLd(s: LocalBusinessInfo): string {
+  const sameAs = [s.instagramUrl, s.facebookUrl].filter((u) => u && u.trim() !== "");
+  const data: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Store",
+    name: s.storeName || "CenterPhone Celulares",
+    url: "https://centerphone.com.ar/",
+    image: "https://centerphone.com.ar/logo.jpg",
+    priceRange: "$$",
+    ...(s.whatsappPhone ? { telephone: `+${s.whatsappPhone.replace(/\D/g, "")}` } : {}),
+    ...(s.storeAddress
+      ? { address: { "@type": "PostalAddress", streetAddress: s.storeAddress, addressCountry: "AR" } }
+      : {}),
+    // Horarios en texto libre del panel: van como descripción y no como
+    // openingHoursSpecification (que exige formato estructurado y sería inválido).
+    ...(s.storeHours ? { openingHours: s.storeHours.replace(/\n+/g, " · ").slice(0, 200) } : {}),
+    ...(s.storeMapUrl ? { hasMap: s.storeMapUrl } : {}),
+    ...(sameAs.length > 0 ? { sameAs } : {}),
+  };
+  return JSON.stringify(data);
+}
+
+/**
+ * WebSite con SearchAction: le dice a Google que el sitio tiene buscador
+ * interno y que puede usarlo en los resultados. El frontend lee `?q=` de la
+ * URL, así que el target es real (no un enlace muerto).
+ */
+export function webSiteJsonLd(storeName: string): string {
+  return JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: storeName || "CenterPhone Celulares",
+    url: "https://centerphone.com.ar/",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: "https://centerphone.com.ar/?q={search_term_string}",
+      "query-input": "required name=search_term_string",
+    },
+  });
+}
+
 /** BreadcrumbList: debe espejar la miga visible (Inicio › Categoría › Producto). */
 export function breadcrumbJsonLd(items: BreadcrumbItem[]): string {
   return JSON.stringify({

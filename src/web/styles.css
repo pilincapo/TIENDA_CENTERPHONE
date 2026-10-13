@@ -105,6 +105,16 @@ img { max-width: 100%; display: block; }
 }
 .topbar-link { color: var(--muted); white-space: nowrap; }
 .topbar-link:hover { color: var(--brand); }
+
+/* ===== Cinta de anuncio (texto configurable desde el panel) ===== */
+.announce {
+  background: var(--brand); color: #04180a;
+  font-size: 13px; font-weight: 700; text-align: center;
+  padding: 7px 14px;
+}
+@media (max-width: 480px) {
+  .announce { font-size: 12px; padding: 6px 10px; }
+}
 /* Panel: "Ver sitio" y "Salir" empujados a la derecha del topbar (el brand queda a la izquierda). */
 .topbar-site { margin-left: auto; }
 @media (max-width: 480px) {
