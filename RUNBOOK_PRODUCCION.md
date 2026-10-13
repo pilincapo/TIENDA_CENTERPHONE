@@ -31,16 +31,39 @@ echo "APP_USR-..." | npx wrangler secret put MERCADOPAGO_ACCESS_TOKEN
 
 ## Toggle de pagos (`paymentsEnabled`)
 
-El guardado desde el panel puede no llegar (ej. hecho antes del deploy). Para
-activarlo directo en la KV remota preservando el resto de los valores:
+**Primera opción: el panel** (`/admin/` › Configuración). Es el camino soportado
+y el que ahora manda el `Content-Type: application/json; charset=utf-8`.
+
+Si el guardado desde el panel no llega (ej. hecho antes del deploy), se puede
+tocar la KV a mano preservando el resto de los valores:
 
 ```bash
-# 1. Bajar el valor actual
-npx wrangler kv key get "config:settings:v1" --namespace-id=71875a431359487e954c86f15edf54ae > settings.json
+# 1. Bajar el valor actual (--text decodifica como UTF-8)
+npx wrangler kv key get "config:settings:v1" --text --namespace-id=71875a431359487e954c86f15edf54ae > settings.json
 # 2. Editar paymentsEnabled: true (y checkoutNote si corresponde)
-# 3. Subirlo
+# 3. Verificar que el archivo siga siendo UTF-8 y sin mojibake (ver abajo)
+# 4. Subirlo
 npx wrangler kv key put "config:settings:v1" --path settings.json --namespace-id=71875a431359487e954c86f15edf54ae
 ```
+
+Para la KV **local** (`wrangler dev`) agregan `--local` a los dos comandos.
+
+### ⚠️ Mojibake: «Sábados» guardado como «SÃ¡bados»
+
+Pisar ese JSON con una herramienta de Windows codifica los bytes en el codepage
+ANSI y rompe las tildes y los emojis (es lo que pasó con los horarios y el
+«Cómo comprar»): se ve así en la tienda, en el footer y en el `openingHours` del
+JSON-LD. Reglas:
+
+- Verificar el archivo **antes** de subirlo:
+  `python -c "import io;d=io.open('settings.json',encoding='utf-8').read();print('mojibake' if ('Ã' in d or 'Â' in d) else 'ok')"`
+- No usar `>` / `Out-File` / `Set-Content` de PowerShell para escribirlo ni
+  guardarlo desde Notepad como «ANSI»: deja UTF-16 o ANSI. Mejor editarlo en un
+  editor que guarde UTF-8 (VS Code) y confirmar con el chequeo de arriba.
+- Con el archivo mal subido igual no se ve roto: desde 2026-10-13 el worker
+  repara el mojibake al leer los settings (`src/shared/encoding.ts`) y el próximo
+  guardado desde el panel lo persiste corregido. Pero conviene no reintroducirlo:
+  el valor en KV queda sucio hasta esa siguiente escritura.
 
 ## Verificación post-deploy
 

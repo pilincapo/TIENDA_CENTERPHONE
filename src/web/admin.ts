@@ -23,7 +23,9 @@ type Dict = Record<string, unknown>;
 
 async function api<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api/admin${path}`, {
-    headers: { "Content-Type": "application/json" },
+    // charset explícito: los settings llevan tildes, emoji y «·»; así el cuerpo
+    // se interpreta como UTF-8 sin depender del default del navegador.
+    headers: { "Content-Type": "application/json; charset=utf-8" },
     ...opts,
   });
   if (res.status === 401) throw new Error("unauthorized");

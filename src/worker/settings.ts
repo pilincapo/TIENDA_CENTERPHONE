@@ -2,6 +2,7 @@
 
 import type { StoreMode, StoreSettings } from "../shared/types";
 import { DEFAULT_SETTINGS, KV_SETTINGS_KEY } from "../shared/types";
+import { repairTextFields } from "../shared/encoding";
 
 export function isStoreMode(v: unknown): v is StoreMode {
   return v === "tienda" || v === "catalogo";
@@ -23,7 +24,12 @@ export function normalizeSettings(raw: Partial<StoreSettings> | null | undefined
     : raw?.paymentsEnabled === true
       ? "tienda"
       : "catalogo";
-  return { ...base, storeMode, paymentsEnabled: storeMode === "tienda" };
+  // Texto: repara el mojibake que haya quedado guardado (UTF-8 leído como
+  // latin-1/cp1252, ver shared/encoding.ts). Pasa por acá tanto la lectura como
+  // el guardado, así que el sitio y el JSON-LD se ven bien al instante y el
+  // próximo guardado del panel ya lo persiste corregido. Es solo memoria: no
+  // agrega escrituras a KV en cada request (regla del free tier).
+  return repairTextFields({ ...base, storeMode, paymentsEnabled: storeMode === "tienda" });
 }
 
 export async function getSettings(kv: KVNamespace): Promise<StoreSettings> {
