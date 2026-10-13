@@ -7,6 +7,7 @@ import type { PriceRule } from "../shared/pricing";
 import { findOverlaps, groupNames } from "../shared/pricing";
 import { normalizePhone } from "../shared/whatsapp";
 import { isTecnovaSourceUrl, TECNOVA_PUBLIC_URL } from "../shared/tecnova-url";
+import { initFormLabels } from "./form-labels";
 
 const el = {
   login: document.getElementById("login") as HTMLElement,
@@ -487,7 +488,7 @@ async function viewDashboard(syncFilter = ""): Promise<void> {
     <div class="panel">
       <div class="row">
         <h2 style="margin:0">Historial de sincronización</h2>
-        <select id="sync-filter" style="margin-left:auto">
+        <select id="sync-filter" aria-label="Filtrar el historial por origen de la sincronización" style="margin-left:auto">
           <option value="" ${syncFilter === "" ? "selected" : ""}>Todas</option>
           <option value="cron" ${syncFilter === "cron" ? "selected" : ""}>Automáticas (cron)</option>
           <option value="manual" ${syncFilter === "manual" ? "selected" : ""}>Manuales</option>
@@ -631,6 +632,10 @@ async function checkSession(): Promise<boolean> {
 }
 
 async function boot(): Promise<void> {
+  // Etiquetas de los formularios asociadas a sus campos (login incluido): una
+  // sola vez acá y el observer del módulo cubre vistas y modales que se pintan
+  // después.
+  initFormLabels();
   // Banner de "cambios sin publicar": publicar a mano o descartar el aviso.
   pendiente.publish?.addEventListener("click", () => void publicarAhora());
   pendiente.dismiss?.addEventListener("click", () => mostrarBannerPendiente(false));
@@ -771,7 +776,7 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
           ${chip("published", "Todos", data.counts.published)}
           ${chip("hidden", "Sin stock", data.counts.hidden)}
         </div>
-        <input id="prod-search" type="search" placeholder="Buscar por título o código…" autocomplete="off"
+        <input id="prod-search" type="search" placeholder="Buscar por título o código…" aria-label="Buscar productos por título o código" autocomplete="off"
           value="${esc(prodState.q)}" style="max-width:240px; margin-left:10px"/>
         <span class="muted" id="prod-search-count" ${prodState.q !== "" ? "" : "hidden"}>${prodState.q !== "" ? `${data.total} coincidencias` : ""}</span>
         <button class="btn btn-primary" id="new-product" style="margin-left:auto">+ Nuevo producto</button>
@@ -788,7 +793,7 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
         <button class="btn btn-primary" id="unhide-all" ${data.counts.hidden === 0 ? "disabled" : ""}>▶ Re-publicar todos</button>
       </div>` : `
       <div class="row" style="margin-top:10px; align-items:center">
-        <select id="bulk-cat" style="max-width:260px">
+        <select id="bulk-cat" aria-label="Categoría a vaciar" style="max-width:260px">
           <option value="">Borrar una categoría entera…</option>
           ${catOptions}
         </select>
@@ -1537,7 +1542,7 @@ function renderTecnovaPreview(out: HTMLElement, r: TecnovaPreview): void {
       <tr>
         <td><strong>${esc(cat)}</strong></td>
         <td>
-          <select class="tj-map" data-cat="${esc(cat)}">${tecnovaCatOptions(r, target)}</select>
+          <select class="tj-map" data-cat="${esc(cat)}" aria-label="Categoría de tu catálogo para «${esc(cat)}»">${tecnovaCatOptions(r, target)}</select>
         </td>
         <td><span class="muted">${count > 0 ? `${count} en la muestra` : ""}</span></td>
       </tr>`;
@@ -1564,7 +1569,7 @@ function renderTecnovaPreview(out: HTMLElement, r: TecnovaPreview): void {
       </div>
       <h3 style="margin-top:14px">Regla de precio</h3>
       <p class="muted">El precio base es el minorista de la fuente. Elegí una <strong>escala</strong> (grupo de rangos, ej: 40-30-20) según la fuente, o «Automático» para usar tus reglas activas por rango.</p>
-      <select id="tj-rule" style="margin-top:6px">
+      <select id="tj-rule" aria-label="Regla de precio a aplicar en la importación de Tecnova" style="margin-top:6px">
         <option value="">Automático (rangos de reglas activas)</option>
         ${groupNames(r.rules).map((g) => {
           const escalas = r.rules.filter((x) => (x.groupName ?? "") === g).sort((a, b) => a.minCents - b.minCents);
@@ -2581,7 +2586,7 @@ async function viewOrders(statusFilter = ""): Promise<void> {
         </div>
       </div>
       <div class="row" style="margin-top:10px; align-items:center">
-        <input id="ord-search" type="search" placeholder="Buscar por nombre, teléfono, email o id…" autocomplete="off"
+        <input id="ord-search" type="search" placeholder="Buscar por nombre, teléfono, email o id…" aria-label="Buscar pedidos por nombre, teléfono, email o id" autocomplete="off"
           value="${esc(ordState.q)}" style="max-width:260px"/>
         <span class="muted" id="ord-search-count" ${ordState.q !== "" ? "" : "hidden"}>${ordState.q !== "" ? `${data.total} coincidencia${data.total !== 1 ? "s" : ""} en ${data.total} pedido${data.total !== 1 ? "s" : ""} (de ${totalAll})` : ""}</span>
         <button class="btn" id="ord-refresh" style="margin-left:auto" title="Volver a pedir la lista al servidor (manténe filtros y página)">⟳ Actualizar</button>
@@ -3083,7 +3088,7 @@ async function viewSettings(): Promise<void> {
       <li class="how-row" data-i="${i}" draggable="true">
         <span class="how-grip" title="Arrastrá para reordenar" aria-hidden="true">⠿</span>
         <span class="how-idx">${i + 1}</span>
-        <input class="how-txt" value="${esc(s)}" placeholder="Tocá **Consultar** para preguntarnos por WhatsApp"/>
+        <input class="how-txt" value="${esc(s)}" aria-label="Paso ${i + 1} del modal Cómo comprar" placeholder="Tocá **Consultar** para preguntarnos por WhatsApp"/>
         <span class="how-ops">
           <button type="button" class="btn how-up" title="Subir" ${i === 0 ? "disabled" : ""}>↑</button>
           <button type="button" class="btn how-down" title="Bajar" ${i === howSteps.length - 1 ? "disabled" : ""}>↓</button>

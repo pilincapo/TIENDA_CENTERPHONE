@@ -1,6 +1,6 @@
 // Entrada del worker: rutas públicas + cron.
 
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { type CatalogSnapshot, KV_CATALOG_VERSION_KEY } from "../shared/types";
 import type { Env } from "./db";
 import { adminApp } from "./admin";
@@ -238,6 +238,15 @@ app.use("*", async (c, next) => {
   await next();
 });
 
+// Página de error del sitio (public/404.html) con status 404 REAL. Antes el
+// cuerpo se devolvía con el 200 del asset: Google lo indexaba como una página
+// válida (soft 404) en vez de sacarla del índice, y las herramientas de
+// monitoreo lo contaban como respuesta buena.
+async function notFoundPage(c: Context<{ Bindings: Env }>): Promise<Response> {
+  const res = await c.env.ASSETS.fetch(new Request(new URL("/404.html", c.req.url)));
+  return new Response(res.body, { status: 404, headers: res.headers });
+}
+
 // Rutas de página: / (home, explícito porque el montaje de seoApp en la raíz
 // consume el path y el fallback * no lo alcanzaría); /producto/* sirve el shell
 // de ficha; /admin sin slash redirige.
@@ -247,14 +256,15 @@ app.get("/", (c) => c.env.ASSETS.fetch(new Request(c.req.url)));
 // La ficha inyecta las metas Open Graph del producto en el HTML inicial: los
 // scrapers de WhatsApp/Facebook no ejecutan JS, así que la imagen y el nombre
 // del producto tienen que venir ya resueltos. El bloque <!--OG:START-->...
-// <!--OG:END--> del template se reemplaza; si el producto no existe (o el asset
-// falla) queda el bloque genérico del propio template.
+// <!--OG:END--> del template se reemplaza; si el asset falla queda el bloque
+// genérico del propio template. Un id inexistente ya no devuelve el shell con
+// 200: se sirve la página de error con 404 (misma regla que el resto del sitio).
 app.get("/producto/*", async (c) => {
   const res = await c.env.ASSETS.fetch(new Request(new URL("/product.html", c.req.url)));
   const id = decodeURIComponent(c.req.path.replace(/^\/producto\//, "")).trim();
   if (!res.ok || id === "") return res;
   const product = await getProduct(c.env.DB, id);
-  if (!product) return res;
+  if (!product) return notFoundPage(c);
   const html = await res.text();
   if (!html.includes("<!--OG:START-->")) return new Response(html, { status: res.status, headers: res.headers });
   const settings = await getSettings(c.env.KV);
@@ -307,7 +317,7 @@ app.get("/seguimiento", async (c) => {
 // Fallback: 404.html para páginas, JSON para la API.
 app.all("*", async (c) => {
   if (c.req.path.startsWith("/api/")) return c.json({ error: "No encontrado" }, 404);
-  return c.env.ASSETS.fetch(new Request(new URL("/404.html", c.req.url)));
+  return notFoundPage(c);
 });
 app.onError((err, c) => {
   console.error("worker error:", err);

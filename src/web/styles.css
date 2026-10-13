@@ -66,6 +66,13 @@ img { max-width: 100%; display: block; }
   animation: blink 1.1s steps(1) infinite;
 }
 @keyframes blink { 50% { opacity: 0; } }
+/* Texto solo para lectores de pantalla: da el nombre accesible del campo sin
+   cambiar el diseño (`position:absolute` lo deja fuera del flujo, así no agrega
+   un ítem ni un `gap` en los contenedores flex). */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
 
 /* ===== Topbar ===== */
 .topbar {
@@ -573,6 +580,10 @@ img { max-width: 100%; display: block; }
   font-size: 12px; font-weight: 700; cursor: pointer; line-height: 1;
   font-family: var(--font-sans);
   transition: background-color .15s, color .15s, box-shadow .15s;
+  /* En móvil (padding 4px 9px, font 12) el botón "Consultar" quedaba en 22px de
+     alto: el centrado del flex + min-height lo deja en el mínimo táctil de 24px
+     sin mover el precio, que comparte la fila. */
+  display: inline-flex; align-items: center; justify-content: center; min-height: 24px;
 }
 .card-wa:hover { background: var(--brand); color: #04180a; box-shadow: var(--term-shadow-sm); }
 .loader-more { display: flex; justify-content: center; padding: 24px; }
@@ -673,6 +684,19 @@ a.topnav-btn {
 .topnav-btn {
   background: none; border: none; padding: 0;
   font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+}
+/* Área táctil del header (WCAG 2.2 SC 2.5.8: mínimo 24×24 CSS px). Estos accesos
+   son texto sin padding: medían 15-17px de alto —y el carrito 24×16—, así que en
+   el celular el dedo erraba. El padding vertical + min-height los lleva a 24px
+   sin engordar la barra: el alto lo sigue definiendo el logo de la marca (32px).
+   Va después de `.topnav-btn { padding: 0 }` porque ese shorthand resetearía el
+   padding vertical (el `font: inherit` de arriba hace lo mismo con line-height). */
+.topnav a, .topnav-btn, .topbar-link {
+  padding-top: 4px; padding-bottom: 4px; min-height: 24px;
+}
+.topbar .cart-btn {
+  min-width: 24px; min-height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 @media (max-width: 640px) {
   .topnav { gap: 14px; font-size: 13px; }
@@ -817,6 +841,11 @@ a.topnav-btn {
 .footer-head::before { content: "## "; }
 .footer-link { color: var(--text); font-weight: 600; }
 .footer-link:hover { color: var(--brand); }
+/* El link al mapa (dirección del local) medía 19px de alto: por debajo del área
+   táctil mínima de 24px (WCAG 2.2 SC 2.5.8). `inline-block` + padding vertical lo
+   lleva a 24px y, a diferencia de `inline-flex`, el texto sigue cortando línea
+   como antes en pantallas angostas. */
+.footer-link { display: inline-block; padding: 3px 0; }
 .footer-social { display: flex; gap: 10px; flex-wrap: wrap; }
 .footer-social-btn {
   display: inline-flex; align-items: center; gap: 7px;
