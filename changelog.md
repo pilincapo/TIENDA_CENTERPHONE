@@ -1,3 +1,10 @@
+## 2026-10-13 — Commit y deploy de la verificación de analítica y SEO
+
+- **Commit `ced6811`** y push a `main` (`850b33e..ced6811`, exit 0), orden del usuario («deploy commits push»). Solo docs: `RUNBOOK_PRODUCCION.md` (+51) y `changelog.md` (+27).
+- **Deploy `7a826464-a796-4241-bb9f-d02f59accbf7`** (exit 0): **1 solo asset** subido (`/changelog.md`, lo único que cambió), 16 assets leídos, bindings (KV/D1/ASSETS/EMAIL/vars) y cron `0 * * * *` intactos, startup 8 ms. El worker no cambia de código, así que el bundle es el mismo de `55252441`.
+- **Verificado en producción**: `/api/admin/changelog` autenticado sirve 225.572 bytes y la **primera línea ya es** la entrada «Seguimiento de visitas y SEO…» (o sea: la pestaña «Cambios» del panel la muestra); `/`, `/admin/` y `/sitemap.xml` responden 200; la CSP sigue permitiendo `static.cloudflareinsights.com` y `cloudflareinsights.com`, así que el beacon de Cloudflare quedó intacto.
+- **Nota**: esta misma entrada está en el repo pero no en el asset desplegado — llegará con el próximo deploy. Es el patrón que ya seguía el changelog (las entradas que registran un deploy se commitean después).
+
 ## 2026-10-13 — Seguimiento de visitas y SEO: la analítica de Cloudflare ya funcionaba (sin cambios de código)
 
 - **Pedido del usuario**: "agregar seo tracking de google, o lo que sea necesario para poder hacer el seguimiento de las visitas". Decidido: **Cloudflare Web Analytics** (visitas) + **Google Search Console** (SEO, verificación por DNS).
