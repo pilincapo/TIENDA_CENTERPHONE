@@ -9,7 +9,8 @@ import type { Dict, Env } from "./db";
 import {
   countProducts, countProductsByCategory, countProductsBySource, countProductsByStatus, deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct,
   getAutoImportByUrl, getProduct, insertSyncLog, lastSyncLogByDetail, listAutoImports, listCategories, listPriceRules,
-  listProductsPaged, listSyncLog, listSyncLogByTrigger, upsertAutoImport, upsertCategory, upsertPriceRule, upsertProduct,
+  listProductsPaged, listSyncLog, listSyncLogByTrigger, repararNombreCategoria, repararTextoProducto, upsertAutoImport,
+  upsertCategory, upsertPriceRule, upsertProduct,
 } from "./db";
 import { markAutoImportRun, nowArgentina, runAllAutoImportsNow, runAutoImportById, runAutoImports } from "./autoimport";
 import { getCatalogStatus, getSyncState, importItems, markCatalogPending, regenerateSnapshot, runSync } from "./sync";
@@ -284,7 +285,10 @@ adminApp.post("/products/bulk", async (c) => {
 });
 
 function sanitizeProduct(p: Partial<Product>, id: string): Product {
-  return {
+  // Se sanea el texto acá además de en el upsert para que lo que devuelve el
+  // panel sea igual a lo que queda en D1 (el upsert cubre a los importadores,
+  // que no pasan por este sanitizado).
+  return repararTextoProducto({
     id,
     title: String(p.title ?? "").slice(0, 200),
     description: String(p.description ?? "").slice(0, 2000),
@@ -301,7 +305,7 @@ function sanitizeProduct(p: Partial<Product>, id: string): Product {
     createdAt: 0, // upsertProduct solo setea created_at en el INSERT (nuevos)
     sourceUrl: p.sourceUrl ?? null,
     brand: p.brand ?? null,
-  };
+  });
 }
 
 // ---- Categorías ----
@@ -318,10 +322,10 @@ adminApp.post("/categories", async (c) => {
   const body = await c.req.json<Partial<Category>>().catch(() => null);
   if (!body?.name) return c.json({ error: "Falta el nombre" }, 400);
   const id = body.id?.trim() || newId();
-  const category: Category = {
+  const category = repararNombreCategoria({
     id, name: String(body.name).slice(0, 100),
     parentId: body.parentId ?? null, active: body.active !== false,
-  };
+  });
   await upsertCategory(c.env.DB, category, nowMs());
   await markCatalogPending(c.env);
   return c.json({ category, pending: true }, 201);
@@ -331,10 +335,10 @@ adminApp.put("/categories/:id", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json<Partial<Category>>().catch(() => null);
   if (!body?.name) return c.json({ error: "Falta el nombre" }, 400);
-  const category: Category = {
+  const category = repararNombreCategoria({
     id, name: String(body.name).slice(0, 100),
     parentId: body.parentId ?? null, active: body.active !== false,
-  };
+  });
   await upsertCategory(c.env.DB, category, nowMs());
   await markCatalogPending(c.env);
   return c.json({ category, pending: true });

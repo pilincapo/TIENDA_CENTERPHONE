@@ -4,6 +4,7 @@ import type { Category, Product, SyncLogEntry, SyncTrigger } from "../shared/typ
 import type { PriceRule } from "../shared/pricing";
 import type { AutoImport } from "../shared/autoimport";
 import { TAGS } from "../shared/types";
+import { fixMojibake } from "../shared/encoding";
 
 export type Dict = Record<string, unknown>;
 
@@ -96,6 +97,38 @@ function rowToSyncLog(row: Dict): SyncLogEntry {
   };
 }
 
+// ---- Texto que se escribe (reparación de mojibake) ----
+
+/**
+ * Sanea el texto de un producto antes de escribirlo en D1. El mojibake
+ * (UTF-8 leído como latin-1/cp1252, ver shared/encoding.ts) puede venir de la
+ * fuente externa o de una importación vieja; con esto el catálogo, el snapshot
+ * y el JSON-LD quedan sanos desde el próximo guardado/sync.
+ *
+ * Se aplica al ESCRIBIR y no al leer: la lectura del catálogo es la ruta
+ * caliente (y el snapshot se cachea en KV), así que el costo de sanear 1365
+ * productos no debe pagarse en cada request.
+ *
+ * NO se tocan `id` ni `sourceUrl`: son claves de identidad (los productos se
+ * emparejan por id y `source_url` se compara literal en hide/unhide). Si a
+ * `sourceUrl` le cambiara un byte, un producto pasaría a verse "desaparecido".
+ */
+export function repararTextoProducto(p: Product): Product {
+  return {
+    ...p,
+    title: fixMojibake(p.title),
+    description: fixMojibake(p.description),
+    imageUrl: fixMojibake(p.imageUrl),
+    // `== null` cubre null y ausente (el bind ya enviaba null en los dos casos).
+    brand: p.brand == null ? null : fixMojibake(p.brand),
+  };
+}
+
+/** Nombre de categoría saneado (`id` y `parentId` son identidad: no se tocan). */
+export function repararNombreCategoria(c: Category): Category {
+  return { ...c, name: fixMojibake(c.name) };
+}
+
 // ---- Categorías ----
 
 export async function listCategories(db: D1Database): Promise<Category[]> {
@@ -104,13 +137,14 @@ export async function listCategories(db: D1Database): Promise<Category[]> {
 }
 
 export async function upsertCategory(db: D1Database, c: Category, now: number): Promise<void> {
+  const limpia = repararNombreCategoria(c);
   await db
     .prepare(
       `INSERT INTO categories (id, name, parent_id, active, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?5)
        ON CONFLICT(id) DO UPDATE SET name = ?2, parent_id = ?3, active = ?4, updated_at = ?5`
     )
-    .bind(c.id, c.name, c.parentId, c.active ? 1 : 0, now)
+    .bind(limpia.id, limpia.name, limpia.parentId, limpia.active ? 1 : 0, now)
     .run();
 }
 
@@ -229,6 +263,7 @@ export async function getProduct(db: D1Database, id: string): Promise<Product | 
 }
 
 export async function upsertProduct(db: D1Database, p: Product, now: number): Promise<void> {
+  const limpio = repararTextoProducto(p);
   await db
     .prepare(
       `INSERT INTO products (id, title, description, price_cents, category_id, subcategory_id, tags, image_url, status, availability, sort_order, created_at, updated_at, source_url, brand)
@@ -240,9 +275,9 @@ export async function upsertProduct(db: D1Database, p: Product, now: number): Pr
          brand = COALESCE(?14, brand)`
     )
     .bind(
-      p.id, p.title, p.description, p.priceCents, p.categoryId, p.subcategoryId,
-      JSON.stringify(p.tags), p.imageUrl, p.status, p.availability, p.sortOrder, now,
-      p.sourceUrl ?? null, p.brand ?? null
+      limpio.id, limpio.title, limpio.description, limpio.priceCents, limpio.categoryId, limpio.subcategoryId,
+      JSON.stringify(limpio.tags), limpio.imageUrl, limpio.status, limpio.availability, limpio.sortOrder, now,
+      limpio.sourceUrl ?? null, limpio.brand ?? null
     )
     .run();
 }
@@ -280,7 +315,7 @@ export async function upsertCategoriesBatch(db: D1Database, cats: Category[], no
        ON CONFLICT(id) DO UPDATE SET name = excluded.name, parent_id = excluded.parent_id, active = excluded.active, updated_at = excluded.updated_at`
     );
     const binds: unknown[] = [];
-    for (const c of chunk) binds.push(c.id, c.name, c.parentId, c.active ? 1 : 0);
+    for (const c of chunk) binds.push(c.id, fixMojibake(c.name), c.parentId, c.active ? 1 : 0);
     binds.push(now);
     await stmt.bind(...binds).run();
   }
@@ -336,8 +371,10 @@ const UPSERT_PRODUCTS_SQL = `
 export async function upsertProductsBatch(db: D1Database, prods: Product[], now: number): Promise<{ title: string; reason: string }[]> {
   const failed: { title: string; reason: string }[] = [];
   if (prods.length === 0) return failed;
-  for (let i = 0; i < prods.length; i += PRODUCT_JSON_CHUNK) {
-    const chunk = prods.slice(i, i + PRODUCT_JSON_CHUNK);
+  // El texto se sanea una sola vez por corrida (todo el lote pasa por acá).
+  const limpios = prods.map(repararTextoProducto);
+  for (let i = 0; i < limpios.length; i += PRODUCT_JSON_CHUNK) {
+    const chunk = limpios.slice(i, i + PRODUCT_JSON_CHUNK);
     const payload = JSON.stringify(chunk.map((p) => ({
       id: p.id,
       title: p.title,
@@ -546,7 +583,7 @@ export async function upsertAutoImport(db: D1Database, j: AutoImport, now: numbe
        ON CONFLICT(id) DO UPDATE SET
          url = ?2, label = ?3, price_rule_id = ?4, times = ?5, active = ?6, last_run_at = ?7, last_status = ?8, updated_at = ?9`
     )
-    .bind(j.id, j.url, j.label, j.priceRuleId, JSON.stringify(j.times), j.active ? 1 : 0, j.lastRunAt, j.lastStatus, now)
+    .bind(j.id, j.url, fixMojibake(j.label), j.priceRuleId, JSON.stringify(j.times), j.active ? 1 : 0, j.lastRunAt, j.lastStatus, now)
     .run();
 }
 

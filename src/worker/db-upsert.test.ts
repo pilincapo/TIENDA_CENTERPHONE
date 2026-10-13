@@ -4,7 +4,7 @@
 // una fuente de 370 productos —el catálogo de Tecnova— eran 53 statements y la
 // importación completa se pasaba del límite.
 import { describe, expect, it } from "vitest";
-import { upsertProductsBatch } from "./db";
+import { upsertCategoriesBatch, upsertProductsBatch } from "./db";
 import type { Product } from "../shared/types";
 
 const NOW = 1_770_000_000_000;
@@ -69,5 +69,63 @@ describe("upsertProductsBatch (límite de 50 queries por invocación)", () => {
     const { db, statements } = makeDb();
     expect(await upsertProductsBatch(db, [], NOW)).toEqual([]);
     expect(statements).toHaveLength(0);
+  });
+});
+
+// El texto que llega de las fuentes externas se sanea al ESCRIBIR (mismo criterio
+// que los settings: src/shared/encoding.ts), así el catálogo, el snapshot y el
+// JSON-LD no pueden quedar con «SÃ¡bados» aunque la fuente venga mal codificada.
+describe("texto saneado al escribir en D1", () => {
+  it("repara el mojibake de título, descripción, marca e imagen en el lote", async () => {
+    const { db, statements } = makeDb();
+    const roto: Product = {
+      ...producto(0),
+      title: "Bater\u00c3\u00ada para celular \u00e2\u20ac\u201d 4000mAh",
+      description: "Incluye cable \u00c3\u00batil.",
+      brand: "S\u00c3\u00a1msung",
+      imageUrl: "https://ejemplo.com/bater\u00c3\u00ada.jpg",
+    };
+    expect(await upsertProductsBatch(db, [roto], NOW)).toEqual([]);
+    const payload = JSON.parse(String(statements[0]!.binds[0])) as Record<string, unknown>[];
+    expect(payload[0]).toMatchObject({
+      title: "Batería para celular — 4000mAh",
+      description: "Incluye cable útil.",
+      brand: "Sámsung",
+      imageUrl: "https://ejemplo.com/batería.jpg",
+    });
+  });
+
+  it("no toca id ni sourceUrl: son claves de identidad", async () => {
+    const { db, statements } = makeDb();
+    // Aun con mojibake en los campos de identidad, no se reescriben (cambiarlos
+    // haría que el producto se vea como desaparecido en el próximo sync).
+    const raro: Product = {
+      ...producto(0),
+      id: "p\u00c3\u00a1-0",
+      sourceUrl: "https://tecnova.com.ar/b\u00c3\u00basqueda",
+    };
+    await upsertProductsBatch(db, [raro], NOW);
+    const payload = JSON.parse(String(statements[0]!.binds[0])) as Record<string, unknown>[];
+    expect(payload[0]).toMatchObject({ id: "p\u00c3\u00a1-0", sourceUrl: "https://tecnova.com.ar/b\u00c3\u00basqueda" });
+  });
+
+  it("deja intacto el texto sano (tildes, «·», emoji) y la marca nula", async () => {
+    const { db, statements } = makeDb();
+    const sano: Product = { ...producto(1), title: "Cargador rápido · 📦 20W", brand: null };
+    await upsertProductsBatch(db, [sano], NOW);
+    const payload = JSON.parse(String(statements[0]!.binds[0])) as Record<string, unknown>[];
+    expect(payload[0]).toMatchObject({ title: "Cargador rápido · 📦 20W", brand: null });
+  });
+
+  it("repara el nombre de la categoría sin tocar id ni parentId", async () => {
+    const { db, statements } = makeDb();
+    await upsertCategoriesBatch(
+      db,
+      [{ id: "electronica", name: "Electr\u00c3\u00b3nica", parentId: "ra\u00c3\u00adz", active: true }],
+      NOW
+    );
+    expect(statements[0]!.binds[0]).toBe("electronica");
+    expect(statements[0]!.binds[1]).toBe("Electrónica");
+    expect(statements[0]!.binds[2]).toBe("ra\u00c3\u00adz");
   });
 });
