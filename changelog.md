@@ -9,6 +9,10 @@
 - **Verificado en el sitio** (wrangler dev 8787 + navegador): footer «Sábados: 10:00 a 13:00 hs», `openingHours` del JSON-LD limpio, modal «Cómo comprar» con «Explorá/Buscá/filtrá/categoría» y la nota del carrito «Coordinamos envío o retiro… después del pago», sin «Ã» en ninguna vista.
 - **Runbook** (`RUNBOOK_PRODUCCION.md`): el procedimiento manual de KV ahora usa `--text` al bajar, pide verificar el archivo antes de subirlo (comando `python` listo, probado contra un archivo roto y uno sano), avisa de `>`/`Out-File`/`Set-Content`/Notepad-ANSI y aclara que el worker repara al leer pero que el valor en KV queda sucio hasta la siguiente escritura.
 - **Tests**: `src/shared/encoding.test.ts` (12: los valores reales del KV, cp1252 fuera de latin-1, emoji, saltos de línea, doble corrupción, texto sano intacto, secuencias truncadas, `repairTextFields` sin mutar). **349/349** ✅, typecheck ✅, build ✅.
+- **Commit `af41c8d`** y **deploy `d06d804f-7cda-4756-a872-ff5d23682f47`** (orden del usuario): 6 archivos (`dbff2ca..af41c8d`), cron `0 * * * *` y bindings (KV/D1/ASSETS/EMAIL/vars) intactos, startup 5 ms.
+- **Verificado en producción**: `/api/public/settings` con 26 campos y **0 con mojibake** (`storeHours` = «Sábados», `howTitle` = «Cómo comprar»); `/admin/` sirviendo el bundle nuevo (`admin-u2Sv5q79.js`, que ya manda `charset=utf-8`); `/`, `/manifest.webmanifest` y `/logo.jpg` 200; en el navegador la home muestra el footer con «Sábados» y el `openingHours` del JSON-LD limpio.
+- **Ojo con el primer request post-deploy**: la descarga inicial de `/admin/` todavía devolvió el hash viejo (`admin-DEvA-Rpv.js`) — propagación de borde, no un asset sin subir: el hash nuevo ya estaba 200 y el segundo request ya referenciaba el nuevo. No hace falta redeploy.
+- **Límite**: el blindaje no es observable en prod porque los datos de allá ya estaban sanos (el arreglo de datos fue del KV local); el deploy deja la reparación activa para cualquier valor sucio futuro, incluidos los campos que el endpoint público no expone.
 
 ## 2026-10-13 — Visibilidad para compartir (OG por producto), cinta de anuncio y SEO local
 
