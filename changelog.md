@@ -8,7 +8,7 @@
   el brand a la izquierda) y ajuste mobile ≤480px (`.topbar .topbar-site { padding: 7px 10px; font-size: 12px }`).
 - Verificado en local (wrangler dev 8787): desktop y 390px — los dos botones a la derecha del topbar, sin desborde
   horizontal, `href="/"` con `target="_blank"` y la regla mobile aplicada. Typecheck ✅, **327/327 tests** ✅, build ✅.
-- Sin deploy ni commit todavía.
+- **Commit `d129a0a`** y **deploy `e08b5021-b259-4601-a572-5af6bf8894f4`** (orden del usuario): worker + assets en producción, cron `0 * * * *` intacto. Verificado en centerphone.com.ar: `/admin/` responde 200 con el link `topbar-site` («🌐 Ver sitio») y la home 200.
 
 ## 2026-10-10 — Cotizador de envíos con Andreani (solo informativo)
 
