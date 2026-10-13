@@ -66,6 +66,7 @@ function ensureModal(): void {
     <div class="modal-box modal-box--cart" role="dialog" aria-modal="true" aria-label="Carrito">
       <button class="modal-x" type="button" aria-label="Cerrar">✕</button>
       <h2>Tu carrito</h2>
+      <div class="modal-body">
       <div id="cart-body"></div>
       <p class="cart-note" id="cart-note"></p>
       <div id="cart-ship"></div>
@@ -79,11 +80,18 @@ function ensureModal(): void {
         <button class="btn cart-transfer-btn" id="cart-transfer" type="button" hidden>Coordinar por transferencia</button>
         <p class="cart-secure">🔒 Pago procesado por MercadoPago. No guardamos datos de tarjeta.</p>
       </div>
+      </div>
     </div>`;
   document.body.appendChild(modal);
   modal.querySelector(".modal-x")?.addEventListener("click", closeCart);
   modal.addEventListener("click", (ev) => {
     if (ev.target === modal) closeCart();
+  });
+  // Escape también cierra el carrito (store-modals.ts ya lo hace con "Cómo
+  // comprar" y "Contacto"): en un teléfono, sin teclado, es la única salida
+  // garantizada cuando el contenido del carrito es más alto que la pantalla.
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") closeCart();
   });
   document.getElementById("cart-pay")?.addEventListener("click", () => void submitCheckout());
   document.getElementById("cart-transfer")?.addEventListener("click", () => void submitTransfer());
