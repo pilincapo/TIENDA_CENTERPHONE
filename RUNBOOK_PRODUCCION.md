@@ -65,6 +65,57 @@ JSON-LD. Reglas:
   guardado desde el panel lo persiste corregido. Pero conviene no reintroducirlo:
   el valor en KV queda sucio hasta esa siguiente escritura.
 
+## Analítica y SEO
+
+### Dónde se ven las visitas
+
+| Fuente | Qué da | Dónde |
+|---|---|---|
+| **Panel › 📊 Estadísticas** | Tracking **propio** (1 fila por evento en `stats_events`, 90 días): vistas a fichas, búsquedas, clics de WhatsApp, visitas al home, usos de /seguimiento, por día, por hora (Argentina), por país/ciudad y por referrer | `/admin/` |
+| **Cloudflare › Web Analytics** | RUM de Cloudflare (**sin cookies**, sin banner): pageviews, páginas top, referrers, países, dispositivos, Core Web Vitals | dash de Cloudflare |
+
+Se complementan: el panel mide **intención de negocio** (clics de WhatsApp, búsquedas) que Cloudflare no ve; Cloudflare mide **tráfico y rendimiento** que el panel no.
+
+### ⚠️ El beacon de Cloudflare: cómo verificarlo (y la trampa)
+
+La zona tiene RUM **activo** (`/zones/{id}/settings/rum` = `on`), con el sitio de Web Analytics en `auto_install` y su ruleset habilitado, y la CSP ya permite el beacon
+(`static.cloudflareinsights.com` en `script-src` y `cloudflareinsights.com` en `connect-src`, en **`public/_headers`** y en **`src/worker/security.ts`** — si se edita la CSP, no sacar esos dos orígenes o el seguimiento se cae en silencio).
+
+**No verificar el beacon con `curl`**: Cloudflare inyecta el snippet solo en requests que parecen un **navegador real**. Con `curl` (incluso mandando User-Agent de Chrome) el HTML **no** trae el beacon y el "0" es un falso negativo — así se diagnosticó mal el 2026-10-13. Para verificarlo de verdad, cargar la página en un navegador y mirar:
+
+- que exista `<script src="https://static.cloudflareinsights.com/beacon.min.js/…">` en el DOM (el src lleva un hash de versión y `data-cf-beacon` con `version`/`token`/`r`/`spa`);
+- o el `POST /cdn-cgi/rum` (204) en la pestaña Network.
+
+Desde la API: `rumPageloadEventsAdaptiveGroups` en GraphQL (dataset account-level, filtrado por `siteTag`) muestra los pageviews con `datetimeHour` y `requestPath`.
+
+### Google Search Console (SEO)
+
+El sitio ya tiene lo que Search Console consume: `/sitemap.xml` (dinámico desde D1, solo publicados), `/robots.txt` con el `Sitemap:`, JSON-LD (`Store`, `WebSite`, `Product` con precio y disponibilidad, `BreadcrumbList`), `canonical` y 301 de `www` al dominio sin `www`.
+
+**La verificación por DNS ya está hecha**: el apex (`centerphone.com.ar`) tiene el TXT
+`google-site-verification=TKs0MJu7LiYX8g4LF5gU6kYvJkQjavaSKXBfbIjefLU`, creado el
+**2026-08-20** (el mismo día que el sitio de Web Analytics) y **resolviendo
+públicamente** (comprobado con DNS-over-HTTPS el 2026-10-13). Es decir: la
+propiedad de **dominio** `centerphone.com.ar` ya quedó verificada en su momento.
+**No borrar ese TXT**: es lo que sostiene la verificación.
+
+Lo que queda es dentro de Google (no hay conector de Google para automatizarlo):
+
+1. Entrar a Search Console y confirmar que la propiedad `centerphone.com.ar` figura como **verificada**.
+2. Enviar `https://centerphone.com.ar/sitemap.xml` (un clic) si todavía no está enviado; la propiedad de dominio cubre `www` también.
+3. Mirar **Rendimiento** (consultas, impresiones, clics, posición), **Páginas** (qué se indexó) y los informes de **datos estructurados**.
+
+### Verificación del SEO técnico (2026-10-13, sobre producción)
+
+| Check | Resultado |
+|---|---|
+| `/robots.txt` | 200: `Allow: /`, `Disallow: /admin`, `Sitemap:` correcto |
+| `/sitemap.xml` | 200 `application/xml; charset=utf-8`, XML válido, **1388 URLs únicas** (1365 productos + 22 categorías + home), sin duplicados, sin `/admin`, todas `https://centerphone.com.ar/` |
+| `/pedido/:id` inexistente | 404 con `robots: noindex` |
+| URL larga | el sitemap entra cómodo en el límite de 50.000 URLs / 50 MB |
+
+**Hallazgo menor, no corregido**: `/admin/` no lleva `noindex` (sí está `Disallow`-eado en `robots.txt` y con `Cache-Control: no-store`, y no está linkeado ni en el sitemap). Agregar `<meta name="robots" content="noindex">` a `admin/index.html` sería el cierre prolijo.
+
 ## Verificación post-deploy
 
 | Check | Esperado |
