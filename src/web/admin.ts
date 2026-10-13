@@ -7,6 +7,7 @@ import type { PriceRule } from "../shared/pricing";
 import { findOverlaps, groupNames } from "../shared/pricing";
 import { normalizePhone } from "../shared/whatsapp";
 import { isTecnovaSourceUrl, TECNOVA_PUBLIC_URL } from "../shared/tecnova-url";
+import { avisoCatalogoVacio, feedResultante } from "../shared/wa-feed";
 import { initFormLabels } from "./form-labels";
 
 const el = {
@@ -712,12 +713,30 @@ interface ProductsPage {
   limit: number;
   counts: { published: number; hidden: number };
   srcCounts?: { tecnova: number; hacetupedido: number; manual: number };
-  /** Productos marcados para el catálogo de WhatsApp (ver Ajustes → Catálogo de WhatsApp). */
+  /**
+   * Tamaño del feed del catálogo de WhatsApp: marcados, publicados y con foto (lo que
+   * descarga Meta de verdad). Ver Ajustes → Catálogo de WhatsApp.
+   */
   waCount?: number;
 }
 
 // Estado que sobrevive a los re-renders: editar o borrar no te manda a la página 1.
 const prodState = { status: "published" as "published" | "hidden", page: 1, q: "", src: "" as "" | "tecnova" | "hacetupedido" | "manual" };
+// Alcance elegido en los selectores de WhatsApp (categoría y origen): sobrevive al
+// re-render de la lista (al marcar/quitar se recarga la vista y no tiene que volver a
+// elegir el alcance).
+const waElegido = { cat: "", src: "" };
+// Los orígenes de la acción masiva: los mismos del filtro "Origen:" de la lista.
+const ORIGENES_WA: { value: string; label: string }[] = [
+  { value: "tecnova", label: "🛰️ Tecnova" },
+  { value: "hacetupedido", label: "🛰️ Hacetupedido" },
+  { value: "manual", label: "✍️ Manuales" },
+];
+// Ayuda de cada selector de WhatsApp (también es el texto cuando no hay nada elegido).
+const AYUDA_ALCANCE: Record<"cat" | "src", string> = {
+  cat: "Elegí una categoría para ver cuántos productos se marcarían.",
+  src: "Elegí un origen (Tecnova, Hacetupedido o manuales) para ver cuántos productos se marcarían.",
+};
 // Pedido de abrir el formulario de auto-importación ya con la fuente elegida
 // ("Programar actualización" en Importar salta a la pestaña Auto-importaciones).
 let pendingAutoFuente: "url" | "tecnova" | null = null;
@@ -766,6 +785,24 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
   const catName = (id: string | null): string =>
     id ? (categories.find((c) => c.id === id)?.name ?? id) : "—";
   const catOptions = categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
+  // Los selectores de WhatsApp conservan el alcance elegido (ver waElegido).
+  const opcionesSel = (valor: string, pares: { value: string; label: string }[]): string =>
+    pares
+      .map((o) => `<option value="${esc(o.value)}"${valor === o.value ? " selected" : ""}>${esc(o.label)}</option>`)
+      .join("");
+  const waCatOptions = opcionesSel(waElegido.cat, categories.map((c) => ({ value: c.id, label: c.name })));
+  // Fila de acción masiva por alcance: el mismo bloque para la categoría y para el origen.
+  const filaAlcance = (o: { key: "cat" | "src"; titulo: string; articulo: string; opciones: string; on: string; off: string }): string => `
+      <div class="row" style="margin-top:8px; align-items:center">
+        <span class="muted" style="font-size:12px">📱 WhatsApp por ${o.titulo}:</span>
+        <select id="wa-${o.key}" aria-label="Seleccionar ${o.titulo} para el catálogo de WhatsApp" style="max-width:260px">
+          <option value="">Elegí ${o.articulo} ${o.titulo}…</option>
+          ${o.opciones}
+        </select>
+        <button class="btn" id="wa-${o.key}-on" disabled>${o.on}</button>
+        <button class="btn" id="wa-${o.key}-off" disabled>${o.off}</button>
+      </div>
+      <p class="muted" id="wa-${o.key}-info" style="margin:6px 0 0; font-size:12px">${AYUDA_ALCANCE[o.key]}</p>`;
   const chip = (v: "published" | "hidden", label: string, n: number): string =>
     `<button class="chip ${prodState.status === v ? "on" : ""}" data-pf="${v}">${label} <span class="muted">${n}</span></button>`;
   const srcCounts = (data as { srcCounts?: { tecnova: number; hacetupedido: number; manual: number } }).srcCounts ?? { tecnova: 0, hacetupedido: 0, manual: 0 };
@@ -791,7 +828,7 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
         ${srcChip("hacetupedido", "🛰️ Hacetupedido", srcCounts.hacetupedido)}
         ${srcChip("manual", "✍️ Manuales", srcCounts.manual)}
       </div>
-      <p class="muted" style="margin:8px 0 0; font-size:12px">📱 Catálogo de WhatsApp: <strong>${data.waCount ?? 0}</strong> producto${(data.waCount ?? 0) === 1 ? "" : "s"} marcado${(data.waCount ?? 0) === 1 ? "" : "s"} — seleccioná filas y usá «Publicar en WhatsApp». La URL del feed se configura en Ajustes.</p>
+      <p class="muted" style="margin:8px 0 0; font-size:12px">📱 Catálogo de WhatsApp: <strong>${data.waCount ?? 0}</strong> producto${(data.waCount ?? 0) === 1 ? "" : "s"} en el feed (marcados, publicados y con foto) — seleccioná filas y usá «Publicar en WhatsApp», o marcá una categoría o un origen enteros en las filas de abajo. La URL del feed se configura en Ajustes.</p>
       ${prodState.status === "hidden" ? `<p class="muted" style="margin:8px 0 0">No aparecen en el catálogo público porque la fuente ya no los trae (sin stock) o los ocultaste a mano. Si la fuente vuelve a traerlos, se re-publican solos.</p>
       <div class="row" style="margin-top:10px">
         <button class="btn btn-primary" id="unhide-all" ${data.counts.hidden === 0 ? "disabled" : ""}>▶ Re-publicar todos</button>
@@ -806,7 +843,9 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
         <button class="btn" id="bulk-wa-on" hidden>📱 Publicar en WhatsApp</button>
         <button class="btn" id="bulk-wa-off" hidden>📱 Quitar de WhatsApp</button>
         <span class="muted" id="bulk-count" hidden></span>
-      </div>`}
+      </div>
+      ${filaAlcance({ key: "cat", titulo: "categoría", articulo: "una", opciones: waCatOptions, on: "📱 Marcar la categoría", off: "Quitar la categoría" })}
+      ${filaAlcance({ key: "src", titulo: "origen", articulo: "un", opciones: opcionesSel(waElegido.src, ORIGENES_WA), on: "📱 Marcar el origen", off: "Quitar el origen" })}`}
       ${visible.length === 0 ? `<p class="muted" style="margin-top:14px">${prodState.q !== "" ? "Ningún producto coincide con la búsqueda." : prodState.status === "hidden" ? "No hay productos sin stock. 🎉" : "No hay productos todavía."}</p>` : `
       <div class="table-scroll">
       <table class="table" style="margin-top:14px">
@@ -973,6 +1012,117 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
   };
   waOnBtn?.addEventListener("click", () => void marcarWhatsApp(true));
   waOffBtn?.addEventListener("click", () => void marcarWhatsApp(false));
+
+  // ---- WhatsApp por alcance: vista previa + marcar/quitar una categoría o un origen ----
+  // La vista previa la calcula el servidor al elegir el alcance (cuántos se marcarían,
+  // cuántos entran al catálogo y cuántos están hoy en el feed), así no se confirma a
+  // ciegas y el aviso de "catálogo casi vacío" sale de números reales.
+  interface WaScopePreview {
+    total: number;
+    yaMarcados: number;
+    aMarcar: number;
+    conFoto: number;
+    sinStock: number;
+    sinFoto: number;
+    enFeed: number;
+  }
+  interface FilaAlcance {
+    /** Sufijo de los ids del DOM (`wa-cat` / `wa-src`) y clave del alcance elegido. */
+    key: "cat" | "src";
+    /** Nombre del parámetro con el que el alcance viaja al servidor. */
+    param: "categoryId" | "src";
+    /** Cómo se llama lo elegido, para los textos. */
+    nombre: (valor: string) => string;
+  }
+  const plural = (n: number): string => (n === 1 ? "" : "s");
+  const filasAlcance: FilaAlcance[] = [
+    { key: "cat", param: "categoryId", nombre: (v) => catName(v) },
+    { key: "src", param: "src", nombre: (v) => ORIGENES_WA.find((o) => o.value === v)?.label ?? v },
+  ];
+  const previewsAlcance: Record<string, WaScopePreview | null> = { cat: null, src: null };
+  // Los números que importan: cuántos cambiarían de marca y cuántos entran al catálogo
+  // (con stock y con foto). Se cuentan sobre el alcance ENTERO, así el texto sigue
+  // diciendo la verdad después de aplicar la acción.
+  const textoAlcance = (nombre: string, p: WaScopePreview): string =>
+    `${nombre}: ${p.total} producto${plural(p.total)} (${p.yaMarcados} ya marcado${plural(p.yaMarcados)}). ` +
+    (p.aMarcar === 0 ? "No queda ninguno por marcar. " : `Se marcarían ${p.aMarcar}. `) +
+    `Entrarían al catálogo de WhatsApp ${p.conFoto} (con stock y foto); quedan afuera ${p.sinStock} sin stock y ${p.sinFoto} sin foto. ` +
+    `Hoy están en el feed ${p.enFeed}.`;
+
+  /**
+   * Aviso cuando la acción dejaría el catálogo de WhatsApp vacío o casi. Se calcula con
+   * los mismos números que el feed: `enFeed` son los productos del alcance que están hoy
+   * en el archivo y el contador del panel es el tamaño del archivo, así que la cuenta es
+   * exacta sin pedirle nada más al servidor. La aritmética vive en shared/wa-feed.ts
+   * (función pura, con tests) porque es la parte que no puede estar mal.
+   */
+  const avisoDeAccion = (publish: boolean, p: WaScopePreview): string => {
+    const hoy = data.waCount ?? 0;
+    return avisoCatalogoVacio(feedResultante(publish, hoy, p.enFeed, p.conFoto), hoy);
+  };
+
+  const pedirPreview = async (fila: FilaAlcance): Promise<void> => {
+    const sel = el.view.querySelector(`#wa-${fila.key}`) as HTMLSelectElement | null;
+    const info = el.view.querySelector(`#wa-${fila.key}-info`) as HTMLElement | null;
+    const on = el.view.querySelector(`#wa-${fila.key}-on`) as HTMLButtonElement | null;
+    const off = el.view.querySelector(`#wa-${fila.key}-off`) as HTMLButtonElement | null;
+    const valor = sel?.value ?? "";
+    waElegido[fila.key] = valor;
+    previewsAlcance[fila.key] = null;
+    if (on) on.disabled = valor === "";
+    if (off) off.disabled = valor === "";
+    if (valor === "") {
+      if (info) info.textContent = AYUDA_ALCANCE[fila.key];
+      return;
+    }
+    if (info) info.textContent = "Contando…";
+    try {
+      const r = await api<{ preview: WaScopePreview }>(
+        `/products/whatsapp/scope?${fila.param}=${encodeURIComponent(valor)}`
+      );
+      previewsAlcance[fila.key] = r.preview;
+      if (info) info.textContent = textoAlcance(fila.nombre(valor), r.preview);
+    } catch (e) {
+      if (info) info.textContent = e instanceof Error ? e.message : "No se pudieron contar los productos";
+    }
+  };
+  const aplicarAlcance = async (fila: FilaAlcance, publish: boolean): Promise<void> => {
+    const sel = el.view.querySelector(`#wa-${fila.key}`) as HTMLSelectElement | null;
+    const valor = sel?.value ?? "";
+    if (valor === "") return;
+    const nombre = fila.nombre(valor);
+    const p = previewsAlcance[fila.key];
+    const detalle = p ? `\n\n${textoAlcance(nombre, p)}` : "";
+    const pregunta = publish
+      ? `¿Marcar para el catálogo de WhatsApp TODOS los productos de «${nombre}»?${detalle}`
+      : `¿Quitar del catálogo de WhatsApp TODOS los productos de «${nombre}»?${detalle}`;
+    if (!confirm(pregunta)) return;
+    // El aviso va en un segundo confirm: es el que evita desarmar el catálogo sin querer.
+    const aviso = p ? avisoDeAccion(publish, p) : "";
+    if (aviso !== "" && !confirm(`${aviso}\n\n¿Confirmás que querés seguir?`)) return;
+    try {
+      const r = await api<{ updated: number }>("/products/whatsapp/scope", {
+        method: "POST",
+        body: JSON.stringify({ [fila.param]: valor, publish }),
+      });
+      toast(
+        publish
+          ? `${r.updated} producto${plural(r.updated)} de «${nombre}» marcado${plural(r.updated)} para WhatsApp`
+          : `${r.updated} producto${plural(r.updated)} de «${nombre}» fuera del catálogo de WhatsApp`
+      );
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Error", false);
+    }
+    // La lista se recarga del servidor: los badges 📱 y el contador salen de ahí.
+    void viewProducts();
+  };
+  for (const fila of filasAlcance) {
+    el.view.querySelector(`#wa-${fila.key}`)?.addEventListener("change", () => void pedirPreview(fila));
+    el.view.querySelector(`#wa-${fila.key}-on`)?.addEventListener("click", () => void aplicarAlcance(fila, true));
+    el.view.querySelector(`#wa-${fila.key}-off`)?.addEventListener("click", () => void aplicarAlcance(fila, false));
+    // Si ya había un alcance elegido, la vista previa se recalcula sola tras el render.
+    if (waElegido[fila.key] !== "") void pedirPreview(fila);
+  }
 
   // ---- Vaciar categoría entera (borra en el servidor, de todas las páginas) ----
   el.view.querySelector("#bulk-cat-del")?.addEventListener("click", async () => {

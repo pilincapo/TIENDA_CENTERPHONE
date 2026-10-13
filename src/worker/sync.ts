@@ -7,6 +7,7 @@ import { applyRuleSet } from "../shared/pricing";
 import type { Env } from "./db";
 import { hideProductsNotIn, insertSyncLog, listCategories, listPriceRules, listProducts, unhideProductsIn, upsertCategoriesBatch, upsertProductsBatch } from "./db";
 import { getSettings, newId, nowMs } from "./settings";
+import { invalidateWaFeedCache } from "./wa-feed";
 
 export interface SyncOutcome {
   ok: boolean;
@@ -59,9 +60,16 @@ async function purgeCatalogEdgeCache(env: Env): Promise<void> {
  * Marca que el catálogo público quedó viejo SIN regenerarlo: leer todo el catálogo
  * en D1 por cada alta/edición/baja del panel come la cuota de filas del free tier.
  * El snapshot se regenera al sincronizar (o cuando el admin publica a mano).
+ *
+ * Es también el punto por donde pasan TODAS las escrituras del catálogo (panel,
+ * sincronización y auto-importaciones), así que acá se tira la copia del feed de
+ * WhatsApp: un producto cambia de precio o de título y la próxima descarga de Meta
+ * ya lo ve, sin esperar al TTL. Sigue siendo una escritura de KV por cambio, no por
+ * request (regla del free tier).
  */
 export async function markCatalogPending(env: Env): Promise<void> {
   await env.KV.put(KV_CATALOG_PENDING_KEY, String(nowMs()));
+  await invalidateWaFeedCache(env);
 }
 
 export interface CatalogStatus {

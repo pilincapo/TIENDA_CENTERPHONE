@@ -4,18 +4,35 @@
 // una fuente de 370 productos —el catálogo de Tecnova— eran 53 statements y la
 // importación completa se pasaba del límite.
 import { describe, expect, it } from "vitest";
-import { setProductsWaPublish, upsertCategoriesBatch, upsertProduct, upsertProductsBatch } from "./db";
+import {
+  setProductsWaPublish,
+  setWhatsAppScope,
+  upsertCategoriesBatch,
+  upsertProduct,
+  upsertProductsBatch,
+  waCategoryScope,
+  waSourceScope,
+  whatsAppScopePreview,
+} from "./db";
 import type { Product } from "../shared/types";
 
 const NOW = 1_770_000_000_000;
 
-function makeDb(): { db: D1Database; statements: { sql: string; binds: unknown[] }[] } {
+/**
+ * D1 de mentira: guarda las consultas y devuelve cambios = cantidad de binds (valor
+ * arbitrario, alcanza para verificar el troceado). `fila` es lo que devuelve first().
+ */
+function makeDb(fila: Record<string, unknown> | null = null): { db: D1Database; statements: { sql: string; binds: unknown[] }[] } {
   const statements: { sql: string; binds: unknown[] }[] = [];
   const prepare = (sql: string) => ({
     bind: (...binds: unknown[]) => ({
       run: async () => {
         statements.push({ sql, binds });
         return { success: true, meta: { changes: binds.length } };
+      },
+      first: async () => {
+        statements.push({ sql, binds });
+        return fila;
       },
     }),
   });
@@ -176,5 +193,71 @@ describe("setProductsWaPublish (acción masiva del panel)", () => {
     await setProductsWaPublish(db, ["a"], false, NOW);
     expect(statements).toHaveLength(1);
     expect(statements[0]!.binds[0]).toBe(0);
+  });
+});
+
+// Acción masiva por alcance: por categoría (misma semántica que el borrado masivo del
+// panel: los productos que la tienen como categoría O como subcategoría) o por origen
+// (misma semántica que el filtro "Origen:" de la lista, vía sourceCondition).
+describe("marcar/quitar un alcance entero en WhatsApp", () => {
+  it("el preview separa lo que entra al feed de lo que queda afuera", async () => {
+    const { db, statements } = makeDb({
+      total: 10,
+      ya_marcados: 4,
+      a_marcar: 6,
+      con_foto: 8,
+      sin_stock: 1,
+      sin_foto: 1,
+      en_feed: 3,
+    });
+    const p = await whatsAppScopePreview(db, waCategoryScope("mascotas"));
+    expect(p).toEqual({ total: 10, yaMarcados: 4, aMarcar: 6, conFoto: 8, sinStock: 1, sinFoto: 1, enFeed: 3 });
+    // conFoto + sinStock + sinFoto = total: el texto de la vista previa tiene que cerrar siempre.
+    expect(p.conFoto + p.sinStock + p.sinFoto).toBe(p.total);
+    // Lo que está en el feed es un subconjunto de lo marcado (marcado + publicado + con foto).
+    expect(p.enFeed).toBeLessThanOrEqual(p.yaMarcados);
+    expect(statements[0]!.sql).toContain("WHERE (category_id = ? OR subcategory_id = ?)");
+    expect(statements[0]!.binds).toEqual(["mascotas", "mascotas"]);
+  });
+
+  it("un preview sin filas no devuelve NaN", async () => {
+    const { db } = makeDb({ total: null, ya_marcados: null, a_marcar: null, con_foto: null, sin_stock: null, sin_foto: null, en_feed: null });
+    expect(await whatsAppScopePreview(db, waCategoryScope("vacia"))).toEqual({
+      total: 0,
+      yaMarcados: 0,
+      aMarcar: 0,
+      conFoto: 0,
+      sinStock: 0,
+      sinFoto: 0,
+      enFeed: 0,
+    });
+  });
+
+  it("el alcance por origen reusa el predicado del filtro de la lista", async () => {
+    const { db, statements } = makeDb();
+    expect(waSourceScope("tecnova")).toEqual({ where: "source_url LIKE ?", args: ["%tecnova%"] });
+    // Los manuales son los que no tienen source_url, igual que en el filtro del panel.
+    expect(waSourceScope("manual")).toEqual({ where: "source_url IS NULL", args: [] });
+    // "Todos" no es un alcance: no hay acción masiva sobre el catálogo entero de un clic.
+    expect(waSourceScope("")).toBeNull();
+    await whatsAppScopePreview(db, waSourceScope("manual")!);
+    expect(statements[0]!.sql).toContain("WHERE source_url IS NULL");
+    expect(statements[0]!.binds).toEqual([]);
+  });
+
+  it("marcar el alcance es una sola consulta y solo toca lo que falta", async () => {
+    const { db, statements } = makeDb();
+    await setWhatsAppScope(db, waCategoryScope("mascotas"), true, NOW);
+    expect(statements).toHaveLength(1);
+    expect(statements[0]!.sql).toContain("WHERE wa_publish = ? AND ((category_id = ? OR subcategory_id = ?))");
+    expect(statements[0]!.sql.toLowerCase()).not.toContain("status =");
+    expect(statements[0]!.binds).toEqual([1, NOW, 0, "mascotas", "mascotas"]);
+  });
+
+  it("quitar el alcance invierte los valores (y sirve para un origen)", async () => {
+    const { db, statements } = makeDb();
+    await setWhatsAppScope(db, waSourceScope("tecnova")!, false, NOW);
+    expect(statements[0]!.sql).toContain("WHERE wa_publish = ? AND (source_url LIKE ?)");
+    expect(statements[0]!.binds).toEqual([0, NOW, 1, "%tecnova%"]);
   });
 });

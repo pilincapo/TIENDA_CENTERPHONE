@@ -119,6 +119,41 @@ export interface WaFeedResult {
 }
 
 /**
+ * Cuántos productos quedarían en el feed (los que descarga Meta) después de una acción
+ * masiva sobre un alcance. `hoy` es el tamaño del feed ahora, `enFeed` los del alcance
+ * que están en él y `conFoto` los del alcance con stock y foto (o sea los que el feed
+ * tomaría si se marcan).
+ *
+ * Al marcar se suman solo los que todavía no estaban (conFoto - enFeed, que nunca es
+ * negativo) y al quitar se restan los que estaban.
+ */
+export function feedResultante(publish: boolean, hoy: number, enFeed: number, conFoto: number): number {
+  return publish ? hoy + (conFoto - enFeed) : hoy - enFeed;
+}
+
+/**
+ * Aviso del panel cuando una acción masiva dejaría el catálogo de WhatsApp vacío o muy
+ * chico. Devuelve "" cuando la acción no cambia nada importante.
+ *
+ * Dejar el feed en cero es peor de lo que parece: el endpoint responde error a propósito
+ * para no borrar el catálogo de Meta, así que WhatsApp sigue mostrando los productos
+ * viejos hasta que se marque algo de nuevo. Y un recorte grande es la firma típica de un
+ * error de dedo. Con el feed ya vacío no hay nada que proteger (y avisar sería ruido).
+ */
+export function avisoCatalogoVacio(resultante: number, hoy: number): string {
+  const plural = (n: number): string => (n === 1 ? "" : "s");
+  if (hoy <= 0) return "";
+  if (resultante <= 0) {
+    return "⚠️ ATENCIÓN: esta acción deja el catálogo de WhatsApp VACÍO. El feed va a responder error a propósito (para no borrar el catálogo de Meta), así que WhatsApp va a seguir mostrando los productos viejos hasta que marques alguno de nuevo.";
+  }
+  // Menos de un cuarto de lo que hay hoy: se avisa aunque no quede vacío.
+  if (resultante * 4 <= hoy) {
+    return `⚠️ ATENCIÓN: esta acción dejaría el catálogo de WhatsApp con ${resultante} producto${plural(resultante)}, de los ${hoy} que hay hoy.`;
+  }
+  return "";
+}
+
+/**
  * Arma el feed completo. Solo entran los productos marcados (`waPublish`), con
  * título, foto absoluta (http/https) y id dentro del límite de Meta: un ítem sin
  * `image_link` o sin título hace fallar la validación de TODO el feed, así que se

@@ -17,6 +17,7 @@ function mockKV(entries: Record<string, string> = {}): KVNamespace & { _map: Map
   return {
     get: async (k: string) => map.get(k) ?? null,
     put: async (k: string, v: string) => { map.set(k, v); },
+    delete: async (k: string) => { map.delete(k); },
     _map: map,
   } as unknown as KVNamespace & { _map: Map<string, string> };
 }

@@ -157,8 +157,9 @@ El catálogo de WhatsApp no tiene carga masiva —ni en la app ni desde ningún 
 
 **Cómo se usa:**
 
-1. En el panel, pestaña **Productos**: seleccionás las filas (los checkboxes de siempre) y usás **📱 Publicar en WhatsApp** o **📱 Quitar de WhatsApp**. Los marcados muestran el badge 📱 y la barra dice cuántos se están publicando.
-2. **Ajustes → 📱 Catálogo de WhatsApp** muestra la **URL del feed** (con el token en la query), cuántos productos se publican y permite **copiarla** o **regenerarla**. Al regenerarla, la URL vieja deja de servir: hay que actualizarla en Commerce Manager.
+1. En el panel, pestaña **Productos**: seleccionás las filas (los checkboxes de siempre) y usás **📱 Publicar en WhatsApp** o **📱 Quitar de WhatsApp**. Los marcados muestran el badge 📱 y la barra dice cuántos están en el feed.
+2. Para marcar de una sola vez, usá las filas **📱 WhatsApp por categoría** y **📱 WhatsApp por origen** (Tecnova, Hacetupedido o manuales): al elegir el alcance, el panel muestra **cuántos se marcarían, cuántos entrarían al feed y cuántos están hoy**, y pide confirmación con esos números. Si la acción dejaría el catálogo **vacío** o con **menos de un cuarto** de lo que hay hoy, pide una **segunda confirmación** con el aviso: vale la pena leerla, porque con el feed en cero **Meta no borra nada, pero tampoco actualiza** (el endpoint responde error a propósito).
+3. **Ajustes → 📱 Catálogo de WhatsApp** muestra la **URL del feed** (con el token en la query), cuántos productos se publican y permite **copiarla** o **regenerarla**. Al regenerarla, la URL vieja deja de servir: hay que actualizarla en Commerce Manager.
 
 **Pasos en Meta (una sola vez):**
 
@@ -178,6 +179,8 @@ El catálogo de WhatsApp no tiene carga masiva —ni en la app ni desde ningún 
 | Desmarcar un producto | sale del feed en la descarga siguiente |
 | Guardar Configuración (formulario) | el token **no** se pisa: la URL queda idéntica y el feed sigue en 200 |
 | Rotar el token (Ajustes) | token viejo 404, nuevo 200 |
+| Descarga repetida del feed | la primera trae `X-Wa-Feed-Cache: d1` (lee D1) y las siguientes `kv`: se sirve de una copia en KV que **no** toca D1 |
+| Cualquier cambio (marca, precio, alta, sincronización) | invalida la copia: la descarga siguiente vuelve a `d1` y ya refleja el cambio (el TTL de 5 minutos es solo el techo) |
 
 Detalles a tener en cuenta:
 
@@ -185,6 +188,7 @@ Detalles a tener en cuenta:
 - **995 de 1365 productos no tienen descripción** y **solo 150 tienen marca**: se generan textos de respaldo con el título, la categoría y el nombre de la tienda, porque Meta exige ambos campos.
 - El feed **sigue sirviéndose en modo mantenimiento** (el catálogo de WhatsApp es el mismo canal de venta) y está excluido del rastreo en `robots.txt`.
 - El token vive en los ajustes y **no** se edita en Configuración: se genera solo la primera vez que se abre la sección y se rota desde el botón (si se filtra la URL, rotar y actualizar Commerce Manager).
+- El feed se sirve desde una **copia en KV** (5 minutos) para que las descargas de Meta no lean el catálogo entero en D1: la copia se tira en cada cambio del catálogo (1-2 escrituras de KV **por cambio**, nunca por request). El contador del panel cuenta **marcados + publicados + con foto**, que es exactamente lo que sale en el archivo.
 
 ## Verificación post-deploy
 

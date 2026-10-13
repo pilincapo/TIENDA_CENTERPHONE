@@ -179,6 +179,19 @@ function likePattern(q: string): string {
   return `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
 }
 
+/**
+ * Condición de origen de un producto (el "Origen:" del panel): dominio contenido en
+ * `source_url`, o NULL para los altas manuales. Vive acá y no en el panel porque la
+ * usan el filtro de la lista, los contadores por origen y la acción masiva de WhatsApp
+ * por origen: con una versión cada uno, podrían discrepar en qué es "de Tecnova".
+ * Devuelve sql vacío para "todos".
+ */
+export function sourceCondition(src: string): { sql: string; args: string[] } {
+  if (src === "manual") return { sql: "source_url IS NULL", args: [] };
+  if (src === "") return { sql: "", args: [] };
+  return { sql: "source_url LIKE ?", args: [`%${src}%`] };
+}
+
 function productWhere(status: "" | "published" | "hidden", q: string, src = ""): { sql: string; args: string[] } {
   const conds: string[] = [];
   const args: string[] = [];
@@ -192,11 +205,10 @@ function productWhere(status: "" | "published" | "hidden", q: string, src = ""):
     args.push(pat, pat);
   }
   // Origen: dominio contenido en source_url, o NULL para alta manual.
-  if (src === "manual") {
-    conds.push("source_url IS NULL");
-  } else if (src !== "") {
-    conds.push("source_url LIKE ?");
-    args.push(`%${src}%`);
+  const origen = sourceCondition(src);
+  if (origen.sql !== "") {
+    conds.push(origen.sql);
+    args.push(...origen.args);
   }
   return { sql: conds.length > 0 ? `WHERE ${conds.join(" AND ")}` : "", args };
 }
@@ -473,16 +485,112 @@ export async function listWhatsAppFeedProducts(db: D1Database): Promise<Product[
 }
 
 /**
- * Cuántos productos se están publicando en WhatsApp, para el panel. Se cuentan
- * SOLO los publicados: es exactamente lo que sale en el feed (un producto marcado
- * que después quedó sin stock no se publica), así el contador coincide con el
- * archivo que descarga Meta y no promete productos que no están.
+ * Tamaño del feed que descarga Meta, para el panel: marcados, publicados Y con foto.
+ * Las tres condiciones son las mismas que aplica el feed (una ficha sin foto no entra:
+ * Meta la exige), así el número del panel es la cantidad de filas del archivo y no
+ * promete productos que Meta igual va a saltear. Es también la referencia contra la que
+ * el panel avisa cuando una acción masiva dejaría el catálogo casi vacío.
  */
 export async function countWhatsAppProducts(db: D1Database): Promise<number> {
   const row = await db
-    .prepare("SELECT COUNT(*) AS n FROM products WHERE wa_publish = 1 AND status = 'published'")
+    .prepare("SELECT COUNT(*) AS n FROM products WHERE wa_publish = 1 AND status = 'published' AND image_url <> ''")
     .first<Dict>();
   return Number(row?.n ?? 0);
+}
+
+export interface WaScopePreview {
+  /** Productos del alcance, en cualquier estado. */
+  total: number;
+  /** Cuántos ya están marcados para WhatsApp. */
+  yaMarcados: number;
+  /** Cuántos se marcarán con la acción (los que todavía no lo están). */
+  aMarcar: number;
+  /** De todo el alcance: los que tienen stock y foto, o sea los que el feed toma. */
+  conFoto: number;
+  /** De todo el alcance: quedan afuera por estar sin stock (hidden). */
+  sinStock: number;
+  /** De todo el alcance: quedan afuera por no tener foto (Meta la exige). */
+  sinFoto: number;
+  /** De todo el alcance: los que están EN el feed ahora (marcados, publicados y con foto). */
+  enFeed: number;
+}
+
+/** Alcance de una acción masiva: una categoría o un origen, ya como WHERE + binds. */
+export interface WaScope {
+  where: string;
+  args: string[];
+}
+
+/**
+ * Alcance por categoría: la MISMA semántica que el borrado masivo del panel (los
+ * productos que la tienen como categoría o como subcategoría).
+ */
+export function waCategoryScope(categoryId: string): WaScope {
+  return { where: "(category_id = ? OR subcategory_id = ?)", args: [categoryId, categoryId] };
+}
+
+/**
+ * Alcance por origen (Tecnova, Hacetupedido, manuales): la misma semántica que el
+ * filtro "Origen:" de la lista. Devuelve null para "todos", porque marcar TODO el
+ * catálogo de un saque no es una acción que el panel deba ofrecer a un clic.
+ */
+export function waSourceScope(src: string): WaScope | null {
+  const { sql, args } = sourceCondition(src);
+  return sql === "" ? null : { where: sql, args };
+}
+
+/**
+ * Números para la vista previa de una acción masiva (panel). No modifica nada.
+ *
+ * `conFoto`/`sinStock`/`sinFoto` se cuentan sobre el alcance ENTERO (no solo sobre los
+ * que todavía no están marcados) para que el texto siga diciendo la verdad después de
+ * aplicar la acción y para que `conFoto + sinStock + sinFoto = total`. `enFeed` es
+ * cuántos de esos ya están en el archivo que descarga Meta.
+ */
+export async function whatsAppScopePreview(db: D1Database, scope: WaScope): Promise<WaScopePreview> {
+  const row = await db
+    .prepare(
+      `SELECT
+         COUNT(*) AS total,
+         SUM(CASE WHEN wa_publish = 1 THEN 1 ELSE 0 END) AS ya_marcados,
+         SUM(CASE WHEN wa_publish = 0 THEN 1 ELSE 0 END) AS a_marcar,
+         SUM(CASE WHEN status = 'published' AND image_url <> '' THEN 1 ELSE 0 END) AS con_foto,
+         SUM(CASE WHEN status <> 'published' THEN 1 ELSE 0 END) AS sin_stock,
+         SUM(CASE WHEN status = 'published' AND image_url = '' THEN 1 ELSE 0 END) AS sin_foto,
+         SUM(CASE WHEN wa_publish = 1 AND status = 'published' AND image_url <> '' THEN 1 ELSE 0 END) AS en_feed
+       FROM products WHERE ${scope.where}`
+    )
+    .bind(...scope.args)
+    .first<Dict>();
+  return {
+    total: num(row?.total),
+    yaMarcados: num(row?.ya_marcados),
+    aMarcar: num(row?.a_marcar),
+    conFoto: num(row?.con_foto),
+    sinStock: num(row?.sin_stock),
+    sinFoto: num(row?.sin_foto),
+    enFeed: num(row?.en_feed),
+  };
+}
+
+/**
+ * Marca/desmarca TODO un alcance (una categoría con sus subcategorías, o un origen)
+ * para el catálogo de WhatsApp, en una sola consulta.
+ *
+ * Se marcan también los productos sin stock a propósito: la marca significa "este
+ * producto pertenece al catálogo de WhatsApp", así que si la fuente lo vuelve a
+ * traer con stock aparece solo (y el feed, mientras tanto, no lo publica). Por eso
+ * el `WHERE` filtra por el valor contrario: lo que devuelve son los cambios reales.
+ */
+export async function setWhatsAppScope(db: D1Database, scope: WaScope, publish: boolean, now: number): Promise<number> {
+  const r = await db
+    .prepare(
+      `UPDATE products SET wa_publish = ?, updated_at = ?
+       WHERE wa_publish = ? AND (${scope.where})`
+    )
+    .bind(publish ? 1 : 0, now, publish ? 0 : 1, ...scope.args)
+    .run();
+  return r.meta.changes ?? 0;
 }
 
 /**

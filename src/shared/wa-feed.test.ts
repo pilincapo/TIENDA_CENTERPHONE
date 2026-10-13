@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Product } from "./types";
 import {
+  avisoCatalogoVacio,
   buildWaFeed,
+  feedResultante,
   waAvailability,
   waBrand,
   waDescription,
@@ -231,5 +233,46 @@ describe("buildWaFeed", () => {
     const { csv } = buildWaFeed([prod()], { ...OPTS, origin: "https://centerphone.com.ar/" });
     expect(csv).toContain("https://centerphone.com.ar/producto/5469");
     expect(csv).not.toContain("com.ar//producto");
+  });
+});
+
+// Aviso del panel antes de una acción masiva sobre el catálogo de WhatsApp. La aritmética
+// se testea acá (y no en el navegador) porque es lo que decide si se pide una segunda
+// confirmación antes de desarmar el catálogo.
+describe("aviso de catálogo casi vacío", () => {
+  it("marcar suma solo los que todavía no estaban en el feed", () => {
+    expect(feedResultante(true, 100, 0, 10)).toBe(110);
+    expect(feedResultante(true, 100, 4, 10)).toBe(106);
+    // Ya estaban todos: marcar no cambia el tamaño del feed.
+    expect(feedResultante(true, 100, 10, 10)).toBe(100);
+  });
+
+  it("quitar resta los que estaban en el feed (nunca da negativo de más)", () => {
+    expect(feedResultante(false, 100, 40, 45)).toBe(60);
+    expect(feedResultante(false, 100, 100, 100)).toBe(0);
+  });
+
+  it("avisa fuerte cuando la acción deja el feed vacío, y explica la consecuencia", () => {
+    const aviso = avisoCatalogoVacio(0, 100);
+    expect(aviso).toContain("VACÍO");
+    // El feed responde error a propósito y Meta conserva el catálogo viejo: no es "nada".
+    expect(aviso).toContain("error a propósito");
+  });
+
+  it("avisa cuando queda menos de un cuarto del catálogo, y no cuando queda más", () => {
+    expect(avisoCatalogoVacio(25, 100)).toContain("con 25 productos, de los 100 que hay hoy");
+    expect(avisoCatalogoVacio(26, 100)).toBe("");
+    // Singular bien dicho cuando queda uno solo.
+    expect(avisoCatalogoVacio(1, 100)).toContain("con 1 producto,");
+  });
+
+  it("con el feed ya vacío no avisa nada (no hay nada que proteger)", () => {
+    expect(avisoCatalogoVacio(0, 0)).toBe("");
+  });
+
+  it("una acción que no achica el feed no dice nada", () => {
+    expect(avisoCatalogoVacio(100, 100)).toBe("");
+    expect(avisoCatalogoVacio(110, 100)).toBe("");
+    expect(avisoCatalogoVacio(feedResultante(true, 100, 0, 10), 100)).toBe("");
   });
 });

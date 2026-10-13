@@ -9,9 +9,11 @@ import type { Dict, Env } from "./db";
 import {
   countProducts, countProductsByCategory, countProductsBySource, countProductsByStatus, countWhatsAppProducts, deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct,
   getAutoImportByUrl, getProduct, insertSyncLog, lastSyncLogByDetail, listAutoImports, listCategories, listPriceRules,
-  listProductsPaged, listSyncLog, listSyncLogByTrigger, repararNombreCategoria, repararTextoProducto, setProductsWaPublish, upsertAutoImport,
+  listProductsPaged, listSyncLog, listSyncLogByTrigger, repararNombreCategoria, repararTextoProducto, setProductsWaPublish, setWhatsAppScope, upsertAutoImport, waCategoryScope, waSourceScope, whatsAppScopePreview,
   upsertCategory, upsertPriceRule, upsertProduct,
 } from "./db";
+import type { WaScope } from "./db";
+import { invalidateWaFeedCache } from "./wa-feed";
 import { markAutoImportRun, nowArgentina, runAllAutoImportsNow, runAutoImportById, runAutoImports } from "./autoimport";
 import { getCatalogStatus, getSyncState, importItems, markCatalogPending, regenerateSnapshot, runSync } from "./sync";
 import { getStatsSummary } from "./stats";
@@ -194,7 +196,8 @@ adminApp.get("/products", async (c) => {
     limit,
     counts: { published: counts.published, hidden: counts.hidden },
     srcCounts,
-    // Cuántos productos están marcados para el catálogo de WhatsApp (contador del panel).
+    // Tamaño del feed del catálogo de WhatsApp (contador del panel): marcados,
+    // publicados y con foto, o sea las filas que descarga Meta.
     waCount,
   });
 });
@@ -301,6 +304,41 @@ adminApp.post("/products/whatsapp", async (c) => {
   if (ids.length === 0) return c.json({ error: "Pasá ids: [...]" }, 400);
   const publish = body?.publish !== false;
   const updated = await setProductsWaPublish(c.env.DB, ids, publish, nowMs());
+  if (updated > 0) await invalidateWaFeedCache(c.env);
+  return c.json({ ok: true, updated, publish });
+});
+
+/**
+ * Alcance pedido por el panel, desde el query (GET) o el cuerpo (POST): una categoría o
+ * un origen. Null si no se entiende (se responde 400: mejor eso que una acción masiva
+ * sobre el catálogo equivocado).
+ */
+function waScopePedido(valores: { categoryId?: unknown; src?: unknown }): WaScope | null {
+  const src = typeof valores.src === "string" ? valores.src.trim() : "";
+  if (src !== "") return waSourceScope(src);
+  const categoryId = typeof valores.categoryId === "string" ? valores.categoryId.trim() : "";
+  return categoryId === "" ? null : waCategoryScope(categoryId);
+}
+
+// Vista previa de una acción masiva ("marcar la categoría entera", "marcar todo lo de
+// un origen"): cuántos productos hay, cuántos se marcarían y cuántos están en el feed
+// hoy. No modifica nada.
+adminApp.get("/products/whatsapp/scope", async (c) => {
+  const scope = waScopePedido({ categoryId: c.req.query("categoryId"), src: c.req.query("src") });
+  if (!scope) return c.json({ error: "Pasá categoryId o src" }, 400);
+  return c.json({ preview: await whatsAppScopePreview(c.env.DB, scope) });
+});
+
+// Marca/desmarca todo un alcance (una categoría con sus subcategorías, o un origen)
+// para el catálogo de WhatsApp. Misma semántica que el borrado masivo y el filtro
+// "Origen:" del panel, respectivamente.
+adminApp.post("/products/whatsapp/scope", async (c) => {
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const scope = waScopePedido(body ?? {});
+  if (!scope) return c.json({ error: "Pasá categoryId o src" }, 400);
+  const publish = body?.publish !== false;
+  const updated = await setWhatsAppScope(c.env.DB, scope, publish, nowMs());
+  if (updated > 0) await invalidateWaFeedCache(c.env);
   return c.json({ ok: true, updated, publish });
 });
 

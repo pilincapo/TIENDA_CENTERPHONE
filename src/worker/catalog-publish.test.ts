@@ -48,6 +48,7 @@ function makeKv(entries: Record<string, string> = {}): KVNamespace & { _map: Map
   const kv = {
     get: async (k: string) => map.get(k) ?? null,
     put: async (k: string, v: string) => { map.set(k, v); },
+    delete: async (k: string) => { map.delete(k); },
     _map: map,
   };
   return kv as KVNamespace & { _map: Map<string, string> };
