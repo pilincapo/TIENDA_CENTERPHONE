@@ -1,3 +1,12 @@
+## 2026-10-14 — Commit, push y deploy de la jornada de catálogo móvil
+
+- **Commits en `main`** (push exit 0 a `origin/main`): `2e22e80` — precios sin cortar en móvil, vista de lista con alternador, orden persistente, suite visual con Playwright y la guía del catálogo de WhatsApp— y `18ca982` — el runbook: la suite visual como paso previo obligatorio de cada deploy.
+- **Runbook**: el bloque de Deploy ahora arranca con `npm run test:visual` y aclara «si falla, NO deployar», con los requisitos (Playwright instalado una vez por máquina, D1 local con productos).
+- **La suite corrió como gate real del deploy**: **9 passed** en 29.5s (exit 0), como manda el runbook.
+- **Deploy `8f533114-5f53-4839-893f-64182371e84b`** (exit 0): 9 assets subidos (4 ya estaban), bindings KV/D1/ASSETS/EMAIL/vars y cron `0 * * * *` intactos, startup 4 ms. Sin migración D1 (schema.sql sin cambios).
+- **Verificado en producción** (deploy `8f533114`): `/`, `/producto/5469`, `/admin/`, `/sitemap.xml`, `/robots.txt` y `/api/catalog` → **200**; `www` → **301** al canónico; el HTML servido referencia los **bundles nuevos** (mismos hashes que el build local: `catalog-Bw0-LBUb.js`, `whatsapp-DjX4VeZN.css`). En navegador a 360px sobre el sitio real: **0 precios cortados** (precio a 113px de ancho), sin scroll horizontal; el alternador **lista** aplica (columna única, foto 116px) y tras **recarga** persisten **la vista lista y el orden «Menor precio»**, guardados en localStorage **y aplicados** (precios renderizados en orden creciente). Los arreglos de hoy ya están visibles para los clientes.
+- **Nota**: como esta entrada registra el deploy, no está en el asset desplegado — llega con el próximo (mismo patrón que las entradas anteriores).
+
 ## 2026-10-14 — Catálogo: el orden también se guarda en el navegador, y pruebas visuales automatizadas
 
 - **Pedido**: dos cosas — (1) "guardá también la preferencia de orden (menor/mayor precio) en el navegador, igual que la vista"; (2) "agregá una prueba visual automatizada que falle si un precio queda cortado o el alternador de vista no persiste".
