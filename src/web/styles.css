@@ -125,6 +125,53 @@ img { max-width: 100%; display: block; }
 @media (max-width: 480px) {
   .announce { font-size: 12px; padding: 6px 10px; }
 }
+/* Movimientos opcionales (Configuración › Cinta › Movimiento). El modificador
+   solo existe si el dueño eligió animación; el modo estático no toca nada.
+   `.announce-track` es el <span> con el texto: lo que se anima es ese span,
+   nunca la barra (el color de fondo queda quieto). */
+.announce--marquee, .announce--swing { overflow: hidden; }
+/* Ida continua (tipo noticiero): la pista arranca fuera a la derecha
+   (padding-left: 100%) y recorre el ancho de la barra entera (-100% del
+   propio ancho = barra + texto), así el texto entra, cruza y sale sin huecos. */
+.announce--marquee .announce-track {
+  display: inline-block; white-space: nowrap; padding-left: 100%;
+  animation: announce-marquee 18s linear infinite;
+}
+@keyframes announce-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+/* Ida y vuelta: oscila ±6% del ancho del texto a los costados. El texto casi
+   siempre cabe en la barra, así que rara vez se recorta en un extremo. */
+.announce--swing .announce-track {
+  display: inline-block;
+  animation: announce-swing 4s ease-in-out infinite alternate;
+}
+@keyframes announce-swing {
+  from { transform: translateX(-6%); }
+  to { transform: translateX(6%); }
+}
+/* Fundido: el texto respira; la barra y el fondo no se mueven. */
+.announce--fade .announce-track {
+  display: inline-block;
+  animation: announce-fade 3.5s ease-in-out infinite;
+}
+@keyframes announce-fade {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .35; }
+}
+/* Sin animación (reducir movimiento del sistema): el texto tiene que quedar
+   visible y en su lugar — hay que volver a poner la pista en cero, porque la
+   de marquee arranca fuera de pantalla por el padding. */
+@media (prefers-reduced-motion: reduce) {
+  .announce--marquee .announce-track,
+  .announce--swing .announce-track,
+  .announce--fade .announce-track {
+    animation: none;
+    transform: none;
+    padding-left: 0;
+  }
+}
 /* Panel: "Ver sitio" y "Salir" empujados a la derecha del topbar (el brand queda a la izquierda). */
 .topbar-site { margin-left: auto; }
 @media (max-width: 480px) {

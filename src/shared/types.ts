@@ -104,6 +104,30 @@ export interface Order {
  */
 export type StoreMode = "tienda" | "catalogo";
 
+/**
+ * Movimiento de la cinta de anuncio (Configuración › Cinta de anuncio):
+ * - "none": estático (el comportamiento original).
+ * - "marquee": desplazamiento continuo tipo noticiero (entra por la derecha y cruza).
+ * - "swing": ida y vuelta (oscila a los costados sin irse de la barra).
+ * - "fade": fundido (la barra queda fija y el texto respira).
+ * Son animaciones CSS puras y todas respetan `prefers-reduced-motion` del sistema.
+ */
+export type AnnouncementMotion = "none" | "marquee" | "swing" | "fade";
+
+export const ANNOUNCEMENT_MOTIONS: AnnouncementMotion[] = ["none", "marquee", "swing", "fade"];
+
+export const ANNOUNCEMENT_MOTION_LABELS: Record<AnnouncementMotion, string> = {
+  none: "Estático (sin movimiento)",
+  marquee: "Desplazamiento continuo (tipo noticiero)",
+  swing: "Ida y vuelta (oscila a los costados)",
+  fade: "Fundido (el texto aparece y desvanece)",
+};
+
+/** Lo que llega del panel (o de un cliente) debe estar en la lista; cualquier otra cosa = "none". */
+export function isAnnouncementMotion(v: unknown): v is AnnouncementMotion {
+  return typeof v === "string" && (ANNOUNCEMENT_MOTIONS as readonly string[]).includes(v);
+}
+
 export interface StoreSettings {
   /** Modo del sitio. Única fuente de verdad: `paymentsEnabled` se deriva de acá. */
   storeMode: StoreMode;
@@ -149,6 +173,8 @@ export interface StoreSettings {
   maintenanceMessage: string;
   /** Cinta de anuncio sobre el topbar (ej. "📦 Envío gratis en Santa Fe"). Vacía = no se muestra. */
   announcementBar: string;
+  /** Movimiento de la cinta (ver AnnouncementMotion). "none" = estática. */
+  announcementMotion: AnnouncementMotion;
   // ---- Envíos con Andreani (cotización server-side) ----
   /** Cotizador de envíos activo: muestra el precio en carrito y ficha. Sin credenciales del worker queda inerte. */
   shippingAndreaniEnabled: boolean;
@@ -215,6 +241,8 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   maintenanceMessage: "",
   // Cinta de anuncio: vacía por defecto (no se muestra nada hasta configurarla).
   announcementBar: "",
+  // Movimiento de la cinta: apagado por defecto (estático, como siempre).
+  announcementMotion: "none",
   // Envíos: apagado por defecto; sin secrets ANDREANI_* el worker rechaza igual.
   shippingAndreaniEnabled: false,
   shippingAndreaniContrato: "",

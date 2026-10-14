@@ -127,6 +127,8 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     maintenanceMode: s.maintenanceMode,
     // Cinta de anuncio configurable (texto plano; el frontend lo escapa).
     announcementBar: s.announcementBar,
+    // Movimiento de la cinta ("none" = estática); el frontend lo valida igual.
+    announcementMotion: s.announcementMotion,
     // Envíos (cotizador Andreani): solo los campos que el frontend necesita.
     shippingAndreaniEnabled: s.shippingAndreaniEnabled,
     shippingPostalCode: s.shippingPostalCode,

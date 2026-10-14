@@ -2,7 +2,7 @@
 
 import { Hono } from "hono";
 import type { Category, OrderStatus, Product, StoreSettings, SyncLogEntry } from "../shared/types";
-import { ORDER_STATUSES } from "../shared/types";
+import { ORDER_STATUSES, isAnnouncementMotion } from "../shared/types";
 import type { AutoImport } from "../shared/autoimport";
 import { TAGS } from "../shared/types";
 import type { Dict, Env } from "./db";
@@ -684,6 +684,9 @@ adminApp.put("/settings", async (c) => {
     maintenanceMessage: String(body.maintenanceMessage ?? "").slice(0, 300),
     // Cinta de anuncio: texto de una línea (el HTML se escapa al renderizar).
     announcementBar: String(body.announcementBar ?? "").trim().slice(0, 120),
+    // Movimiento de la cinta: valor del select del panel; cualquier otra cosa
+    // (body parcial, cliente raro) cae a "none", el estado original de siempre.
+    announcementMotion: isAnnouncementMotion(body.announcementMotion) ? body.announcementMotion : "none",
     // Envíos Andreani: config pura (las credenciales son secrets del worker).
     shippingAndreaniEnabled: body.shippingAndreaniEnabled === true,
     shippingAndreaniContrato: String(body.shippingAndreaniContrato ?? "").trim().slice(0, 40),
