@@ -23,6 +23,23 @@ Chromium real que ningún precio de la grilla quede cortado (320-1280px, en
 grilla y lista) y que la vista y el orden elegidos sobrevivan la recarga.
 Ver `tests/visual/` y la entrada del changelog del 2026-10-14.
 
+**Paso 4 — verificar que el deploy tomó efecto** (los bundles tienen hash
+nuevo: un HTML viejo = caché o deploy sin activar):
+
+```bash
+curl -s https://centerphone.com.ar/ | grep -oE 'assets/[a-z]+-[^"]+\.js'
+curl -s https://centerphone.com.ar/api/public/settings | grep -o '"announcementMotion":[^,}]*'
+```
+
+**Quirk (2026-10-14)**: el primer `npm run deploy` quedó listado como
+deployment activo al 100% (`wrangler deployments status` lo confirmaba) pero
+la producción **y** `celu-store.pilin123.workers.dev` siguieron sirviendo el
+código y los assets **viejos** ~9 minutos, incluso con cache-buster. Repetir
+`npm run deploy` lo resolvió al instante (el segundo deployment sí activó
+todo; los assets ya estaban subidos). Si el paso 4 sigue viendo los bundles
+viejos después de un minuto, repetí el deploy y verificá de nuevo.
+
+
 ## Secret `MERCADOPAGO_ACCESS_TOKEN`
 
 **Quirk de `wrangler secret put` interactivo**: pide **nombre y valor por

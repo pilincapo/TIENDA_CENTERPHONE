@@ -1,3 +1,15 @@
+## 2026-10-14 — Commit y deploy de la cinta animada (el primer deploy no activó y hubo que repetirlo)
+
+- **Pedido**: "Commiteá los cambios de la cinta animada y desplegalos a producción".
+- **Commit `b4ecdfc`** en `main` (exit 0): 9 archivos, +157/−9 — la setting `announcementMotion`, el select del panel, el render con pista animada, las animaciones CSS con `prefers-reduced-motion`, +4 tests (suite **392**) y la entrada previa del changelog. **Sin push** (no se pidió).
+- **Gate del runbook**: `npm run test:visual` **9 passed** (43.9s, exit 0) antes de deployar; sin migración D1 (`schema.sql` sin cambios).
+- **Deploy 1 — `90cc8ac1` (17:28Z, exit 0) — NO tomó efecto**: wrangler reportó éxito y `wrangler deployments status` lo listaba al 100%, pero la producción **y** `celu-store.pilin123.workers.dev` siguieron sirviendo el worker y los assets **viejos** ~9 minutos después — settings público sin `announcementMotion`, `admin-X242pjtJ.js` → 404 (el viejo `oFISrEhg` → 200) y el HTML con los hashes de ayer — incluso con cache-buster y en workers.dev (o sea, no era caché del dominio propio).
+- **Deploy 2 — `2a306151` (17:37Z, exit 0) — resolvió todo**: wrangler informó "No updated asset files to upload" (los assets ya estaban en la cuenta desde el deploy 1) y este deployment **sí activó al instante**, en workers.dev y en centerphone.com.ar.
+- **Verificado en producción** (deploy `2a306151`): `/`, `/producto/5469`, `/admin/`, `/sitemap.xml`, `/robots.txt` y `/api/catalog` → **200**; `www` → **301**; el HTML de `/` (con y sin cache-buster) referencia los **bundles nuevos** (`catalog-BixLvStw.js`, `whatsapp-CAMXSVtj.js`, `whatsapp-CwaMkrM2.css`); el panel servido es `admin-X242pjtJ.js` con el select (`announcementMotion` presente); el CSS trae `announce-marquee` / `announce-swing` / `announce-fade` y `prefers-reduced-motion`; `/api/public/settings` expone `"announcementMotion":"none"`.
+- **La tienda de producción quedó como estaba**: el dueño no eligió movimiento todavía (default `none`), así que la cinta sigue **estática** con su texto — la opción para animarla ya está disponible en Configuración › Ventas. No se tocó ninguna configuración de producción.
+- **Runbook**: nuevo **paso 4** (comandos para confirmar que el deploy tomó efecto) y el quirk del deploy que no activa, con la instrucción de repetir `npm run deploy` y reverificar.
+- **Límite**: la animación se midió en **Chromium local** (20/20 checks); en producción se verificó por HTTP que los assets servidos son **hash-idénticos** a los locales verificados. Esta entrada registra el deploy, así que entra en el asset del próximo (patrón habitual).
+
 ## 2026-10-14 — Cinta de anuncio: movimiento configurable desde el panel (deslizar, ida y vuelta o fundido)
 
 - **Pedido** (feedback sobre el preview del sitio real): "agregar una opción en configuración para activar movimiento al banner, tipo slider o ida y vuelta, u otros".
