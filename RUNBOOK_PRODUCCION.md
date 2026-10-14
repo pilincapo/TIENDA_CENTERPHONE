@@ -6,12 +6,22 @@ Referencia rápida; el detalle histórico está en `changelog.md`.
 ## Deploy
 
 ```bash
-# 1. Migración D1 remota (solo si schema.sql cambió)
+# 1. Suite visual: precios sin cortar, vista de lista y preferencias
+#    (corre contra un wrangler propio en el 8788; si falla, NO deployar)
+npm run test:visual
+
+# 2. Migración D1 remota (solo si schema.sql cambió)
 npx wrangler d1 execute celu-store-db --remote --file=db/schema.sql
 
-# 2. Deploy del worker
+# 3. Deploy del worker
 npm run deploy
 ```
+
+La suite visual necesita Playwright instalado una vez por máquina
+(`npx playwright install chromium`) y productos en la D1 local: mide con
+Chromium real que ningún precio de la grilla quede cortado (320-1280px, en
+grilla y lista) y que la vista y el orden elegidos sobrevivan la recarga.
+Ver `tests/visual/` y la entrada del changelog del 2026-10-14.
 
 ## Secret `MERCADOPAGO_ACCESS_TOKEN`
 
