@@ -13,8 +13,53 @@ import { renderAnnouncement } from "./announcement";
 import { localBusinessJsonLd, webSiteJsonLd } from "./schema";
 
 type SortMode = "default" | "price-asc" | "price-desc" | "random";
+type ViewMode = "grid" | "list";
 
 const PAGE_SIZE = 20;
+
+// Preferencia de vista (grilla/lista) persistida en el navegador, con la
+// misma convención que el carrito: si localStorage está bloqueado o lleno,
+// la vista vale solo para esta sesión.
+const VIEW_KEY = "celu_view_v1";
+
+function loadView(): ViewMode {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "grid";
+  } catch {
+    return "grid";
+  }
+}
+
+function saveView(v: ViewMode): void {
+  try {
+    localStorage.setItem(VIEW_KEY, v);
+  } catch {
+    // localStorage bloqueado o lleno: la elección no persiste, no es error.
+  }
+}
+
+// Mismo trato para el orden del select "Ordenar": el orden por defecto (y el
+// de una clave ilegible o bloqueado el storage) sigue siendo el aleatorio.
+const SORT_KEY = "celu_sort_v1";
+
+function loadSort(): SortMode {
+  try {
+    const v = localStorage.getItem(SORT_KEY);
+    return v === "default" || v === "price-asc" || v === "price-desc" || v === "random"
+      ? v
+      : "random";
+  } catch {
+    return "random";
+  }
+}
+
+function saveSort(v: SortMode): void {
+  try {
+    localStorage.setItem(SORT_KEY, v);
+  } catch {
+    // localStorage bloqueado o lleno: la elección no persiste, no es error.
+  }
+}
 
 const state = {
   snapshot: null as CatalogSnapshot | null,
@@ -24,9 +69,10 @@ const state = {
   tags: new Set<Tag>(),
   // Orden por defecto: aleatorio, para que todos los productos se promocionen.
   // El seed cambia en cada visita: cada carga muestra el catálogo en otro orden.
-  sort: "random" as SortMode,
+  sort: loadSort(),
   seed: Math.floor(Math.random() * 1e9),
   shown: PAGE_SIZE,
+  view: loadView(),
 };
 
 const el = {
@@ -214,6 +260,12 @@ function renderToolbar(): void {
         </select>
       </label>
       <span class="tb-count" id="tb-count" hidden></span>
+      <div class="tb-view" role="group" aria-label="Vista del catálogo">
+        <button type="button" class="tb-view-btn ${state.view === "grid" ? "on" : ""}" data-view="grid"
+          aria-pressed="${state.view === "grid"}" title="Vista en grilla">&#9638;</button>
+        <button type="button" class="tb-view-btn ${state.view === "list" ? "on" : ""}" data-view="list"
+          aria-pressed="${state.view === "list"}" title="Vista en lista">&#9776;</button>
+      </div>
     </div>
     <div class="tb-row">
       <button class="chip ${state.category === "" ? "on" : ""}" data-cat="">Todos</button>
@@ -246,8 +298,24 @@ function renderToolbar(): void {
     const v = (ev.target as HTMLSelectElement).value as SortMode;
     if (v === "random" && state.sort !== "random") state.seed = Math.floor(Math.random() * 1e9);
     state.sort = v;
+    saveSort(v);
     resetPager();
     render();
+  });
+  // Alternador grilla/lista: se actualizan los dos botones en el lugar (sin
+  // redibujar la toolbar) para no perder el scroll horizontal de los chips.
+  el.toolbar.querySelectorAll<HTMLButtonElement>("button[data-view]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const v = btn.dataset.view as ViewMode;
+      if (v === state.view) return;
+      state.view = v; saveView(v);
+      el.toolbar.querySelectorAll<HTMLButtonElement>("button[data-view]").forEach((b) => {
+        const on = b.dataset.view === v;
+        b.classList.toggle("on", on);
+        b.setAttribute("aria-pressed", String(on));
+      });
+      renderGrid();
+    });
   });
   el.toolbar.querySelectorAll<HTMLButtonElement>("button[data-tag]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -295,6 +363,7 @@ function clearFilters(): void {
   state.tags.clear();
   // Volver al orden por defecto: aleatorio, con seed nuevo.
   state.sort = "random";
+  saveSort("random");
   state.seed = Math.floor(Math.random() * 1e9);
   state.search = "";
   el.search.value = "";
@@ -512,7 +581,7 @@ function renderGrid(): void {
   // (lazy en las above-fold retrasa el LCP porque el preload scanner las ignora).
   const card = (p: Product, i: number): string => cardHtml(p, i < 4);
   setContent(`
-    <div class="grid">${visible.map(card).join("")}</div>
+    <div class="grid${state.view === "list" ? " grid--list" : ""}">${visible.map(card).join("")}</div>
     ${more ? `<div class="load-more-wrap"><button class="btn load-more" id="load-more">Cargar más <span class="lm-count">(${sorted.length - visible.length} restantes)</span></button></div>` : ""}
   `);
   document.getElementById("load-more")?.addEventListener("click", () => {

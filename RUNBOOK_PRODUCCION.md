@@ -155,6 +155,8 @@ Conclusión: **la lista sale de Google, no de D1.**
 
 El catálogo de WhatsApp no tiene carga masiva —ni en la app ni desde ningún panel—: el catálogo de WhatsApp **es** un catálogo de Meta (Commerce Manager) vinculado a la cuenta, y Meta lo llena **descargando periódicamente un archivo de una URL pública**. Por eso acá no se "suben" productos: se **marcan** en el panel y el worker sirve el archivo que Meta baja solo.
 
+**Paso a paso detallado: [GUIA_CATALOGO_WHATSAPP.md](GUIA_CATALOGO_WHATSAPP.md)** — los requisitos de Meta con sus fuentes, la verificación de disponibilidad en Argentina (y lo que no se pudo confirmar), los problemas típicos y el checklist de publicación. Lo de abajo es el resumen.
+
 **Cómo se usa:**
 
 1. En el panel, pestaña **Productos**: seleccionás las filas (los checkboxes de siempre) y usás **📱 Publicar en WhatsApp** o **📱 Quitar de WhatsApp**. Los marcados muestran el badge 📱 y la barra dice cuántos están en el feed.

@@ -212,6 +212,24 @@ img { max-width: 100%; display: block; }
 .card-price { font-size: 14px; font-weight: 700; color: var(--brand); }
 .card-foot { margin-top: auto; display: flex; align-items: center; gap: 8px; }
 
+/* ===== Vista lista (alternador en la toolbar) ===== */
+/* Una columna de filas: foto a la izquierda, datos a la derecha. En móvil
+   siguen mandando las reglas del media query de <=800px sobre el pie
+   (precio en su propia fila), asi que el precio no se corta en ninguna vista.
+   La clase la pone renderGrid() segun state.view. */
+/* .grid.grid--list (y no .grid--list): dentro del media query de <=800px
+   la regla .grid { repeat(2, ...) } tiene la misma especificidad pero va
+   DESPUES en el archivo y pisaria esta; con la clase doble gana siempre. */
+.grid.grid--list { grid-template-columns: 1fr; }
+.grid--list .card { flex-direction: row; align-items: stretch; }
+.grid--list .card-img {
+  width: 116px; flex: 0 0 auto; aspect-ratio: 1;
+  border-bottom: none; border-right: 1px solid var(--border);
+}
+.grid--list .card-body { flex: 1 1 auto; min-width: 0; }
+.grid--list .card-title { min-height: 0; }
+@media (min-width: 801px) { .grid--list .card-img { width: 180px; } }
+
 /* ===== Badges ===== */
 .badges { display: flex; gap: 6px; flex-wrap: wrap; }
 .badge {
@@ -546,6 +564,18 @@ img { max-width: 100%; display: block; }
 .tb-top {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
+/* Alternador grilla/lista: dos botones de icono con area tactil >=24px
+   (WCAG 2.2 SC 2.5.8) y estado activo igual que un chip. */
+.tb-view { flex: 0 0 auto; display: inline-flex; gap: 4px; }
+.tb-view-btn {
+  min-width: 28px; min-height: 28px; padding: 2px 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border-bright); background: var(--panel); color: var(--muted);
+  font-size: 13px; line-height: 1; cursor: pointer; font-family: var(--font-sans);
+  transition: border-color .15s, color .15s, background-color .15s;
+}
+.tb-view-btn:hover { border-color: var(--brand); color: var(--brand); }
+.tb-view-btn.on { background: var(--term-green-soft); color: var(--brand); border-color: var(--brand); }
 .tb-sort {
   flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
   font-size: 12px; color: var(--muted);
@@ -646,11 +676,15 @@ img { max-width: 100%; display: block; }
      viewport y las tarjetas se cortaban (grilla de 349px con 395px de contenido). */
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .card-title { font-size: 13px; }
-  .card-price { font-size: 15px; }
-  .card-wa { padding: 4px 9px; font-size: 12px; margin-left: 6px; }
-  .card-foot { flex-wrap: nowrap; min-width: 0; }
-  .card-price { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; min-width: 0; }
-  .card-wa { flex: 0 0 auto; }
+  /* Precio y botón en filas separadas. En una tarjeta de ~154px el botón
+     "Consultar" (~85px) dejaba ~30px al precio y el ellipsis de abajo lo
+     cortaba en "$125…" (verificado en navegador: 20 de 20 precios cortados
+     a 360px). El precio ocupa su propia fila a todo el ancho —aguanta
+     "$1.250.000" sin cortarse— y el botón queda debajo, más cómodo para
+     el dedo. Desktop (>=801px) conserva la fila única. */
+  .card-foot { flex-wrap: wrap; min-width: 0; }
+  .card-price { font-size: 15px; flex: 1 1 100%; min-width: 0; white-space: nowrap; }
+  .card-wa { flex: 1 1 100%; margin-left: 0; padding: 7px 9px; font-size: 12px; }
   .layout { padding: 16px 12px; }
   .catalog-main { padding: 12px 12px 20px; }
   .toolbar { top: 51px; padding: 8px 10px; gap: 6px; }
@@ -668,6 +702,10 @@ img { max-width: 100%; display: block; }
   .tb-sort { font-size: 10.5px; gap: 4px; }
   .tb-sort select { padding: 5px 6px; font-size: 11px; max-width: 46vw; }
   .tb-count { font-size: 10.5px; padding: 4px 8px; }
+  /* Con el alternador la fila puede superar el ancho: que envuelva en vez
+     de desbordar (el select ya esta limitado a 46vw). */
+  .tb-top { flex-wrap: wrap; row-gap: 6px; }
+  .tb-view-btn { min-width: 26px; min-height: 26px; font-size: 12px; }
 }
 
 /* ===== Header: nav ===== */
