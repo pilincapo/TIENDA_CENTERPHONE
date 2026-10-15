@@ -424,8 +424,9 @@ img { max-width: 100%; display: block; }
 
 /* ===== Admin ===== */
 .admin-main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
-/* Menú del panel: grupos en columnas con etiqueta arriba (Ventas / Catálogo /
-   Importación / Sistema). Los links usan la misma pestaña de siempre. */
+/* Menú del panel: grupos en columnas con etiqueta arriba (Resumen / Catálogo /
+   Importación / Ventas / Sistema — 11 pestañas en 5 secciones). Los links
+   usan la misma pestaña de siempre; el router lee data-tab, no el orden. */
 .menu {
   display: flex; align-items: stretch; flex-wrap: wrap;
   padding: 8px 20px 10px; background: var(--bg);

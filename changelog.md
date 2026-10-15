@@ -1,3 +1,14 @@
+## 2026-10-15 — Panel: el menú de 11 pestañas agrupado en 5 secciones claras
+
+- **Pedido**: "reorganizá también el menú de pestañas del admin: agrupá las 11 en secciones claras".
+- **Nueva estructura** (`admin/index.html`): **📊 Resumen** (Dashboard, Estadísticas), **📦 Catálogo** (Productos, Categorías), **🔄 Importación** (Importar, Auto-importación), **💰 Ventas** (Pedidos, Precios) y **⚙️ Sistema** (Configuración, Seguridad, Cambios). Orden pensado como el flujo del dueño: ver el estado → editar el catálogo → traer de proveedores → vender → configurar.
+- **Dos claridades de etiqueta**: «Reglas» era la **escala de precios** (`viewRules` contra `/price-rules`), no reglas de importación —estaba metida en el grupo «Importación», que es justo lo que confundía— y pasó a Ventas renombrada **«Precios»**; «Auto-imp.» pasó a **«Auto-importación»**. Los rótulos de grupo ahora llevan emoji, igual que las barras del resto del panel.
+- **Por qué es solo HTML**: el router y el resaltado leen `data-tab` (`renderSerial`, `setTabHighlight`) y el badge de Pedidos se engancha por `a[data-tab="orders"]` —ningún código depende del orden ni de la cantidad de grupos—, así que mover enlaces no toca TypeScript. El comentario del CSS del menú (`src/web/styles.css`) se actualizó a la lista nueva; el minificador se lleva el comentario, así que el CSS de la tienda quedó **byte-idéntico** (mismo hash `whatsapp-C5erMD9b.css`).
+- **Verificado en navegador** (Chromium real contra el dev server reiniciado, `.verify-menu.mjs`): **18/18 checks** — 5 secciones con sus rótulos, 11 pestañas sin duplicadas, «Precios» en Ventas, las **11 pestañas navegadas** una por una con su link activo y contenido pintado, **0 `pageerror`**, el nodo de Pedidos alcanzable por `data-tab` y **sin scroll horizontal a 360px** (el menú envuelve).
+- **Quirk del entorno (otra vez)**: tras el `npm run build`, el dev server de 8787 quedó con el índice de assets viejo y `/admin/` devolvió **404**. Se mató el árbol completo con `taskkill /T` desde la raíz (los `node` supervisores si no reaniman al `workerd`, como documenta el changelog del 14) y se levantó uno nuevo; verificado con polling HTTP hasta 200.
+- **Gates**: typecheck en 0, suite completa **406 en 44 archivos** y build en 0. No corre `test:visual`: la suite cubre el sitio público y el CSS público salió idéntico byte a byte (solo cambió un comentario y el HTML del panel, que no está en esa suite).
+- **Sin deploy y sin commitear**: cambios locales; nada subido a Cloudflare.
+
 ## 2026-10-15 — Commit, push y deploy de la reorganización del panel y la cinta completa
 
 - **Pedido**: "commits push y deploy" (los cambios de la reorganización del panel, la velocidad de la cinta y las varias promos estaban verificados y sin commitear).

@@ -28,35 +28,43 @@
         <button id="logout" class="btn btn-ghost">Salir</button>
       </header>
       <nav class="menu" id="tabs" aria-label="Secciones del panel">
+        <!-- 11 pestañas en 5 secciones por tarea del dueño: ver el estado, editar
+             el catálogo, traer productos de los proveedores, vender, configurar.
+             El router lee data-tab, no el orden: mover enlaces acá es libre. -->
         <div class="menu-group">
-          <span class="menu-label">Catálogo</span>
+          <span class="menu-label">📊 Resumen</span>
+          <div class="menu-links">
+            <a href="#dashboard" data-tab="dashboard">Dashboard</a>
+            <a href="#stats" data-tab="stats">Estadísticas</a>
+          </div>
+        </div>
+        <div class="menu-group">
+          <span class="menu-label">📦 Catálogo</span>
           <div class="menu-links">
             <a href="#products" data-tab="products">Productos</a>
             <a href="#categories" data-tab="categories">Categorías</a>
           </div>
         </div>
         <div class="menu-group">
-          <span class="menu-label">Importación</span>
+          <span class="menu-label">🔄 Importación</span>
           <div class="menu-links">
             <a href="#import" data-tab="import">Importar</a>
-            <a href="#auto" data-tab="auto">Auto-imp.</a>
-            <a href="#rules" data-tab="rules">Reglas</a>
+            <a href="#auto" data-tab="auto">Auto-importación</a>
           </div>
         </div>
         <div class="menu-group">
-          <span class="menu-label">Ventas</span>
+          <span class="menu-label">💰 Ventas</span>
           <div class="menu-links">
             <a href="#orders" data-tab="orders">Pedidos</a>
-            <a href="#stats" data-tab="stats">Estadísticas</a>
+            <a href="#rules" data-tab="rules">Precios</a>
           </div>
         </div>
         <div class="menu-group">
-          <span class="menu-label">Sistema</span>
+          <span class="menu-label">⚙️ Sistema</span>
           <div class="menu-links">
-            <a href="#dashboard" data-tab="dashboard">Dashboard</a>
             <a href="#settings" data-tab="settings">Configuración</a>
-            <a href="#changelog" data-tab="changelog">Cambios</a>
             <a href="#seguridad" data-tab="seguridad">Seguridad</a>
+            <a href="#changelog" data-tab="changelog">Cambios</a>
           </div>
         </div>
       </nav>
