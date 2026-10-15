@@ -128,6 +128,39 @@ export function isAnnouncementMotion(v: unknown): v is AnnouncementMotion {
   return typeof v === "string" && (ANNOUNCEMENT_MOTIONS as readonly string[]).includes(v);
 }
 
+/**
+ * Velocidad de las animaciones de la cinta (marquee/swing/fade) y de la
+ * rotación entre promos. "normal" = los tiempos de siempre; "slow"/"fast"
+ * solo reescalan esos valores, así un default normal no cambia nada.
+ */
+export type AnnouncementSpeed = "slow" | "normal" | "fast";
+
+export const ANNOUNCEMENT_SPEEDS: AnnouncementSpeed[] = ["slow", "normal", "fast"];
+
+export const ANNOUNCEMENT_SPEED_LABELS: Record<AnnouncementSpeed, string> = {
+  slow: "Lenta",
+  normal: "Normal",
+  fast: "Rápida",
+};
+
+/** Multiplicador sobre la duración base de cada animación (>1 = más lento). */
+export const ANNOUNCEMENT_SPEED_FACTOR: Record<AnnouncementSpeed, number> = {
+  slow: 1.8,
+  normal: 1,
+  fast: 0.55,
+};
+
+/** Lo que llega del panel (o de un cliente) debe estar en la lista; cualquier otra cosa = "normal". */
+export function isAnnouncementSpeed(v: unknown): v is AnnouncementSpeed {
+  return typeof v === "string" && (ANNOUNCEMENT_SPEEDS as readonly string[]).includes(v);
+}
+
+/** Cinta con varias promos: hasta N, una por línea (como los pasos de «Cómo comprar»). */
+export const MAX_ANNOUNCEMENT_PROMOS = 5;
+
+/** Caracteres máximos por promo de la cinta. */
+export const MAX_ANNOUNCEMENT_PROMO_LEN = 120;
+
 export interface StoreSettings {
   /** Modo del sitio. Única fuente de verdad: `paymentsEnabled` se deriva de acá. */
   storeMode: StoreMode;
@@ -175,6 +208,8 @@ export interface StoreSettings {
   announcementBar: string;
   /** Movimiento de la cinta (ver AnnouncementMotion). "none" = estática. */
   announcementMotion: AnnouncementMotion;
+  /** Velocidad de la animación y la rotación de la cinta (ver AnnouncementSpeed). */
+  announcementSpeed: AnnouncementSpeed;
   // ---- Envíos con Andreani (cotización server-side) ----
   /** Cotizador de envíos activo: muestra el precio en carrito y ficha. Sin credenciales del worker queda inerte. */
   shippingAndreaniEnabled: boolean;
@@ -243,6 +278,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   announcementBar: "",
   // Movimiento de la cinta: apagado por defecto (estático, como siempre).
   announcementMotion: "none",
+  announcementSpeed: "normal",
   // Envíos: apagado por defecto; sin secrets ANDREANI_* el worker rechaza igual.
   shippingAndreaniEnabled: false,
   shippingAndreaniContrato: "",

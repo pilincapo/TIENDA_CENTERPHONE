@@ -1,5 +1,5 @@
 // Settings públicas que el worker expone al frontend (sin tokens ni URLs de sync).
-import type { AnnouncementMotion } from "../shared/types";
+import type { AnnouncementMotion, AnnouncementSpeed } from "../shared/types";
 
 export interface PublicSettings {
   whatsappPhone: string;
@@ -37,6 +37,8 @@ export interface PublicSettings {
   announcementBar: string;
   /** Movimiento de la cinta ("none" = estática). Ver shared/types AnnouncementMotion. */
   announcementMotion: AnnouncementMotion;
+  /** Velocidad de la animación y la rotación ("normal" = los tiempos de siempre). */
+  announcementSpeed: AnnouncementSpeed;
   /** Envíos: cotizador Andreani activo (requiere secrets ANDREANI_* del worker). */
   shippingAndreaniEnabled: boolean;
   /** CP del local (origen de envíos); informativo, el cálculo lo hace el worker. */

@@ -1,11 +1,28 @@
 // Configuración de la tienda persistida en KV.
 
 import type { StoreMode, StoreSettings } from "../shared/types";
-import { DEFAULT_SETTINGS, KV_SETTINGS_KEY } from "../shared/types";
+import { DEFAULT_SETTINGS, KV_SETTINGS_KEY, MAX_ANNOUNCEMENT_PROMOS, MAX_ANNOUNCEMENT_PROMO_LEN } from "../shared/types";
 import { repairTextFields } from "../shared/encoding";
 
 export function isStoreMode(v: unknown): v is StoreMode {
   return v === "tienda" || v === "catalogo";
+}
+
+/**
+ * Cinta de anuncio con varias promos: cada línea no vacía es una promo
+ * (una por fila, igual que los pasos de "Cómo comprar"). Se queda con
+ * hasta MAX_ANNOUNCEMENT_PROMOS líneas de MAX_ANNOUNCEMENT_PROMO_LEN
+ * caracteres; el resto se descarta. Un valor no-string (campo ausente en
+ * un body parcial) queda "", igual que antes: cinta no renderizada.
+ */
+export function sanitizeAnnouncementBar(raw: unknown): string {
+  return String(raw ?? "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l !== "")
+    .slice(0, MAX_ANNOUNCEMENT_PROMOS)
+    .map((l) => l.slice(0, MAX_ANNOUNCEMENT_PROMO_LEN))
+    .join("\n");
 }
 
 /**

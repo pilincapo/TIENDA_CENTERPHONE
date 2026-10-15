@@ -1,7 +1,7 @@
 // SPA del panel de administración.
 
 import type { Category, Order, OrderStatus, Product, StoreSettings, SyncLogEntry } from "../shared/types";
-import { ANNOUNCEMENT_MOTIONS, ANNOUNCEMENT_MOTION_LABELS } from "../shared/types";
+import { ANNOUNCEMENT_MOTIONS, ANNOUNCEMENT_MOTION_LABELS, ANNOUNCEMENT_SPEEDS, ANNOUNCEMENT_SPEED_LABELS, MAX_ANNOUNCEMENT_PROMOS, MAX_ANNOUNCEMENT_PROMO_LEN } from "../shared/types";
 import { formatPrice } from "../shared/format";
 import type { AutoImport } from "../shared/autoimport";
 import type { PriceRule } from "../shared/pricing";
@@ -144,9 +144,21 @@ function route(): string {
 // Se arma al tocar un campo, se desarma al guardar bien o al volver a los valores originales.
 let dirtyGuardArmed = false;
 
+// Token de render: cada navegación incrementa el contador. Una vista async que
+// haga `await` (fetcheos) compara su token con el vigente al retomar: si cambió,
+// significa que el usuario ya navegó a otra vista y el DOM de `#view` ya no es
+// Render serializado: solo puede correr UN render a la vez. Al cargar el panel
+// con sesión abierta se disparan dos a la vez —`boot()` (porque checkSession()
+// es true) y `hashchange` (porque el hash pasa de vacío a #settings)— y si
+// corren en paralelo se pisan: el perdedor engancha listeners contra nodos que
+// el ganador ya reemplazó, y eso era el "addEventListener of null" intermitente
+// que rompía Configuración. Acá la segunda llamada espera a la primera y, si
+// llegan varias, se ejecuta solo la última (la más reciente).
+let renderEnCurso: Promise<void> | null = null;
+
 async function render(): Promise<void> {
-  // Aviso de cambios sin guardar: solo si la vista anterior era Configuración
-  // (si el usuario ya confirmó o el DOM cambió, se deja ir sin preguntar).
+  // Guardia de cambios sin guardar: se chequea ANTES de tocar el DOM, porque
+  // `renderSerial` pisa #view con el spinner apenas arranca.
   if (dirtyGuardArmed && el.view.querySelector("#s-form")) {
     const seguir = confirm("Hay cambios sin guardar en Configuración. Si cambiás de pestaña ahora, se pierden.\n\n¿Querés salir igual?");
     if (!seguir) {
@@ -160,6 +172,17 @@ async function render(): Promise<void> {
     }
     dirtyGuardArmed = false;
   }
+  // Si ya hay un render corriendo, esperar a que termine (`.finally`) antes de
+  // arrancar el nuestro: nunca dos renders en paralelo. Si llegan varias
+  // llamadas en cascada, cada una espera a la anterior y recién entonces lee
+  // `route()`, así la última pinta el estado final.
+  const anterior = renderEnCurso;
+  const mio = (anterior ? anterior.then(() => renderSerial()) : renderSerial());
+  renderEnCurso = mio.catch(() => {});
+  return mio;
+}
+
+async function renderSerial(): Promise<void> {
   const tab = route();
   setTabHighlight(tab);
   el.view.innerHTML = `<div class="state"><div class="spinner"></div></div>`;
@@ -3041,9 +3064,15 @@ async function viewSettings(): Promise<void> {
   el.view.innerHTML = `
     <div class="panel">
       <h2>Configuración de la tienda</h2>
-      <p class="muted">Tocá una sección para abrirla o cerrarla. Los cambios se guardan todos juntos con el botón «Guardar configuración».</p>
+      <p class="muted">Elegí una sección. Los cambios se guardan todos juntos con el botón «Guardar configuración», pase lo que pase en cualquiera de las demás.</p>
+      <nav class="cfg-tabs" id="cfg-tabs" aria-label="Secciones de configuración">
+        <button type="button" class="cfg-tab active" data-sec="tienda">🏪 Tienda</button>
+        <button type="button" class="cfg-tab" data-sec="pagos">💳 Pagos y envíos</button>
+        <button type="button" class="cfg-tab" data-sec="cinta">📣 Apariencia</button>
+        <button type="button" class="cfg-tab" data-sec="avanzado">⚙️ Catálogo y sistema</button>
+      </nav>
       <form id="s-form">
-        <details class="cfg-group" open>
+        <details class="cfg-group" open data-sec="tienda">
           <summary>Tienda <span class="cfg-hint">nombre, dirección, horarios, redes y link de seguimiento</span></summary>
           <div class="cfg-body">
             <div class="field"><label>Nombre de la tienda</label>
@@ -3062,8 +3091,8 @@ async function viewSettings(): Promise<void> {
               <input name="trackUrl" value="${esc(settings.trackUrl)}" placeholder="https://repairpro.centerphone.com.ar/track-lite"/></div>
           </div>
         </details>
-        <details class="cfg-group">
-          <summary>Ventas <span class="cfg-hint">WhatsApp, moneda y texto «Cómo comprar»</span></summary>
+        <details class="cfg-group" data-sec="cinta">
+          <summary>Apariencia y mensajes <span class="cfg-hint">WhatsApp, moneda, «Cómo comprar», cinta y badge</span></summary>
           <div class="cfg-body">
             <div class="field"><label>Número de WhatsApp (con código de país, sin + ni espacios)</label>
               <input name="whatsappPhone" value="${esc(settings.whatsappPhone)}" placeholder="5491100000000"/></div>
@@ -3083,14 +3112,19 @@ async function viewSettings(): Promise<void> {
             </div>
             <div class="field"><label>Nota de retiro del modal (vacía = "Retiro en el local: {dirección}")</label>
               <input name="howPickupNote" value="${esc(settings.howPickupNote)}" placeholder="📍 Retiro en el local: Mendoza 2974"/></div>
-            <div class="field"><label>Cinta de anuncio (barra arriba de todo; vacía = no se muestra)</label>
-              <input name="announcementBar" value="${esc(settings.announcementBar ?? "")}" maxlength="120" placeholder="📦 Envío gratis en Santa Fe · Cuotas sin interés"/>
-              <p class="muted" style="margin:6px 0 0;font-size:12px">Se ve en el catálogo y en las fichas de producto. Ideal para promos cortas.</p></div>
+            <div class="field"><label>Cinta de anuncio — una promo por fila (vacía = no se muestra)</label>
+              <textarea name="announcementBar" rows="3" maxlength="604" placeholder="📦 Envío gratis en Santa Fe&#10;🔥 10% de descuento por transferencia">${esc(settings.announcementBar ?? "")}</textarea>
+              <p class="muted" style="margin:6px 0 0;font-size:12px">Se ve en el catálogo y en las fichas de producto. Hasta ${MAX_ANNOUNCEMENT_PROMOS} promos de ${MAX_ANNOUNCEMENT_PROMO_LEN} caracteres: con más de una, rota sola una atrás de otra cada unos segundos, con el movimiento elegido abajo.</p></div>
             <div class="field"><label>Movimiento de la cinta (cómo se anima en la tienda)</label>
               <select name="announcementMotion">
                 ${ANNOUNCEMENT_MOTIONS.map((v) => `<option value="${v}" ${(settings.announcementMotion ?? "none") === v ? "selected" : ""}>${ANNOUNCEMENT_MOTION_LABELS[v]}</option>`).join("")}
               </select>
               <p class="muted" style="margin:6px 0 0;font-size:12px">Solo se anima si la cinta tiene texto. Todas las opciones respetan la preferencia de «reducir movimiento» del sistema operativo.</p></div>
+            <div class="field"><label>Velocidad de la animación y la rotación</label>
+              <select name="announcementSpeed">
+                ${ANNOUNCEMENT_SPEEDS.map((v) => `<option value="${v}" ${(settings.announcementSpeed ?? "normal") === v ? "selected" : ""}>${ANNOUNCEMENT_SPEED_LABELS[v]}</option>`).join("")}
+              </select>
+              <p class="muted" style="margin:6px 0 0;font-size:12px">Afecta tanto la animación como cada cuánto rota una promo atrás de otra. «Normal» es la velocidad por defecto.</p></div>
             <div class="field"><label>Badge "Nuevo" automático (productos cargados hace menos de…)</label>
               <select name="freshHours">
                 <option value="24" ${settings.freshHours === 24 ? "selected" : ""}>24 horas</option>
@@ -3100,7 +3134,7 @@ async function viewSettings(): Promise<void> {
               </select></div>
           </div>
         </details>
-        <details class="cfg-group" open>
+        <details class="cfg-group" open data-sec="tienda">
           <summary>Modo del sitio <span class="cfg-hint">tienda con ventas online, o solo catálogo</span></summary>
           <div class="cfg-body">
             <div class="field field--check">
@@ -3112,7 +3146,7 @@ async function viewSettings(): Promise<void> {
             <p class="muted" id="store-mode-hint" style="margin:0"></p>
           </div>
         </details>
-        <details class="cfg-group">
+        <details class="cfg-group" data-sec="pagos">
           <summary>Pagos online (MercadoPago) <span class="cfg-hint">recargo, descuento y CBU</span></summary>
           <div class="cfg-body" id="pagos-body">
             <div class="field"><label>Nota de envío/retiro (se muestra en el carrito y en la página del pedido)</label>
@@ -3131,7 +3165,7 @@ async function viewSettings(): Promise<void> {
             • Webhook a configurar en MercadoPago (Tus integraciones → Webhooks): <code>https://tu-dominio/api/payments/webhook</code> — evento <em>Pagos</em>.</p>
           </div>
         </details>
-        <details class="cfg-group">
+        <details class="cfg-group" data-sec="pagos">
           <summary>📦 Envíos (Andreani) <span class="cfg-hint">cotizá el costo de envío con el CP del comprador</span></summary>
           <div class="cfg-body">
             <div class="field field--check">
@@ -3155,7 +3189,7 @@ async function viewSettings(): Promise<void> {
             • Producción: <code>npx wrangler secret put ANDREANI_USER</code> y <code>ANDREANI_PASSWORD</code>.</p>
           </div>
         </details>
-        <details class="cfg-group">
+        <details class="cfg-group" data-sec="avanzado">
           <summary>📱 Catálogo de WhatsApp <span class="cfg-hint">publicá productos elegidos en tu catálogo de WhatsApp</span></summary>
           <div class="cfg-body">
             <p class="muted" style="margin:0">WhatsApp no tiene carga masiva: Meta descarga solo el archivo de abajo (cada hora o cada día) y con eso agrega, actualiza precios y saca productos del catálogo. Vos elegís qué publicar en la pestaña <strong>Productos</strong>: seleccioná las filas y tocá <strong>📱 Publicar en WhatsApp</strong>.</p>
@@ -3175,7 +3209,7 @@ async function viewSettings(): Promise<void> {
             <p class="muted">Entran solo los productos <strong>publicados (en stock) y con foto</strong>; el precio se publica en <strong>ARS</strong> y los que no traen descripción o marca reciben un texto de respaldo armado con el título, la categoría y el nombre de la tienda.</p>
           </div>
         </details>
-        <details class="cfg-group">
+        <details class="cfg-group" data-sec="avanzado">
           <summary>Mantenimiento <span class="cfg-hint">cerrar la tienda al público</span></summary>
           <div class="cfg-body">
             <div class="field field--check">
@@ -3188,7 +3222,7 @@ async function viewSettings(): Promise<void> {
         <p class="muted">La sincronización del catálogo se gestiona desde la pestaña <strong>Auto-importaciones</strong>: cargás los links, les asignás horarios (hora Argentina) y el cron los actualiza solo. El historial de cada corrida queda en el Dashboard.</p>
         <button type="submit" class="btn btn-primary">Guardar configuración</button>
       </form>
-      <details class="cfg-group" style="margin-top:24px">
+      <details class="cfg-group" style="margin-top:24px" data-sec="avanzado">
         <summary>Seguridad <span class="cfg-hint">cambiar la contraseña del panel</span></summary>
         <div class="cfg-body">
           <form id="pw-form">
@@ -3225,6 +3259,7 @@ async function viewSettings(): Promise<void> {
           howPickupNote: fd.get("howPickupNote"),
           announcementBar: fd.get("announcementBar"),
           announcementMotion: fd.get("announcementMotion"),
+          announcementSpeed: fd.get("announcementSpeed"),
           freshHours: Number(fd.get("freshHours")),
           storeMode: fd.get("storeMode") === "catalogo" ? "catalogo" : "tienda",
           checkoutNote: fd.get("checkoutNote"),
@@ -3265,6 +3300,7 @@ async function viewSettings(): Promise<void> {
     }
     waUrl.addEventListener("click", () => waUrl.select());
   }
+
   form.querySelector("#wa-feed-copy")?.addEventListener("click", () => {
     const url = waUrl?.value ?? "";
     if (url === "") return;
@@ -3443,6 +3479,24 @@ async function viewSettings(): Promise<void> {
       ? `✅ Token de MercadoPago configurado. Toggle activo: <strong>${st.enabled ? "sí" : "no"}</strong>.`
       : `⚠️ <strong>Sin token</strong>: el pago online no funciona aunque el toggle esté activo. Configurá el secret <code>MERCADOPAGO_ACCESS_TOKEN</code> (instrucciones abajo).`;
   }).catch(() => {});
+
+  // ---- Secciones de Configuración ----
+  // La configuración es un form ÚNICO (el PUT /settings reemplaza el objeto
+  // entero: un form por sección borraría el resto). Esta barra solo filtra qué
+  // <details> se ve; el form entero se envía siempre, pase lo que pase.
+  const secButtons = [...el.view.querySelectorAll<HTMLButtonElement>(".cfg-tab")];
+  // Incluye también el <details> de Seguridad (cambio de contraseña), que vive
+  // en el panel pero FUERA de #s-form: debe ocultarse con su sección igual.
+  const secGroups = [...el.view.querySelectorAll<HTMLDetailsElement>(".cfg-group[data-sec]")];
+  const showSection = (sec: string): void => {
+    secButtons.forEach((b) => b.classList.toggle("active", b.dataset.sec === sec));
+    secGroups.forEach((g) => { g.hidden = g.dataset.sec !== sec; });
+    // El primer grupo de la sección se abre solo (los demás quedan plegados).
+    const first = secGroups.find((g) => g.dataset.sec === sec);
+    if (first) first.open = true;
+  };
+  secButtons.forEach((b) => b.addEventListener("click", () => showSection(b.dataset.sec ?? "tienda")));
+  showSection("tienda"); // sección por defecto: lo más habitual al entrar
 
   // Cambio de contraseña del panel.
   const pwForm = el.view.querySelector("#pw-form") as HTMLFormElement;

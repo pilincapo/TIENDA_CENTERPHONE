@@ -129,6 +129,8 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     announcementBar: s.announcementBar,
     // Movimiento de la cinta ("none" = estática); el frontend lo valida igual.
     announcementMotion: s.announcementMotion,
+    // Velocidad de la animación y la rotación ("normal" = los tiempos de siempre).
+    announcementSpeed: s.announcementSpeed,
     // Envíos (cotizador Andreani): solo los campos que el frontend necesita.
     shippingAndreaniEnabled: s.shippingAndreaniEnabled,
     shippingPostalCode: s.shippingPostalCode,

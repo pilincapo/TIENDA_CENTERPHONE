@@ -121,10 +121,21 @@ img { max-width: 100%; display: block; }
   background: var(--brand); color: #04180a;
   font-size: 13px; font-weight: 700; text-align: center;
   padding: 7px 14px;
+  /* Multiplicador de velocidad de las animaciones (Configuración › Cinta ›
+     Velocidad). "normal" no agrega clase, así que el default es 1 y el HTML
+     de las tiendas que no lo usan no cambia. Lento alarga, rápido acorta. */
+  --announce-speed: 1;
 }
+.announce--slow { --announce-speed: 1.8; }
+.announce--fast { --announce-speed: 0.55; }
 @media (max-width: 480px) {
   .announce { font-size: 12px; padding: 6px 10px; }
 }
+/* Varias promos (una por línea en el panel): solo la marcada .is-on se ve;
+   las demás quedan display:none y no ocupan ancho, así la pista mide lo que
+   se ve y la rotación (JS) solo cambia cuál está encendida. */
+.announce-msg { display: none; }
+.announce-msg.is-on { display: inline; }
 /* Movimientos opcionales (Configuración › Cinta › Movimiento). El modificador
    solo existe si el dueño eligió animación; el modo estático no toca nada.
    `.announce-track` es el <span> con el texto: lo que se anima es ese span,
@@ -135,7 +146,7 @@ img { max-width: 100%; display: block; }
    propio ancho = barra + texto), así el texto entra, cruza y sale sin huecos. */
 .announce--marquee .announce-track {
   display: inline-block; white-space: nowrap; padding-left: 100%;
-  animation: announce-marquee 18s linear infinite;
+  animation: announce-marquee calc(18s * var(--announce-speed)) linear infinite;
 }
 @keyframes announce-marquee {
   from { transform: translateX(0); }
@@ -145,7 +156,7 @@ img { max-width: 100%; display: block; }
    siempre cabe en la barra, así que rara vez se recorta en un extremo. */
 .announce--swing .announce-track {
   display: inline-block;
-  animation: announce-swing 4s ease-in-out infinite alternate;
+  animation: announce-swing calc(4s * var(--announce-speed)) ease-in-out infinite alternate;
 }
 @keyframes announce-swing {
   from { transform: translateX(-6%); }
@@ -154,7 +165,7 @@ img { max-width: 100%; display: block; }
 /* Fundido: el texto respira; la barra y el fondo no se mueven. */
 .announce--fade .announce-track {
   display: inline-block;
-  animation: announce-fade 3.5s ease-in-out infinite;
+  animation: announce-fade calc(3.5s * var(--announce-speed)) ease-in-out infinite;
 }
 @keyframes announce-fade {
   0%, 100% { opacity: 1; }
@@ -451,6 +462,25 @@ img { max-width: 100%; display: block; }
   .menu { padding: 8px 12px 10px; }
   .menu-group { padding: 2px 10px; }
   .menu a { padding: 4px 7px; font-size: 11px; }
+}
+
+/* Barra de secciones dentro de Configuración: el form es único (el PUT de
+   settings reemplaza el objeto entero), así que esto solo filtra qué grupo se
+   ve. Mismo lenguaje visual que el menú del panel, pero como botones. */
+.cfg-tabs {
+  display: flex; gap: 4px; flex-wrap: wrap; align-items: center;
+  padding: 0 0 12px; margin: 12px 0 4px;
+  border-bottom: 1px solid var(--border);
+}
+.cfg-tab {
+  background: none; border: 1px solid transparent; cursor: pointer;
+  padding: 5px 10px; font-size: 13px; font-weight: 600; color: var(--text);
+  font-family: inherit;
+}
+.cfg-tab:hover { background: var(--panel-2); color: var(--brand); border-color: var(--border-bright); }
+.cfg-tab.active { background: var(--term-green-soft); color: var(--brand); font-weight: 700; border-color: var(--brand); }
+@media (max-width: 640px) {
+  .cfg-tab { padding: 4px 8px; font-size: 12px; }
 }
 
 .login {

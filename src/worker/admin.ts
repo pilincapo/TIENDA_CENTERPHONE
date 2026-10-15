@@ -2,7 +2,7 @@
 
 import { Hono } from "hono";
 import type { Category, OrderStatus, Product, StoreSettings, SyncLogEntry } from "../shared/types";
-import { ORDER_STATUSES, isAnnouncementMotion } from "../shared/types";
+import { ORDER_STATUSES, isAnnouncementMotion, isAnnouncementSpeed } from "../shared/types";
 import type { AutoImport } from "../shared/autoimport";
 import { TAGS } from "../shared/types";
 import type { Dict, Env } from "./db";
@@ -21,7 +21,7 @@ import { computeSalud } from "./health";
 import { applyRuleSet, roundToPeso, type PriceRule } from "../shared/pricing";
 import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { extractFromUrl } from "./extract";
-import { forceHttpsUrl, getSettings, isStoreMode, newId, nowMs, saveSettings } from "./settings";
+import { forceHttpsUrl, getSettings, isStoreMode, newId, nowMs, sanitizeAnnouncementBar, saveSettings } from "./settings";
 import { configProblem, fetchSecurityEvents } from "./security-log";
 import { adminSetOrderStatus, adminSetOrderArchive, adminSetOrderUnarchive, countOrders, countOrdersByStatus, listOrdersPaged, setOrderNotifiedWa } from "./orders";
 import {
@@ -682,11 +682,14 @@ adminApp.put("/settings", async (c) => {
     transferCbu: String(body.transferCbu ?? "").slice(0, 120),
     maintenanceMode: body.maintenanceMode === true,
     maintenanceMessage: String(body.maintenanceMessage ?? "").slice(0, 300),
-    // Cinta de anuncio: texto de una línea (el HTML se escapa al renderizar).
-    announcementBar: String(body.announcementBar ?? "").trim().slice(0, 120),
+    // Cinta de anuncio: varias promos, una por línea (el HTML se escapa al renderizar).
+    announcementBar: sanitizeAnnouncementBar(body.announcementBar),
     // Movimiento de la cinta: valor del select del panel; cualquier otra cosa
     // (body parcial, cliente raro) cae a "none", el estado original de siempre.
     announcementMotion: isAnnouncementMotion(body.announcementMotion) ? body.announcementMotion : "none",
+    // Velocidad de la animación/rotación: valor del select; cualquier otra cosa
+    // cae a "normal", los tiempos de siempre.
+    announcementSpeed: isAnnouncementSpeed(body.announcementSpeed) ? body.announcementSpeed : "normal",
     // Envíos Andreani: config pura (las credenciales son secrets del worker).
     shippingAndreaniEnabled: body.shippingAndreaniEnabled === true,
     shippingAndreaniContrato: String(body.shippingAndreaniContrato ?? "").trim().slice(0, 40),
