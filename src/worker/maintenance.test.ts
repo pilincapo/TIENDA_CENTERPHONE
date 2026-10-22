@@ -16,7 +16,7 @@ describe("isMaintenanceBypass", () => {
     for (const p of [
       "/admin", "/admin/", "/admin/index.html", "/api/admin/login", "/api/admin/orders",
       "/pedido/abc123", "/api/orders/abc123", "/api/payments/webhook", "/seguimiento",
-      "/assets/catalog-1.js", "/favicon.png", "/logo.jpg", "/404.html", "/_app/x.css",
+      "/assets/catalog-1.js", "/favicon.png", "/logo.jpg", "/404.html", "/404", "/_app/x.css",
     ]) {
       expect(isMaintenanceBypass(p), p).toBe(true);
     }

@@ -28,6 +28,7 @@ const BYPASS_PREFIXES = [
   "/favicon.png",
   "/logo.jpg",
   "/404.html",
+  "/404",
 ];
 
 export function isMaintenanceBypass(path: string): boolean {

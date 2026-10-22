@@ -12,7 +12,7 @@ import { runAutoImports } from "./autoimport";
 import { seoApp } from "./seo";
 import { trackEvent, pruneStats, type StatEventType } from "./stats";
 import { isValidPhone } from "../shared/whatsapp";
-import { applySecurityHeaders, isAllowedTrackOrigin } from "./security";
+import { applySecurityHeaders, applyWorkersDevNoIndex, isAllowedTrackOrigin } from "./security";
 import { checkoutApp } from "./checkout";
 import { armarBulto, andreaniQuote } from "./andreani";
 import { ogTagsHtml } from "./og";
@@ -39,6 +39,10 @@ app.use("*", async (c, next) => {
     c.res = new Response(r.body, { status: r.status, statusText: r.statusText, headers: new Headers(r.headers) });
     applySecurityHeaders(c);
   }
+  // workers.dev = espejo del sitio bajo otro host: noindex para que Google no
+  // lo indexe como duplicado del dominio propio (ver security.ts). El host se
+  // deriva de la URL del request (en el worker es el host real; en tests también).
+  applyWorkersDevNoIndex(c, new URL(c.req.url).host);
 });
 
 // Modo mantenimiento: antes de todas las rutas públicas. Excepciones dentro
@@ -234,13 +238,20 @@ app.post("/api/track", async (c) => {
   return c.body(null, 204);
 });
 
-// Redirect 301 de www al dominio sin www (SEO: evita contenido duplicado y
-// consolida las señales de ranking en un solo host).
+// Redirect 301 a la variante canónica del sitio: http → https y
+// www.centerphone.com.ar → centerphone.com.ar (SEO: evita contenido duplicado
+// y consolida las señales de ranking en un solo origen). Un solo salto:
+// http://www.centerphone.com.ar/x → https://centerphone.com.ar/x. Solo aplica
+// al dominio propio: en local (127.0.0.1:8787) y en workers.dev no se redirige
+// (el workers.dev es un espejo legítimo que además responde con
+// X-Robots-Tag: noindex, ver applyWorkersDevNoIndex en security.ts).
+const CANONICAL_HOSTS = new Set(["centerphone.com.ar", "www.centerphone.com.ar"]);
 app.use("*", async (c, next) => {
-  if (c.req.header("host") === "www.centerphone.com.ar") {
-    const dest = new URL(c.req.url);
-    dest.host = "centerphone.com.ar";
-    return c.redirect(dest.toString(), 301);
+  const url = new URL(c.req.url);
+  if (CANONICAL_HOSTS.has(url.host) && (url.protocol === "http:" || url.host.startsWith("www."))) {
+    url.protocol = "https:";
+    url.host = "centerphone.com.ar";
+    return c.redirect(url.toString(), 301);
   }
   await next();
 });
@@ -253,6 +264,14 @@ async function notFoundPage(c: Context<{ Bindings: Env }>): Promise<Response> {
   const res = await c.env.ASSETS.fetch(new Request(new URL("/404.html", c.req.url)));
   return new Response(res.body, { status: 404, headers: res.headers });
 }
+
+// /404 y /404.html: la capa de assets de Cloudflare serviría 404.html con 200
+// (soft 404 en Search Console: una página que dice «no encontrado» responde
+// 200 y Google la trata como válida). Ambas rutas están en run_worker_first
+// (wrangler.jsonc) y acá se sirven con status 404 REAL, con la misma página
+// de error. Sin esto, /404 respondía 200 y /404.html un 307 a /404.
+app.get("/404", (c) => notFoundPage(c));
+app.get("/404.html", (c) => notFoundPage(c));
 
 // Rutas de página: / (home, explícito porque el montaje de seoApp en la raíz
 // consume el path y el fallback * no lo alcanzaría); /producto/* sirve el shell

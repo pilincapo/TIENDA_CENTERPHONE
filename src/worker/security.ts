@@ -40,6 +40,31 @@ export function applySecurityHeaders(c: { res: { headers: Headers } }): void {
   }
 }
 
+/**
+ * El workers.dev (celu-store.pilin123.workers.dev) sirve el mismo sitio bajo
+ * otro host: si Google lo rastrea, cada URL indexada duplica a la del dominio
+ * propio y alimenta los reportes de «Duplicada» / «Página alternativa» de
+ * Search Console. Con noindex en la respuesta, el espejo queda fuera del
+ * índice sin tocar el dominio propio. Se aplica en el middleware de index.ts
+ * (cubre rutas worker: home, fichas, 404); los assets estáticos directos no
+ * llevan canonical propio y tampoco hace falta: son secundarios.
+ */
+export function applyWorkersDevNoIndex(c: { res: Response }, host: string | undefined): void {
+  const h = (host ?? "").toLowerCase();
+  if (!(h === "workers.dev" || h.endsWith(".workers.dev"))) return;
+  if (c.res.headers.has("X-Robots-Tag")) return;
+  try {
+    c.res.headers.set("X-Robots-Tag", "noindex");
+  } catch {
+    // Headers inmutables (la Response cruda de ASSETS.fetch en "/"): se recrea
+    // con headers copiados — igual que el middleware de seguridad — y se setea
+    // en la respuesta nueva. Sin esto, el espejo workers.dev respondía 500.
+    const r = c.res;
+    c.res = new Response(r.body, { status: r.status, statusText: r.statusText, headers: new Headers(r.headers) });
+    c.res.headers.set("X-Robots-Tag", "noindex");
+  }
+}
+
 // ---- A2: validación de origen del beacon de tracking ----
 
 // Dominios propios que pueden enviar /api/track. El tracking es anónimo y

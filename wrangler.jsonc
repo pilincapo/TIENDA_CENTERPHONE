@@ -8,10 +8,13 @@
     "directory": "./public",
     "binding": "ASSETS",
     // El home (/) pasa primero por el worker: necesario para el redirect 301 de
-    // www → dominio sin www. /changelog.md también: es documentación interna y
-    // solo se sirve autenticado vía /api/admin/changelog (el asset suelto queda
-    // bloqueado). El resto de assets se sirve directo (más rápido).
-    "run_worker_first": ["/", "/changelog.md"]
+    // www → dominio sin www (y http → https). /changelog.md también: es
+    // documentación interna y solo se sirve autenticado vía /api/admin/changelog
+    // (el asset suelto queda bloqueado). /404 y /404.html también: sin esto la
+    // capa de assets servía la página de error con 200 (soft 404 en Search
+    // Console); el worker la devuelve con status 404 real. El resto de assets se
+    // sirve directo (más rápido).
+    "run_worker_first": ["/", "/changelog.md", "/404", "/404.html"]
   },
   "triggers": {
     // Despierta cada 15 min; el worker decide si corresponde sincronizar

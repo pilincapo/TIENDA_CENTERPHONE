@@ -4,7 +4,7 @@
 // Cache API — los bots no generan consultas a D1 en cada rastreo.
 import { Hono } from "hono";
 import type { Env } from "./db";
-import { listCategories, listProducts } from "./db";
+import { listProducts } from "./db";
 
 export const seoApp = new Hono<{ Bindings: Env }>();
 
@@ -16,13 +16,16 @@ seoApp.get("/sitemap.xml", async (c) => {
   }
 
   const origin = "https://centerphone.com.ar";
-  const [products, categories] = await Promise.all([listProducts(c.env.DB), listCategories(c.env.DB)]);
+  const products = await listProducts(c.env.DB);
   const lastmod = new Date().toISOString().slice(0, 10);
 
+  // Sin URLs de categoría (/?cat=...): son la home filtrada por JS, con el
+  // mismo HTML y canonical hacia "/". Publicarlas en el sitemap hacía que
+  // Google las rastree y las agrupara como «Página alternativa con etiqueta
+  // canónica adecuada» por cada categoría, sumando ruido en Search Console sin
+  // ganancia de indexación. Siguen accesibles desde los chips del menú.
   const urls: string[] = [
     `  <url><loc>${origin}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`,
-    ...categories.filter((cat) => cat.active).map((cat) =>
-      `  <url><loc>${origin}/?cat=${encodeURIComponent(cat.id)}</loc><changefreq>daily</changefreq><priority>0.7</priority></url>`),
     ...products.filter((p) => p.status === "published").map((p) =>
       `  <url><loc>${origin}/producto/${encodeURIComponent(p.id)}</loc><lastmod>${lastmod}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`),
   ];
