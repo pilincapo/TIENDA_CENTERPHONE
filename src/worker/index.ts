@@ -7,6 +7,7 @@ import { adminApp } from "./admin";
 import { tecnovaApp } from "./tecnova";
 import { forceHttpsUrl, getSettings } from "./settings";
 import { getProduct, listProducts } from "./db";
+import { destinoDeRedirect } from "./rename-ids";
 import { getSnapshot, isSyncDue, regenerateSnapshot, runSync } from "./sync";
 import { runAutoImports } from "./autoimport";
 import { seoApp } from "./seo";
@@ -293,7 +294,14 @@ app.get("/producto/*", async (c) => {
   // un id desconocido, no el shell con 200.
   if (id === "") return notFoundPage(c);
   const product = await getProduct(c.env.DB, id);
-  if (!product) return notFoundPage(c);
+  if (!product) {
+    // URL vieja de un producto renombrado (el importador migra los ids opacos
+    // del proveedor a nombre de página): 301 al id actual, así Google y los
+    // links ya compartidos no pierden la página. Sin redirect → 404 real.
+    const destino = await destinoDeRedirect(c.env.DB, id).catch(() => null);
+    if (destino !== null) return c.redirect(`/producto/${encodeURIComponent(destino)}`, 301);
+    return notFoundPage(c);
+  }
   const html = await res.text();
   if (!html.includes("<!--OG:START-->")) return new Response(html, { status: res.status, headers: res.headers });
   const settings = await getSettings(c.env.KV);

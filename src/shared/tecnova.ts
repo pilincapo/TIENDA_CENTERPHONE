@@ -11,9 +11,11 @@
 //    como source_url técnica para el ocultado automático, como cualquier otra fuente).
 //  - Precio base = minorista; la regla de recargo (40-30-20 u otra) se elige
 //    en el panel al confirmar la importación (mismo flujo que el importador URL).
+//  - El id (= URL /producto/{id}) sale del TÍTULO del producto: nombre corto
+//    tipo `adaptador-bluetooth-v5-0-usb-dongle`, no `tecnova-185`.
 
 import type { Availability, Product, Tag } from "./types";
-import { slugify } from "./parse";
+import { SLUG_MAX, slugify, tituloSlug, unicoSlug } from "./parse";
 import { detectBrand } from "./brands";
 import { roundToPeso } from "./pricing";
 
@@ -98,6 +100,9 @@ export function tecnovaCatKey(raw: string): string {
 /** Escala "40/30/20" y variantes: no es fija del worker, es una regla o grupo del panel. */
 export const EXAMPLE_PRICE_RULE = "40-30-20";
 
+/** Alias local: el nombre de página viene de los helpers compartidos (parse.ts). */
+export const tecnovaSlug = tituloSlug;
+
 /**
  * Trae el catálogo completo de Tecnova (todas las páginas).
  * Devuelve items crudos tal como vienen, listos para normalizeTecnovaItems.
@@ -142,6 +147,8 @@ export function tecnovaItemsToInternal(
   const skipped: string[] = [];
   const catName: Record<string, string> = {};
   const seenSubs = new Set<string>();
+  // Slugs ya usados en esta corrida (anti-colisión entre títulos repetidos).
+  const usados = new Set<string>();
   raw.forEach((o, i) => {
     const t = String(o.title ?? "").trim();
     if (t === "") {
@@ -171,8 +178,14 @@ export function tecnovaItemsToInternal(
     // El nombre traducido de la categoría raíz se fija más abajo en el worker
     // (necesita listCategories). Acá se deja como slug técnico en `category`;
     // el worker lo reemplaza con el nombre real del catálogo.
+    // Nombre de página: el slug del título. `legado` es el id anterior
+    // (`tecnova-185`): viaja en `prevId` para que el worker renombre la fila
+    // existente en D1, y queda como fallback si el título no produce slug.
+    const legado = slugify(`tecnova-${o.id ?? t}`).slice(0, SLUG_MAX);
+    const id = unicoSlug(tituloSlug(t) || legado, usados);
     const internal: Record<string, unknown> = {
-      id: slugify(`tecnova-${o.id ?? t}`).slice(0, 80),
+      id,
+      ...(id === legado ? {} : { prevId: legado }),
       title: t.slice(0, 200),
       description:
         String(o.description ?? "")

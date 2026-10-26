@@ -1,7 +1,7 @@
 // Mapea items de una fuente externa (JSON) al formato interno.
 
 import type { Product } from "./types";
-import { parseAvailability, parsePriceCents, parseTags, slugify } from "./parse";
+import { parseAvailability, parsePriceCents, parseTags, slugify, tituloSlug, unicoSlug } from "./parse";
 import { roundToPeso } from "./pricing";
 import { detectBrand } from "./brands";
 
@@ -53,6 +53,8 @@ export function normalizeExternalItems(rawItems: unknown[]): NormalizeOutcome {
   const errors: string[] = [];
   const skipped: string[] = [];
   const seenCats = new Set<string>();
+  // Slugs ya usados en esta corrida (anti-colisión entre títulos repetidos).
+  const usados = new Set<string>();
 
   rawItems.forEach((item, i) => {
     if (!item || typeof item !== "object") {
@@ -113,12 +115,33 @@ export function normalizeExternalItems(rawItems: unknown[]): NormalizeOutcome {
       }
     }
 
-    const id = slugify(asString(pick(o, ["id", "sku", "slug"]), 80) || title).slice(0, 80);
+    // Nombre de página: el slug del TÍTULO, no el id opaco del proveedor (hash
+    // numérico tipo "6160" de TiendaNegocio dejaba URLs crípticas en las fichas,
+    // en el sitemap y en el feed de WhatsApp). `idFuente` es el id anterior — el
+    // que la fila tiene hoy en D1 — y viaja en `prevId` para que el worker
+    // renombre la fila y la URL vieja haga 301.
+    // Ítems ya normalizados (la selección confirmada del preview, o internos de
+    // otra fuente como los de Tecnova) traen `prevId`: se respeta su id tal cual
+    // se calculó en la pasada anterior (con el dedupe ya resuelto), no se vuelve
+    // a deduplicar — el panel reenvía los mismos items al partirlos en lotes de 50.
+    const idFuente = slugify(asString(pick(o, ["id", "sku", "slug"]), 80) || title).slice(0, 80);
+    const prevIdRaw = typeof o.prevId === "string" ? o.prevId.trim() : "";
+    let id: string;
+    let prevId: string | null = null;
+    if (prevIdRaw !== "") {
+      id = idFuente; // id ya calculado en el preview
+      usados.add(id);
+      prevId = prevIdRaw === id ? null : prevIdRaw;
+    } else {
+      id = unicoSlug(tituloSlug(title) || idFuente, usados);
+      prevId = id === idFuente ? null : idFuente;
+    }
     // Marca: si la fuente la trae explícita se usa; si no, se detecta del título.
     const brandRaw = asString(pick(o, ["brand", "marca"]), 60);
     const brand = brandRaw !== "" ? brandRaw : detectBrand(title);
     products.push({
       id,
+      prevId,
       title,
       description: asString(pick(o, ["description", "descripcion", "desc"]), 2000),
       priceCents,

@@ -6,6 +6,7 @@ import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { applyRuleSet } from "../shared/pricing";
 import type { Env } from "./db";
 import { hideProductsNotIn, insertSyncLog, listCategories, listPriceRules, listProducts, unhideProductsIn, upsertCategoriesBatch, upsertProductsBatch } from "./db";
+import { renombrarIds } from "./rename-ids";
 import { getSettings, newId, nowMs } from "./settings";
 import { invalidateWaFeedCache } from "./wa-feed";
 
@@ -104,11 +105,12 @@ export async function regenerateSnapshot(env: Env): Promise<CatalogSnapshot> {
   // Snapshot liviano: el home no usa la descripción completa (búsqueda con 160
   // chars alcanza) ni source_url (solo lo usa el panel, que lee de D1). Con ~1000
   // productos esto baja el JSON de ~420KB a ~200KB sin comprimir.
-  const light: Product[] = products.map((p) => ({
-    ...p,
-    description: p.description.slice(0, 160),
-    sourceUrl: null,
-  }));
+  const light: Product[] = products.map((p) => {
+    // prevId es interno del flujo de importación (renombre + redirect): no viaja
+    // al snapshot público ni al caché del catálogo.
+    const { prevId: _prev, ...rest } = p;
+    return { ...rest, description: p.description.slice(0, 160), sourceUrl: null };
+  });
   const snapshot: CatalogSnapshot = {
     generatedAt: nowMs(),
     categories: categories.filter((c) => c.active),
@@ -196,6 +198,22 @@ async function importItemsChunk(
   if (importOptions.sourceUrl) {
     for (const p of products) p.sourceUrl = importOptions.sourceUrl;
   }
+  // Renombre de ids viejos (hash del proveedor, p. ej. "6160") al nombre de
+  // página del título, registrando el 301 en product_redirects. Corre ANTES del
+  // upsert y solo con sourceUrl: es lo que define la propiedad de las filas
+  // (nunca se pisa un producto de otra fuente ni uno manual). Puede mutar
+  // `product.id` (fallback), por eso keepIds se arma después. Un fallo acá no
+  // corta la importación: los productos entran con el id nuevo igual.
+  let renombres: Map<string, string> = new Map();
+  if (importOptions.sourceUrl) {
+    try {
+      const r = await renombrarIds(env.DB, products, importOptions.sourceUrl);
+      renombres = r.fallbacks;
+      if (r.renombrados > 0) console.log(`import: ${r.renombrados} producto(s) renombrados al nombre de página`);
+    } catch (e) {
+      console.error("import: falló el renombre de ids viejos", e);
+    }
+  }
   // Escrituras en chunks (un statement por chunk): sin esto una fuente de 160
   // productos dispara ~330 queries y revienta el límite de 50 por invocación
   // de D1 free — la causa de los errores recurrentes con listas grandes.
@@ -215,7 +233,10 @@ async function importItemsChunk(
     // la lista COMPLETA de ids de la fuente — si se comparara solo contra este
     // chunk, todos los productos guardados por los chunks anteriores quedarían
     // ocultos (bug de "Sin stock" masivo en el importador de Tecnova).
-    const keepIds = importOptions.hideKeepIds ?? products.map((p) => p.id);
+    // Los ids que quedaron con el id viejo por un fallback del renombre se
+    // mapean de vuelta: la fila existe con ese id, no con el nombre de página.
+    const base = importOptions.hideKeepIds ?? products.map((p) => p.id);
+    const keepIds = base.map((id) => renombres.get(id) ?? id);
     deactivated = await hideProductsNotIn(env.DB, importOptions.sourceUrl, keepIds, now);
     await unhideProductsIn(env.DB, importOptions.sourceUrl, keepIds, now);
   }

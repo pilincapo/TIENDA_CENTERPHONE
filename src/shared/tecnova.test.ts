@@ -5,6 +5,7 @@ import {
   DEFAULT_TECNOVA_CATEGORY_MAP,
   tecnovaCatKey,
   tecnovaItemsToInternal,
+  tecnovaSlug,
   type TecnovaMapping,
 } from "./tecnova";
 
@@ -43,7 +44,10 @@ describe("tecnovaItemsToInternal", () => {
     expect(p.categoryId).toBe("computacion");
     expect(p.price_cents).toBe(2_800_000);
     expect(p.availability).toBe("in_stock");
-    expect(p.id).toBe("tecnova-185");
+    // El nombre de página sale del TÍTULO, no del id numérico del proveedor.
+    expect(p.id).toBe("memoria-micro-sd-128gb");
+    // El id viejo viaja en prevId para que el worker renombre la fila en D1.
+    expect(p.prevId).toBe("tecnova-185");
   });
 
   it("producto sin stock y sin lead time queda out_of_stock", () => {
@@ -119,10 +123,41 @@ describe("tecnovaItemsToInternal", () => {
     expect(items[0]!.categoryId).toBe("electronica");
   });
 
-  it("id derivado del id numérico (estable entre corridas)", () => {
+  it("nombre de página estable entre corridas (mismo título, mismo id)", () => {
     const a = tecnovaItemsToInternal([row()], mapping).items[0]!.id;
     const b = tecnovaItemsToInternal([row()], mapping).items[0]!.id;
+    expect(a).toBe("memoria-micro-sd-128gb");
     expect(a).toBe(b);
-    expect(a).toBe("tecnova-185");
+  });
+
+  it("dos productos con el mismo título quedan con sufijo -2", () => {
+    const { items } = tecnovaItemsToInternal([row(), row({ id: 999 })], mapping);
+    expect(items.map((i) => i.id)).toEqual(["memoria-micro-sd-128gb", "memoria-micro-sd-128gb-2"]);
+    expect(items[1]!.prevId).toBe("tecnova-999");
+  });
+
+  it("título sin nada utilizable cae al id legado (sin prevId)", () => {
+    const { items } = tecnovaItemsToInternal([row({ title: "///" })], mapping);
+    expect(items[0]!.id).toBe("tecnova-185");
+    expect(items[0]!.prevId).toBeUndefined();
+  });
+});
+
+describe("tecnovaSlug", () => {
+  it("normaliza acentos y espacios igual que slugify", () => {
+    expect(tecnovaSlug("Memoria MICRO SD 128GB")).toBe("memoria-micro-sd-128gb");
+    expect(tecnovaSlug("Cargador USB-C 45W – Rápido")).toBe("cargador-usb-c-45w-rapido");
+  });
+
+  it("título largo corta en límite de palabra dentro del tope del id", () => {
+    const s = tecnovaSlug("adaptador ".repeat(30).trim());
+    expect(s.length).toBeLessThanOrEqual(80);
+    expect(s.endsWith("-")).toBe(false);
+    expect(s).toBe(Array.from({ length: 8 }, () => "adaptador").join("-"));
+  });
+
+  it("devuelve vacío si el título no deja nada utilizable", () => {
+    expect(tecnovaSlug("///")).toBe("");
+    expect(tecnovaSlug("   ")).toBe("");
   });
 });

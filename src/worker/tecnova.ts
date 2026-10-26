@@ -71,6 +71,9 @@ export async function ensureTecnovaCategories(env: Env, mapping: TecnovaMapping)
   for (const c of created) existing.add(c.id);
   return existing;
 }
+// ---- Renombre de ids viejos al nombre de página ----
+// Ahora vive en rename-ids.ts (genérico para todas las fuentes) y corre dentro
+// de importItems, así que la ruta de Tecnova no lo llama a mano.
 
 /** "Belleza y Cuidado Personal" — el nombre presentable se arma desde el id. */
 function prettyCatName(id: string): string {
@@ -136,6 +139,8 @@ tecnovaApp.post("/import", async (c) => {
     // importados por los anteriores (los productos aparecían "Sin stock").
     // El ocultado real lo hace el último chunk contra la lista COMPLETA de ids
     // importables; los chunks intermedios solo guardan (skipHide).
+    // El renombre de ids viejos al nombre de página corre DENTRO de importItems
+    // (renombrarIds en rename-ids.ts), antes del upsert y del ocultado.
     const isLast = chunkIndex >= chunkTotal - 1;
     const keepIds = isLast ? internal.map((i) => String(i.id)) : undefined;
     const outcome = await importItems(c.env, slice, {

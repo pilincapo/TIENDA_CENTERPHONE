@@ -32,6 +32,11 @@ export interface Product {
   createdAt: number;
   /** URL de origen si fue importado (NULL = alta manual). Si la fuente deja de traerlo, se oculta. */
   sourceUrl: string | null;
+  /** Id ANTERIOR del producto (hash numérico del proveedor, p. ej. "6160"): viaja
+   *  desde el importador hasta renombrar la fila en D1 y registrar el 301 en
+   *  product_redirects. Campo interno del flujo de importación: no se persiste en
+   *  D1 ni entra al snapshot público del catálogo. */
+  prevId?: string | null;
   /** Marca detectada al importar (o null si no se pudo determinar). Opcional para productos creados antes. */
   brand?: string | null;
   /** Solo en la ficha: el producto está oculto (sin stock en la fuente) y se accedió por link directo. */

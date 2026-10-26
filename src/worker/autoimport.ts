@@ -143,6 +143,8 @@ async function fetchJobItems(env: Env, job: AutoImport): Promise<FuenteDescargad
   }
   // Categorías raíz que el mapping pidió y no existen (alta nueva, igual que el import manual).
   await ensureTecnovaCategories(env, mapping);
+  // El renombre de ids viejos al nombre de página corre DENTRO de importItems
+  // (renombrarIds en rename-ids.ts), antes del upsert y del ocultado.
   return { items, errors, warnings, sourceUrl: TECNOVA_SOURCE_URL };
 }
 
