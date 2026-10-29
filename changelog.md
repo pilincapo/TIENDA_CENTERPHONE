@@ -1,3 +1,12 @@
+## 2026-10-29 — Commits y deploy de los tres fixes de la auditoría
+
+- **Pedido**: "publicar y commits" de los arreglos de la auditoría de hoy.
+- **Commits en `main`** (5, sin pushear): `5f1f562` importador JSON-LD sin SSRF ni exceso de subrequests (N1), `91c6dc0` `_headers` con un bloque por ruta de `/admin` (B4), `044d105` `/producto/*` con percent-encoding roto → 404 (N2), `ecdf97d` el informe y el changelog de los tres fixes y, al final, el registro de este deploy.
+- **Gates del runbook antes de deployar**: `typecheck` en **0**, suite completa **465 tests en 48 archivos** y `test:visual` **9 passed**.
+- **Deploy `750137b1-2401-412d-9461-ca510fff3e61`** (exit 0, 100% del tráfico): bindings KV/D1/ASSETS/EMAIL/vars y cron `0 * * * *` intactos; el único asset nuevo fue `/changelog.md` y los bundles del front quedaron con el mismo hash (`catalog-Cqbq9G11.js`, `whatsapp-CaH6Afjj.js`) porque los cambios son 100% worker/headers.
+- **Verificado en producción**: `/producto/100%` y `/producto/%E0%A4%A` → **404** (antes 500); `/admin`, `/admin/` y `/admin/index.html` → **307/200 con `Cache-Control: no-store`** en las tres; regresión `/`, `/api/catalog`, `/sitemap.xml`, `/robots.txt`, una ficha real → **200**, `/no-existe-xyz` → **404**, `/api/admin/settings` sin sesión → **401** y el feed de WhatsApp sin token → 404 (como está diseñado).
+- **Nota**: `.agents/`, `.claude/`, `.kiro/`, `.windsurf/` y `skills-lock.json` (el skill de auditoría) siguen **sin commitear** a propósito; no son código del sitio.
+
 ## 2026-10-29 — `/producto/<id con percent-encoding roto>` responde 404, no 500 (fix N2)
 
 - **Pedido**: arreglar el 500 de `/producto` con percent-encoding inválido (hallazgo N2 de la auditoría de hoy) y agregar el test de regresión.
