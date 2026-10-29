@@ -17,10 +17,10 @@ console.log("✔ public/404.html generado");
 
 // Archivos de marca (favicon + logo) que se sirven desde la raíz.
 mkdirSync(dist, { recursive: true });
-for (const f of ["favicon.png", "logo.jpg"]) {
+for (const f of ["favicon.png", "logo.jpg", "logo-small.jpg"]) {
   copyFileSync(join("brand", f), join(dist, f));
 }
-console.log("✔ favicon.png y logo.jpg copiados a public/");
+console.log("✔ favicon.png y logos copiados a public/");
 
 // Manifest de la web app (color, logo y nombre en Android): se sirve desde la
 // raíz y por eso se recopia en cada build.

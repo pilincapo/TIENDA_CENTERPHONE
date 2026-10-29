@@ -1,3 +1,10 @@
+## 2026-10-29 — Auditoría PageSpeed móvil: quitar Google Fonts de la ruta crítica y reducir el logo del header
+
+- **Medición antes (PSI, móvil, portada pública)**: rendimiento **83**, FCP **2,4 s**, LCP **3,9 s**, TBT **0 ms**, CLS **0**; CrUX sin datos. Lighthouse 13.5.0 con Moto G Power emulado y 4G lenta.
+- **Hallazgos vinculados al código**: PSI midió **750 ms** en la hoja de Google Fonts que bloqueaba render; el HTML y CSS declaraban la misma dependencia (`<link>` + `@import`). El logo propio se descargaba en **440×476 / 28 KiB** para dibujarse a unos **49×53 px**. PSI también señaló imágenes de proveedores externos, algunas sin reducción suficiente, pero no se cambiaron sus URLs por depender de CDNs que no controlamos.
+- **Cambios locales**: la pila monoespaciada ahora usa fuentes del sistema, sin la dependencia de Google Fonts en portada, ficha ni panel; nueva variante de logo de **96×104 / ~2,4 KiB** para el header, conservando `logo.jpg` original para Open Graph/SEO; el build copia ambas imágenes.
+- **Verificación local**: `npm run build` y `npm run typecheck` pasan; el HTML/CSS generado ya no contiene `fonts.googleapis.com` y `public/logo-small.jpg` se copia correctamente (2.392 bytes frente a 28.717 del original). **PSI posterior pendiente**: el informe mide la URL pública, y el cambio aún no está desplegado. No se publicó a producción.
+
 ## 2026-10-29 — Commits y deploy de los tres fixes de la auditoría
 
 - **Pedido**: "publicar y commits" de los arreglos de la auditoría de hoy.

@@ -1,5 +1,4 @@
 /* CenterPhone Celulares — estilos globales (tema terminal/CRT) */
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap");
 
 :root {
   --bg: #0b0f14;
@@ -21,7 +20,7 @@
   --term-green-soft: rgb(63 185 80 / .12);
   --danger: #f85149;
   --radius: 0px;
-  --font-sans: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --term-shadow: 4px 4px 0 rgb(0 0 0 / .55);
   --term-shadow-sm: 2px 2px 0 rgb(0 0 0 / .45);
 }
