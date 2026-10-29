@@ -1,3 +1,48 @@
+## 2026-10-29 — `/producto/<id con percent-encoding roto>` responde 404, no 500 (fix N2)
+
+- **Pedido**: arreglar el 500 de `/producto` con percent-encoding inválido (hallazgo N2 de la auditoría de hoy) y agregar el test de regresión.
+- **Causa**: `/producto/*` hacía `decodeURIComponent(c.req.path.replace(...))` sin `try/catch`. Con un `%` suelto (`/producto/100%`) o un escape inválido (`/producto/%E0%A4%A`) tira `URIError`, Hono lo atrapa en `onError` y devuelve **500**. Hono entrega el path crudo en esos casos (su `tryDecodeURI` atrapa el error de `decodeURI`), así que el throw llega siempre al handler: cualquiera podía generar errores de servidor con una URL tipeada a mano.
+- **Fix**: helper `idDeProducto()` en `src/worker/index.ts` — decodifica con `try/catch` y, si el encoding es inválido, usa el texto crudo. Ese id no existe, así que sigue el camino normal: sin producto y sin redirect → **404 real** con la página de error.
+- **Tests**: +3 en `src/worker/product-redirect.test.ts` (los 6 que ya estaban intactos): `%` suelto → 404, escape inválido → 404 (los dos **reproducidos en rojo con 500** antes del fix) y `cable%20usb-c` → 200, para no romper la decodificación de ids con caracteres especiales. Suite completa **465 tests en 48 archivos**, typecheck en 0.
+- **Solo cambia el worker**: sin migración, sin deploy y sin commit.
+
+## 2026-10-29 — `_headers`: el panel volvió a mandar `no-store` en todas sus rutas (fix B4)
+
+- **Pedido**: arreglar las reglas de `public/_headers` que quedaron sin cabeceras y confirmar que `/admin` y `/admin/index.html` mandan `no-store`.
+- **Causa**: el archivo tenía tres líneas de ruta seguidas (`/admin/index.html`, `/admin`, `/admin/`) y un solo bloque de cabeceras debajo del último. En el formato de `_headers` cada ruta necesita su propio bloque: wrangler parseaba **2 reglas válidas y 2 inválidas** («No headers specified»), así que solo `/admin/` quedaba con `Cache-Control: no-store` y el HTML del login podía quedar cacheado por un proxy.
+- **Fix en `_headers` (raíz)**: un bloque por ruta. Ojo con esto: `public/_headers` es **generado** (`vite build` limpia `public/` y `tools/build-web.js` recopia `_headers`), así que el cambio va en la raíz y se regeneró con `npm run build`.
+- **Verificado con `wrangler dev` en `127.0.0.1:8796`**: el arranque ahora dice **«Parsed 4 valid header rules»** y ya no aparece el aviso de reglas sin cabeceras. Por HTTP: `/admin` → **307** con `Cache-Control: no-store`, `/admin/` → **200** con `no-store`, `/admin/index.html` → **307** con `no-store`; los tres siguen con CSP, `X-Frame-Options: DENY` y el resto de cabeceras. `/` quedó igual (`public, max-age=0, must-revalidate`).
+- **Solo cambia un asset de configuración** (sin migración ni cambio de worker). Sin deploy y sin commit.
+
+## 2026-10-29 — Importador por categoría JSON-LD: sin SSRF y dentro del presupuesto de subrequests (fix N1)
+
+- **Pedido**: arreglar el SSRF y el exceso de subrequests del importador por categoría JSON-LD (hallazgo N1 de la auditoría de hoy).
+- **Problema**: `itemsFromCategoryDetail` (`src/worker/extract.ts`) tomaba hasta **40 URLs literales del JSON-LD de un HTML de terceros** y las pedía con `fetchText()` (3 reintentos cada una) → hasta **120 subrequests** en una invocación contra el límite de **50** del plan gratis (la importación entera se perdía), y una fuente comprometida podía apuntar esas URLs a `127.0.0.1`, `localhost`, `169.254.169.254` o la red privada.
+- **`urlExternaPermitida()` (nueva, exportada)**: solo `http(s)` absolutas a hosts públicos. Bloquea `0/8`, `10/8`, `127/8`, `169.254/16`, `172.16-31`, `192.168/16`, `100.64-127`, IPv6 `::1`/`::`/`fe80:`/`fc00::/7`/`::ffff:`, y nombres `localhost`, `*.localhost`, `*.local`, `*.localdomain`, `*.internal`, `*.home.arpa`. Las IPv4 en decimal/hexadecimal las normaliza `new URL`, así que caen en los mismos rangos.
+- **`fetchFicha()` (nuevo)**: una sola descarga por ficha, sin reintentos, con timeout de **10s** (antes el de 20s del importador general). Si la URL **final** después de los redirects no es pública, no se lee el cuerpo ni se guarda el item.
+- **Tope y concurrencia**: `MAX_DETAIL_FETCH` baja de 40 a **20** y las fichas se piden en **lotes de 3** → peor caso **21 subrequests** (antes 120). Una ficha caída ya no arrastra a las demás. El número salió de medir, no de elegirlo: 20 cubre las categorías reales que se ven (19 fichas en la de Samsung) y los lotes de 3 son el punto donde ese sitio todavía no corta requests (con 6 devolvía 2 de 19).
+- **Tests**: +7 en `src/worker/extract.test.ts` (los 4 de `readBodyCapped` que ya estaban quedaron intactos): matriz de hosts/esquemas permitidos y bloqueados (incluye dominios que empiezan con `fc`/`fd`, que un primer filtro demasiado amplio bloqueaba por error), categoría con 4 URLs internas + 30 públicas → 20 items y ninguna petición a hosts internos, redirect a loopback descartado sin guardar contenido, y ficha 500 que no descarta a las otras dos. Suite completa **462 tests en 48 archivos**, typecheck en 0.
+- **Verificado en local, camino real del panel** (`wrangler dev` en `127.0.0.1:8796` con D1/KV aparte y contraseña de prueba por `--var`, sin tocar `.dev.vars`): login → `POST /api/admin/import/preview` con `https://www.hacetupedido.com/productos/mascotas` → **7 productos en 5.3s** (`tiendanegocio`, sin cambios), `productos/cables` → **24 en 5.5s**, y con una categoría que sí usa el camino de fichas (`samsung.com/ar/smartphones/all-smartphones/`) → **17 de 19 fichas**, `source=ldjson-detail`. Las fuentes configuradas del negocio no usan ese camino, así que no hay regresión en ellas.
+- **Solo cambia el worker**: sin migración y sin deploy (queda para cuando lo pidas). Sin commit.
+
+## 2026-10-29 — Auditoría de seguridad (segunda pasada) con el skill de Cloudflare
+
+- **Pedido**: "security audit this codebase", con el skill `security-audit` ya instalado en `.agents/skills/security-audit/`.
+- **Solo documentación**: se agregó la sección **«Auditoría 2026-10-29»** al final de `INFORME_SEGURIDAD.md` (el informe de la primera pasada queda intacto arriba). No se tocó código, no hay deploy.
+- **Hallazgo más relevante (N1, media condicionada)**: en `src/worker/extract.ts` el camino «categoría JSON-LD» toma hasta **40 URLs literales del JSON-LD de un HTML de terceros** (sin validar esquema ni host) y las pide con 3 reintentos cada una → hasta **120 subrequests** en una invocación (límite del plan gratis: 50) y SSRF acotado hacia loopback/hosts internos.
+- **Bajas**: `/producto/<percent-encoding inválido>` responde 500 en vez de 404 (`decodeURIComponent` sin `try/catch` en `index.ts`); falta `Strict-Transport-Security`; el rate limit del login vive solo en memoria del isolate; el secret de sesión puede degradar a `ADMIN_PASSWORD` (diccionario offline a partir de una cookie capturada); endpoints públicos que gastan cuota externa (webhook MP sin rate limit, cotizador Andreani, alta de pedidos).
+- **Informativos**: inyección de fórmulas en el CSV de WhatsApp, `Origin`/`Referer` como freno y no autenticación, token del feed en la query string.
+- **Dependencias**: `npm audit` → en producción solo `hono@4.13.8` **moderate** (GHSA-5r4p-p66f-jhc7, `serveStatic`), **no explotable** porque el sitio sirve con `env.ASSETS.fetch`; en dev, `vite@7.3.6` y `undici` con avisos altos que no se despliegan.
+- **Re-verificado sin hallazgos**: SQL 100% parametrizado (aun en los 5 lugares con SQL dinámico), escapado de todo dato externo en panel/pedido/OG, anti-fraude del checkout, `tecnovaApp` **sí** protegido por sesión (probado con un test temporal montando las apps como en `index.ts` → 401; test borrado), revocación de sesión y bloqueo de `/changelog.md`.
+
+## 2026-10-29 — Skill `security-audit` (Cloudflare) instalado en el repo
+
+- **Pedido**: `npx skills add https://github.com/cloudflare/security-audit-skill --skill security-audit`.
+- **Qué quedó**: `.agents/skills/security-audit/` con el `SKILL.md` y sus 21 archivos de apoyo (`ATTACK-CLASSES.md`, `HUNTING.md`, `WEB-PROTOCOL-AND-AUTH.md`, `CLOUD-AND-DEPLOYMENT.md`, `report-schema.json` y los validadadores `validate-findings.cjs` / `validate-coverage-ledger.cjs` con sus tests). Copiado también a `.claude/`, `.kiro/` y `.windsurf/` porque en Windows el CLI instala con `--copy` en vez de symlinks.
+- **`skills-lock.json`** nuevo con la fuente y el hash del skill (e6b2e31…) para poder reinstalarlo con `skills experimental_install`.
+- El CLI quedó esperando un prompt en la primera pasada; se resolvió con `-y --copy`.
+- **Solo tooling**: no cambia ni el sitio ni el worker, y no hay deploy. Los archivos están **sin commitear**.
+
 ## 2026-10-29 — Productos duplicados: misma ficha importada por dos fuentes del mismo proveedor
 
 - **Pedido**: "me figuran artículos duplicados, con diferentes nombres, algunos con la regla vieja" — verificar en producción por qué y arreglarlo.
