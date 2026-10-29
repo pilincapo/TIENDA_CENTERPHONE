@@ -2,8 +2,16 @@
 # Las rutas dinámicas del worker reciben las mismas cabeceras vía middleware
 # (src/worker/security.ts). Sin nonce aquí: los HTML estáticos no tienen
 # scripts inline (solo la página /seguimiento, que genera el worker con nonce).
+# Panel: el HTML del login no se cachea en ningún proxy. Cada ruta va con su
+# propio bloque de cabeceras: varias líneas de ruta seguidas de UNA cabecera
+# dejaban a las dos primeras sin cabeceras (wrangler lo reportaba como «No
+# headers specified»), así que /admin y /admin/index.html se cacheaban.
 /admin/index.html
+  Cache-Control: no-store
+
 /admin
+  Cache-Control: no-store
+
 /admin/
   Cache-Control: no-store
 
