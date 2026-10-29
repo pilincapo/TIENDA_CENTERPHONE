@@ -14,26 +14,149 @@ export interface ExtractResult {
   errors: string[];
 }
 
-/** Límite de fichas a descargar cuando la categoría solo da URLs. */
-const MAX_DETAIL_FETCH = 40;
+/**
+ * Límite de fichas a descargar cuando la categoría solo da URLs.
+ *
+ * No es un número arbitrario: el plan gratis da **50 subrequests por
+ * invocación** y esta ruta ya gastó la de la categoría. Con 20 fichas de un
+ * solo intento el peor caso es 1 + 20 = **21 subrequests**, con margen para el
+ * resto de la importación (upsert por chunks, snapshot). Antes eran 40 fichas ×
+ * 3 reintentos = hasta **120**: la invocación entera fallaba y se perdía la
+ * importación completa.
+ *
+ * 20 (y no 10) porque una categoría real ronda las 19-25 fichas: con 10 se
+ * perdía la mitad del listado sin que nadie se enterara.
+ */
+const MAX_DETAIL_FETCH = 20;
+
+/**
+ * Fichas en paralelo. El tope que importa es el de subrequests (no el de
+ * concurrencia), así que esto se calibró midiendo con una categoría real (19
+ * fichas): de a 3 trajo 17 de 19; de a 6 el sitio empezó a cortar requests y
+ * quedaron 2. Un sitio puede limitar por IP si se repite la corrida seguida, así
+ * que la cobertura depende de la fuente; una ficha caída no descarta a las demás.
+ */
+const DETAIL_CONCURRENCY = 3;
+
+/** Timeout por ficha: una ficha colgada no puede comerse el request entero. */
+const DETAIL_TIMEOUT_MS = 10_000;
+
+// ---- Destinos permitidos para las fichas de una categoría ----
+// Las URLs salen del JSON-LD de un HTML de TERCEROS (`productUrlsFromLdCategory`)
+// y se pedían tal cual: una fuente comprometida podía hacer que el worker
+// pidiera loopback (`127.0.0.1:8787`), redes privadas o link-local (SSRF
+// acotado), y sumar subrequests a voluntad.
+
+/** Rangos IPv4 que nunca son un sitio público (loopback, privadas, link-local, CGNAT). */
+function ipv4Bloqueada(host: string): boolean {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (!m) return false;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 100 && b >= 64 && b <= 127)
+  );
+}
+
+/** IPv6 de loopback, unspecified, link-local, unique-local (fc00::/7) o IPv4 mapeada. */
+function ipv6Bloqueada(host: string): boolean {
+  const h = host.replace(/^\[|\]$/g, "").toLowerCase();
+  // Solo direcciones IPv6 (con `:`): si no, un dominio que empieza con "fc"
+  // (ej. fcelulares.com) se tomaría como fc00::/7.
+  if (!h.includes(":")) return false;
+  return (
+    h === "::1" ||
+    h === "::" ||
+    h.startsWith("fe80:") ||
+    h.startsWith("fc") ||
+    h.startsWith("fd") ||
+    h.startsWith("::ffff:")
+  );
+}
+
+/** Nombres de host que apuntan a la propia máquina o a la red interna. */
+function hostInterno(host: string): boolean {
+  const h = host.toLowerCase();
+  return (
+    h === "localhost" ||
+    h.startsWith("localhost.") ||
+    h.endsWith(".localhost") ||
+    h.endsWith(".local") ||
+    h.endsWith(".localdomain") ||
+    h.endsWith(".internal") ||
+    h.endsWith(".home.arpa")
+  );
+}
+
+/**
+ * ¿Se puede pedir esta URL desde el importador "categoría"? Solo http(s)
+ * absolutas a hosts públicos. `new URL` normaliza las formas raras de IPv4
+ * (decimal/hexadecimal) a cuadrado con puntos, así que alcanza con mirar el
+ * hostname ya parseado.
+ */
+export function urlExternaPermitida(raw: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(String(raw ?? "").trim());
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+  const host = u.hostname;
+  if (host === "") return false;
+  return !hostInterno(host) && !ipv4Bloqueada(host) && !ipv6Bloqueada(host);
+}
+
+/**
+ * Una sola descarga, sin reintentos, para las fichas de una categoría: acá el
+ * presupuesto de subrequests manda (ver MAX_DETAIL_FETCH).
+ */
+async function fetchFicha(url: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: fetchHeaders(),
+    redirect: "follow",
+    signal: AbortSignal.timeout(DETAIL_TIMEOUT_MS),
+  });
+  // Un redirect puede aterrizar en loopback/red privada aunque la URL original
+  // fuera pública: si el destino FINAL no es público, el contenido no se lee ni
+  // se guarda en el catálogo.
+  if (res.url !== "" && !urlExternaPermitida(res.url)) {
+    throw new Error("La ficha redirige a un host no permitido");
+  }
+  if (!res.ok) throw new Error(`La ficha respondió con estado ${res.status}`);
+  return await readBodyCapped(res);
+}
 
 /**
  * Estrategia "categoría": la lista JSON-LD da URLs de fichas sin precio;
  * se descarga cada ficha y se extrae su Product completo (con precio).
+ * En lotes de DETAIL_CONCURRENCY: una ficha caída no descarta las demás ni
+ * multiplica los subrequests (una descarga por ficha, sin reintentos).
  */
 async function itemsFromCategoryDetail(
   categoryHtml: string
 ): Promise<unknown[]> {
-  const urls = productUrlsFromLdCategory(categoryHtml).slice(0, MAX_DETAIL_FETCH);
-  if (urls.length === 0) return [];
-  const results = await Promise.allSettled(
-    urls.map(async (u): Promise<Record<string, unknown> | null> => {
-      const html = await fetchText(u);
-      const items = itemsFromLdJson(html);
-      return (items[0] as Record<string, unknown>) ?? null; // una ficha = un producto
-    })
-  );
-  return results.flatMap((r) => (r.status === "fulfilled" && r.value !== null ? [r.value] : []));
+  const urls = productUrlsFromLdCategory(categoryHtml)
+    .filter(urlExternaPermitida)
+    .slice(0, MAX_DETAIL_FETCH);
+  const out: unknown[] = [];
+  for (let i = 0; i < urls.length; i += DETAIL_CONCURRENCY) {
+    const lote = urls.slice(i, i + DETAIL_CONCURRENCY);
+    const respuestas = await Promise.allSettled(lote.map((u) => fetchFicha(u)));
+    for (const r of respuestas) {
+      // Ficha caída o no permitida: se sigue con la próxima.
+      if (r.status !== "fulfilled") continue;
+      const item = itemsFromLdJson(r.value)[0] as Record<string, unknown> | undefined;
+      if (item) out.push(item); // una ficha = un producto
+    }
+  }
+  return out;
 }
 
 function fetchHeaders(): Record<string, string> {
