@@ -286,9 +286,28 @@ app.get("/", (c) => c.env.ASSETS.fetch(new Request(c.req.url)));
 // <!--OG:END--> del template se reemplaza; si el asset falla queda el bloque
 // genérico del propio template. Un id inexistente ya no devuelve el shell con
 // 200: se sirve la página de error con 404 (misma regla que el resto del sitio).
+/**
+ * Id de la URL de la ficha, decodificado sin romper el request.
+ *
+ * `decodeURIComponent` tira URIError con un `%` suelto (`/producto/100%`) o un
+ * escape inválido (`/producto/%E0%A4%A`), y Hono entrega el path CRUDO cuando
+ * `decodeURI` no puede decodificarlo (su `tryDecodeURI` atrapa el error). Sin
+ * este try/catch esos requests terminaban en 500 por una URL basura que
+ * cualquiera puede tipear; con el texto tal cual, el id no existe y la ruta
+ * responde 404 como cualquier id desconocido.
+ */
+function idDeProducto(path: string): string {
+  const raw = path.replace(/^\/producto\//, "");
+  try {
+    return decodeURIComponent(raw).trim();
+  } catch {
+    return raw.trim();
+  }
+}
+
 app.get("/producto/*", async (c) => {
   const res = await c.env.ASSETS.fetch(new Request(new URL("/product.html", c.req.url)));
-  const id = decodeURIComponent(c.req.path.replace(/^\/producto\//, "")).trim();
+  const id = idDeProducto(c.req.path);
   if (!res.ok) return res; // asset roto: no hay template que servir
   // Sin id (/producto/ o /producto/%20) tampoco existe la ficha: misma regla que
   // un id desconocido, no el shell con 200.

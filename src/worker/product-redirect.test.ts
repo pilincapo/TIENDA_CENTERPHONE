@@ -86,4 +86,25 @@ describe("/producto/* con id viejo renombrado", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Location")).toBeNull();
   });
+
+  // Percent-encoding roto: el id no puede existir, así que es 404 como cualquier
+  // id desconocido. Antes `decodeURIComponent` tiraba URIError y la ruta devolvía
+  // 500 (un error de servidor por una URL basura que cualquiera puede tipear).
+  it("un % suelto en el id responde 404, no 500", async () => {
+    const env = mockEnv({ producto: false, redirect: null });
+    const res = await worker.fetch(new Request("https://centerphone.com.ar/producto/100%"), env, ctx);
+    expect(res.status).toBe(404);
+  });
+
+  it("un escape inválido en el id responde 404, no 500", async () => {
+    const env = mockEnv({ producto: false, redirect: null });
+    const res = await worker.fetch(new Request("https://centerphone.com.ar/producto/%E0%A4%A"), env, ctx);
+    expect(res.status).toBe(404);
+  });
+
+  it("un id bien encodificado sigue resolviendo la ficha", async () => {
+    const env = mockEnv({ producto: true, redirect: null });
+    const res = await worker.fetch(new Request("https://centerphone.com.ar/producto/cable%20usb-c"), env, ctx);
+    expect(res.status).toBe(200);
+  });
 });
