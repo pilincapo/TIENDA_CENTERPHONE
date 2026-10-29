@@ -1,3 +1,11 @@
+## 2026-10-29 — PageSpeed: bajar variantes de imágenes del catálogo y cachear bundles hasheados
+
+- **Evidencia PSI móvil** (portada, Lighthouse 13.5.0, Moto G Power emulado, 4G lenta): ahorro estimado de **330 KiB** en imágenes, **112 KiB** por caché y **10 KiB** de JavaScript antiguo.
+- **Imágenes propias del CDN de Tiendanegocio**: el `srcset` de las tarjetas ahora ofrece WebP de **320/480 px** (antes 320/640 px más el original como candidato). El ancho original queda como fallback si falla la transformación. En PSI, el CDN entregó candidatos de 640 px para tarjetas de ~327 px; el tope de 480 reduce bytes, con una posible pérdida leve de nitidez en pantallas de densidad 2x.
+- **Caché de assets**: `_headers` asigna `public, max-age=31536000, immutable` únicamente a `/assets/*`, donde Vite publica bundles con hash. HTML, logo, favicon, catálogo/API y rutas del panel no reciben esta caché larga; `/admin*` sigue en `no-store`.
+- **Límites que quedan**: las imágenes con ahorro mayor del informe vienen de Supabase Storage (`Cache-Control` de 1 hora) y las variantes/TTL los controla ese proveedor; no se modifican ni se proxyan desde el Worker. Los 10 KiB de JavaScript antiguo corresponden al beacon de Cloudflare Insights y no al bundle de la app; no se desactiva la analítica del sitio desde el código.
+- **Deploy y verificación**: Worker `celu-store`, versión `a9b6f69e-a95c-451c-aa4d-83b063585304`. En producción, `/assets/catalog-nrnjvJ7S.js` responde 200 con `Cache-Control: public, max-age=31536000, immutable` y contiene las variantes 320/480 px (sin candidato 640 px); `/admin/` mantiene `Cache-Control: no-store`. Falta repetir PSI en producción para medir el impacto; no se atribuye una puntuación nueva.
+
 ## 2026-10-29 — Auditoría PageSpeed móvil: quitar Google Fonts de la ruta crítica y reducir el logo del header
 
 - **Medición antes (PSI, móvil, portada pública)**: rendimiento **83**, FCP **2,4 s**, LCP **3,9 s**, TBT **0 ms**, CLS **0**; CrUX sin datos. Lighthouse 13.5.0 con Moto G Power emulado y 4G lenta.

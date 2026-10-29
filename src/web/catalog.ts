@@ -448,12 +448,13 @@ function freshTitle(hours: number): string {
 
 // URL de imagen con parámetros de resize del CDN de tiendanegocio (soporta
 // ?width=&format=webp; verificado: 373KB PNG -> 32KB WebP a 640px).
-// El original suele ser 1024px; las cards se muestran a ~220-308px así que
-// 320/640px cubren 1x/2x. Si la URL no es de ese CDN, se devuelve vacío.
+// Las tarjetas se muestran a ~220-327px: 320/480px evitan bajar 640px
+// cuando no hace falta. El original se conserva en `src` como fallback; si la
+// URL no es de ese CDN, se devuelve vacío y se sirve la imagen original.
 export function cdnSrcset(url: string | null): string {
   if (!url || !url.includes("tiendanegocio.com")) return "";
   const base = url.split("?")[0];
-  return `${base}?width=320&format=webp 320w, ${base}?width=640&format=webp 640w, ${url} 1024w`;
+  return `${base}?width=320&format=webp 320w, ${base}?width=480&format=webp 480w`;
 }
 
 function cardHtml(p: Product, eager = false): string {

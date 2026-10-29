@@ -6,6 +6,11 @@
 # propio bloque de cabeceras: varias líneas de ruta seguidas de UNA cabecera
 # dejaban a las dos primeras sin cabeceras (wrangler lo reportaba como «No
 # headers specified»), así que /admin y /admin/index.html se cacheaban.
+# Los bundles de Vite llevan hash en el nombre: cada cambio de contenido crea
+# otra URL, por eso pueden permanecer un año en la caché del navegador.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
 /admin/index.html
   Cache-Control: no-store
 
