@@ -10,7 +10,7 @@ import type { Env } from "./db";
 const ctx = { waitUntil: () => {}, passThroughOnException: () => {} } as unknown as ExecutionContext;
 
 /** Env de mentira: D1 que sirve el producto si existe y el redirect si está. */
-function mockEnv(opts: { producto: boolean; redirect: string | null }): Env {
+function mockEnv(opts: { producto: boolean; redirect: string | null; status?: "published" | "hidden" }): Env {
   const kv = { get: async () => null, put: async () => {}, delete: async () => {} } as unknown as KVNamespace;
   const assets = {
     fetch: async (req: Request) =>
@@ -27,7 +27,9 @@ function mockEnv(opts: { producto: boolean; redirect: string | null }): Env {
             return opts.redirect === null ? null : { to_id: opts.redirect };
           }
           if (sql.includes("FROM products")) {
-            return opts.producto ? { id: "cargador-usb-c", title: "Cargador USB-C", price_cents: 5000, status: "published", tags: "[]" } : null;
+            return opts.producto
+              ? { id: "cargador-usb-c", title: "Cargador USB-C", price_cents: 5000, status: opts.status ?? "published", tags: "[]" }
+              : null;
           }
           return null;
         },
@@ -61,11 +63,27 @@ describe("/producto/* con id viejo renombrado", () => {
     expect(res.headers.get("Location")).toBeNull();
   });
 
-  it("si el producto existe con ese id se sirve la ficha, sin mirar redirects", async () => {
+  it("si el producto existe y está publicado se sirve la ficha, sin mirar redirects", async () => {
     const env = mockEnv({ producto: true, redirect: "nunca-deberia-usarse" });
     const res = await worker.fetch(new Request("https://centerphone.com.ar/producto/cargador-usb-c"), env, ctx);
     expect(res.status).toBe(200);
     expect(res.headers.get("Location")).toBeNull();
     expect(await res.text()).toContain("asset:/product.html");
+  });
+
+  // El dedupe entre fuentes deja la copia OCULTA (no la borra): esa fila sigue
+  // existiendo, así que sin esta regla la URL duplicada viviría con 200.
+  it("una fila oculta con redirect también responde 301 (copia descartada del dedupe)", async () => {
+    const env = mockEnv({ producto: true, redirect: "cargador-usb-c", status: "hidden" });
+    const res = await worker.fetch(new Request("https://centerphone.com.ar/producto/4693"), env, ctx);
+    expect(res.status).toBe(301);
+    expect(res.headers.get("Location")).toBe("/producto/cargador-usb-c");
+  });
+
+  it("una ficha oculta sin redirect sigue sirviéndose (sin stock, por link directo)", async () => {
+    const env = mockEnv({ producto: true, redirect: null, status: "hidden" });
+    const res = await worker.fetch(new Request("https://centerphone.com.ar/producto/cargador-usb-c"), env, ctx);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Location")).toBeNull();
   });
 });

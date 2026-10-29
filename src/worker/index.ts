@@ -302,6 +302,13 @@ app.get("/producto/*", async (c) => {
     if (destino !== null) return c.redirect(`/producto/${encodeURIComponent(destino)}`, 301);
     return notFoundPage(c);
   }
+  // Fila oculta CON 301: el dedupe entre fuentes deja la copia oculta en vez de
+  // borrarla, y el renombre de ids puede dejar el id viejo oculto. La ficha
+  // vigente es la del destino: 301, si no quedaría una página duplicada viva.
+  if (product.status === "hidden") {
+    const destino = await destinoDeRedirect(c.env.DB, id).catch(() => null);
+    if (destino !== null) return c.redirect(`/producto/${encodeURIComponent(destino)}`, 301);
+  }
   const html = await res.text();
   if (!html.includes("<!--OG:START-->")) return new Response(html, { status: res.status, headers: res.headers });
   const settings = await getSettings(c.env.KV);

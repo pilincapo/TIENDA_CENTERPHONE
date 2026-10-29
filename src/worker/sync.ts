@@ -6,6 +6,7 @@ import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { applyRuleSet } from "../shared/pricing";
 import type { Env } from "./db";
 import { hideProductsNotIn, insertSyncLog, listCategories, listPriceRules, listProducts, unhideProductsIn, upsertCategoriesBatch, upsertProductsBatch } from "./db";
+import { dedupeEntreFuentes } from "./dedupe-sources";
 import { renombrarIds } from "./rename-ids";
 import { getSettings, newId, nowMs } from "./settings";
 import { invalidateWaFeedCache } from "./wa-feed";
@@ -181,7 +182,7 @@ async function importItemsChunk(
   } = {}
 ): Promise<SyncOutcome> {
   const startedAt = nowMs();
-  const { products, categories, skipped } = normalizeExternalItems(rawItems);
+  let { products, categories, skipped } = normalizeExternalItems(rawItems);
   const errors: string[] = [];
   // Reglas de precio automáticas (rangos activos); se puede forzar una con forceRuleId.
   // skipRules: los items ya vienen con el precio final (selección del preview).
@@ -212,6 +213,21 @@ async function importItemsChunk(
       if (r.renombrados > 0) console.log(`import: ${r.renombrados} producto(s) renombrados al nombre de página`);
     } catch (e) {
       console.error("import: falló el renombre de ids viejos", e);
+    }
+  }
+  // Dedupe entre fuentes del mismo proveedor: el catálogo del origen publica el
+  // mismo artículo en el listado paraguas y en el de su categoría, así que dos
+  // auto-importaciones distintas traían el mismo producto dos veces (una con el
+  // id viejo, porque el renombre no pisa un destino "ajeno"). Deja una sola fila
+  // visible, con 301 desde el id descartado. Corre después del renombre (los ids
+  // ya están resueltos) y antes del upsert.
+  if (importOptions.sourceUrl) {
+    try {
+      const d = await dedupeEntreFuentes(env.DB, products, importOptions.sourceUrl, now);
+      products = d.items;
+      if (d.descartados > 0) skipped.push(`${d.descartados} producto(s) repetidos entre fuentes del mismo proveedor: quedó una sola ficha (ver 301)`);
+    } catch (e) {
+      console.error("import: falló el dedupe entre fuentes", e);
     }
   }
   // Escrituras en chunks (un statement por chunk): sin esto una fuente de 160
