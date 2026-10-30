@@ -1,3 +1,11 @@
+## 2026-10-30 — Catálogo: estado vacío útil y foco de teclado visible en los filtros
+
+- Cuando la búsqueda o los filtros no devuelven productos, el catálogo ahora muestra qué se buscó («No encontramos productos para «…»»), ofrece **Ver todo el catálogo** y **Borrar la búsqueda**, y sugiere hasta seis categorías raíz para seguir explorando con un toque. Antes era un texto genérico con un botón que solo limpiaba los filtros.
+- Al tocar una categoría sugerida se limpia también la búsqueda: sin eso, la categoría quedaba vacía otra vez por el término sin resultados. Detectado al verificar en el navegador local.
+- Los chips de filtro, el alternador grilla/lista y el selector de orden muestran un **foco ámbar interior** al navegar con teclado, que antes quedaba recortado por el scroll horizontal de la barra.
+- Verificado en local con `wrangler dev` en `127.0.0.1:8787`: estado vacío con el término buscado, 6 chips de categoría, salto a `Electronica` → 20 tarjetas y «20 de 935», «Borrar la búsqueda» repone el catálogo, y el chip enfocado con Tab muestra `outline: 2px solid #e3b341` con `offset: -3px`. Sin errores en consola. `npm run build`, `npm run typecheck` y las 199 pruebas de `src/web`+`src/shared` pasan.
+- Solo frontend (estado vacío, estilos y foco): sin migración D1 ni cambios en el worker.
+
 ## 2026-10-30 — Catálogo: mejorar lectura visual de las tarjetas
 
 - Las imágenes de producto se muestran completas dentro de su área, sin recortar bordes; los títulos y precios ganan un poco de presencia para facilitar el escaneo del catálogo.

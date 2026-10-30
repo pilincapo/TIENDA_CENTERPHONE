@@ -361,6 +361,32 @@ img { max-width: 100%; display: block; }
   animation: spin .8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* Estado vacío del catálogo: panel con acento terminal para que no se lea
+   como un hueco en la página, y salidas concretas (volver, borrar la
+   búsqueda, saltar a una categoría). */
+.state--empty {
+  padding: 36px 24px; gap: 8px; max-width: 640px; margin: 8px auto 0;
+  border: 1px dashed var(--border-bright); background: var(--panel-2);
+}
+.state-icon { font-family: var(--font-mono); font-size: 20px; color: var(--brand); letter-spacing: -.05em; }
+.state-title { margin: 0; font-size: 17px; font-weight: 700; color: var(--text); }
+.state--empty .muted { margin: 0; max-width: 46ch; line-height: 1.5; }
+.state--empty .muted b { color: var(--text); }
+.state-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 6px; }
+.state-suggest { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 14px; width: 100%; }
+.state-suggest-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.state-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+
+/* Foco de teclado explícito en la barra de filtros. El outline por defecto del
+   navegador queda fuera de la caja y el contenedor con overflow-x lo recorta;
+   con offset negativo y ámbar el elemento enfocado siempre se ve. */
+.chip:focus-visible,
+.tb-view-btn:focus-visible,
+.tb-sort select:focus-visible,
+.state-chips .chip:focus-visible {
+  outline: 2px solid var(--term-amber);
+  outline-offset: -3px;
+}
 .error { color: var(--danger); font-size: 14px; }
 
 /* Barra sticky del importador */

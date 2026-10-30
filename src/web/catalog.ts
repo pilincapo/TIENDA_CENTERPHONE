@@ -569,11 +569,50 @@ function renderGrid(): void {
   }
   const sorted = sortedProducts();
   if (sorted.length === 0) {
-    setContent(
-      `<div class="state"><p>No hay productos que coincidan con los filtros.</p>
-       <button class="btn btn-primary" id="clear">Limpiar filtros</button></div>`
-    );
+    // Estado vacío útil: dice qué se buscó y ofrece una salida (volver al
+    // catálogo completo o saltar a una categoría con un toque), en vez de
+    // dejar al visitante en un callejón sin salida con un texto genérico.
+    const q = state.search.trim();
+    const cats = rootCategories().slice(0, 6);
+    setContent(`
+      <div class="state state--empty">
+        <span class="state-icon" aria-hidden="true">$_</span>
+        <p class="state-title">Sin resultados</p>
+        <p class="muted">${q
+          ? `No encontramos productos para «<b>${esc(q)}</b>».`
+          : "Ningún producto coincide con los filtros elegidos."}</p>
+        <div class="state-actions">
+          <button class="btn btn-primary" id="clear">Ver todo el catálogo</button>
+          ${q ? `<button class="btn btn-ghost" id="clear-search">Borrar la búsqueda</button>` : ""}
+        </div>
+        ${cats.length ? `
+        <div class="state-suggest">
+          <span class="state-suggest-label">O explorá una categoría</span>
+          <div class="state-chips">
+            ${cats.map((c) => `<button class="chip" data-cat-suggest="${esc(c.id)}">${esc(c.name)}</button>`).join("")}
+          </div>
+        </div>` : ""}
+      </div>
+    `);
     document.getElementById("clear")?.addEventListener("click", clearFilters);
+    document.getElementById("clear-search")?.addEventListener("click", () => {
+      state.search = "";
+      el.search.value = "";
+      resetPager();
+      render();
+    });
+    el.content.querySelectorAll<HTMLButtonElement>("button[data-cat-suggest]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        // La sugerencia es una salida del estado vacío: si dejáramos la
+        // búsqueda sin resultados activa, la categoría volvería a quedar vacía.
+        state.category = btn.dataset.catSuggest ?? "";
+        state.tags.clear();
+        state.search = "";
+        el.search.value = "";
+        resetPager();
+        render();
+      });
+    });
     return;
   }
   const visible = sorted.slice(0, state.shown);
