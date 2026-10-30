@@ -260,13 +260,17 @@ img { max-width: 100%; display: block; }
   box-shadow: var(--term-shadow);
   transform: translate(-2px, -2px);
 }
+.card:focus-visible {
+  outline: 2px solid var(--term-amber);
+  outline-offset: 3px;
+}
 .card:active { transform: none; box-shadow: none; }
-.card-img { aspect-ratio: 1; background: var(--panel-2); display: flex; align-items: center; justify-content: center; font-size: 40px; overflow: hidden; border-bottom: 1px solid var(--border); }
-.card-img img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s ease; filter: saturate(.92); }
+.card-img { aspect-ratio: 1; background: var(--panel-2); display: flex; align-items: center; justify-content: center; padding: 10px; font-size: 40px; overflow: hidden; border-bottom: 1px solid var(--border); }
+.card-img img { width: 100%; height: 100%; object-fit: contain; display: block; transition: transform .3s ease; filter: saturate(.92); }
 .card:hover .card-img img { transform: scale(1.02); filter: saturate(1); }
 .card-body { padding: 12px 12px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
-.card-title { font-size: 13px; font-weight: 600; margin: 0; min-height: 2.6em; line-height: 1.35; }
-.card-price { font-size: 14px; font-weight: 700; color: var(--brand); }
+.card-title { font-size: 14px; font-weight: 600; margin: 0; min-height: 2.6em; line-height: 1.4; }
+.card-price { font-size: 16px; font-weight: 700; color: var(--brand); }
 .card-foot { margin-top: auto; display: flex; align-items: center; gap: 8px; }
 
 /* ===== Vista lista (alternador en la toolbar) ===== */

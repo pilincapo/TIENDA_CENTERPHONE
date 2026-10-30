@@ -1,3 +1,9 @@
+## 2026-10-30 — Catálogo: mejorar lectura visual de las tarjetas
+
+- Las imágenes de producto se muestran completas dentro de su área, sin recortar bordes; los títulos y precios ganan un poco de presencia para facilitar el escaneo del catálogo.
+- Se agregó un indicador visible de foco al navegar las fichas con teclado, manteniendo la paleta terminal verde y ámbar existente.
+- Verificación previa: build, typecheck, 470 tests y suite visual (9 pruebas) aprobados.
+
 ## 2026-10-30 — Ignorar copias locales del skill de auditoría
 
 - Se agregaron reglas específicas al `.gitignore` para las copias locales del skill `security-audit` en `.agents/`, `.claude/`, `.kiro/` y `.windsurf/`, y para `skills-lock.json`.
