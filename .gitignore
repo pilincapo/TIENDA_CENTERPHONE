@@ -9,3 +9,10 @@ public/
 graphify-out/
 test-results/
 playwright-report/
+
+# Skills opcionales instalados localmente para asistentes de código.
+/.agents/skills/security-audit/
+/.claude/skills/security-audit/
+/.kiro/skills/security-audit/
+/.windsurf/skills/security-audit/
+/skills-lock.json

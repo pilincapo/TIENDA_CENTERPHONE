@@ -1,3 +1,14 @@
+## 2026-10-30 — Ignorar copias locales del skill de auditoría
+
+- Se agregaron reglas específicas al `.gitignore` para las copias locales del skill `security-audit` en `.agents/`, `.claude/`, `.kiro/` y `.windsurf/`, y para `skills-lock.json`.
+- Los archivos permanecen en el disco como herramientas opcionales del entorno; no forman parte de la aplicación ni de su build. Sin eliminar archivos.
+
+## 2026-10-30 — Búsqueda de catálogo por palabras incompletas
+
+- La búsqueda ahora compara cada palabra de la consulta con el texto del producto, en cualquier orden y admitiendo fragmentos; también ignora mayúsculas y tildes. Por ejemplo, `Foc Led` encuentra `Foco LED`.
+- Se agregaron pruebas para palabras parciales, orden, mayúsculas, acentos y consultas sin términos alfanuméricos. Sin cambios en la interfaz.
+- La corrección se verificó en producción y quedó publicada en el Worker `b9d22a76-f686-48fb-9a26-b878feb7b5e1`.
+
 ## 2026-10-29 — PageSpeed: bajar variantes de imágenes del catálogo y cachear bundles hasheados
 
 - **Evidencia PSI móvil** (portada, Lighthouse 13.5.0, Moto G Power emulado, 4G lenta): ahorro estimado de **330 KiB** en imágenes, **112 KiB** por caché y **10 KiB** de JavaScript antiguo.

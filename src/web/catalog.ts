@@ -9,6 +9,7 @@ import { fillStoreInfo, setupModals } from "./store-modals";
 import { track } from "./track";
 import { setupCartUI } from "./cart-ui";
 import { inCategorySet } from "./category-filter";
+import { matchesSearch } from "../shared/search";
 import { renderAnnouncement } from "./announcement";
 import { localBusinessJsonLd, webSiteJsonLd } from "./schema";
 
@@ -382,11 +383,11 @@ function collectCategoryIds(): Set<string> {
 }
 
 function applyFilters(products: Product[]): Product[] {
-  const term = state.search.trim().toLowerCase();
+  const term = state.search;
   const catIds = collectCategoryIds();
   const freshHours = state.settings?.freshHours ?? 48;
   return products.filter((p) => {
-    if (term !== "" && !`${p.title} ${p.description}`.toLowerCase().includes(term)) return false;
+    if (!matchesSearch(term, `${p.title} ${p.description}`)) return false;
     if (!inCategorySet(p, catIds)) return false;
     for (const t of state.tags) {
       // "new" matchea el tag a mano O el badge "Nuevo" automatico (fresco):
