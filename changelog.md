@@ -5,6 +5,7 @@
 - Los chips de filtro, el alternador grilla/lista y el selector de orden muestran un **foco ámbar interior** al navegar con teclado, que antes quedaba recortado por el scroll horizontal de la barra.
 - Verificado en local con `wrangler dev` en `127.0.0.1:8787`: estado vacío con el término buscado, 6 chips de categoría, salto a `Electronica` → 20 tarjetas y «20 de 935», «Borrar la búsqueda» repone el catálogo, y el chip enfocado con Tab muestra `outline: 2px solid #e3b341` con `offset: -3px`. Sin errores en consola. `npm run build`, `npm run typecheck` y las 199 pruebas de `src/web`+`src/shared` pasan.
 - Solo frontend (estado vacío, estilos y foco): sin migración D1 ni cambios en el worker.
+- **Publicado**: commit `ec78800` pusheado a `origin/main`; deploy Worker `252f5501-752a-4ded-b8bd-547fa1b45178`. En producción el home sirve `catalog-BqR_Fv7f.js` y `whatsapp-RNFmCx00.css`; una búsqueda sin resultados muestra el panel con el término y 6 categorías, y tocar **Electrónica** devuelve 20 tarjetas con «20 de 928» sin errores en consola. Regresiones: `/api/catalog`, `/sitemap.xml`, `/robots.txt` y `/admin/` (con `no-store`) en 200; `/api/admin/settings` sin sesión en 401.
 
 ## 2026-10-30 — Catálogo: mejorar lectura visual de las tarjetas
 
