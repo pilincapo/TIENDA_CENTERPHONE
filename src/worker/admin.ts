@@ -29,6 +29,7 @@ import {
   SESSION_TTL_MS, sessionCookieHeader, verifySessionToken,
 } from "./auth";
 import { changeAdminPassword, getRevocationEpoch, getSessionSecret, revokeActiveSessions, verifyAdminPassword } from "./admin-credentials";
+import { registerReturnAdminRoutes } from "./returns-admin";
 
 export const adminApp = new Hono<{ Bindings: Env }>();
 
@@ -117,6 +118,10 @@ adminApp.post("/logout", async (c) => {
   c.header("Set-Cookie", clearSessionCookieHeader());
   return c.json({ ok: true });
 });
+
+// Devoluciones: se registran acá (y no directo en index.ts) para que pasen por
+// el middleware de sesión de arriba. Sin login, 401.
+registerReturnAdminRoutes(adminApp);
 
 // Historial de cambios del sitio: el changelog.md del repo viaja dentro de los
 // assets del deploy (tools/build-web.js lo copia a public/) y el panel lo lee

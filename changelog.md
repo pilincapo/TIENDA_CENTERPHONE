@@ -1,3 +1,18 @@
+## 2026-11-03 — ETAPA 3 publicada en producción
+
+- **Deploy** con `npm run deploy` → versión `296c1193-57a2-4d4b-b03c-fac813070064`. Sin migración: usa las tablas de la 013.
+- **Verificado en https://centerphone.com.ar**: `/admin/` 200 y el HTML servido incluye `data-tab="returns"`; el bundle `assets/admin-DeM80PrC.js` (200) contiene la vista, los filtros y el modal; `/api/admin/returns` responde **401** sin cookie y con cookie falsa; `/devoluciones` 200 y `/devoluciones/seguimiento` 302; la consola del panel no muestra errores de JS (solo el 401 esperado de `/api/admin/session` sin sesión).
+- **Verificación con sesión del titular en producción**: la pestaña Ventas → Devoluciones carga con sus chips y contador. Se creó una solicitud real de prueba (`GAR-X4RXCY`), apareció en el listado con el badge, se abrió el modal, se cambió el estado a "En revisión" y se guardó una respuesta desde la UI: la tabla, los contadores y el badge se actualizaron, y el seguimiento público mostró el estado nuevo y la respuesta con **cero** coincidencias de nombre o contacto. Después se **borró la solicitud y su evento de D1 remoto**: la tabla volvió a 0 filas y el panel muestra el estado vacío; el token responde 404.
+
+## 2026-11-03 — ETAPA 3: sección DEVOLUCIONES en el panel
+
+- **Vocabulario compartido** [src/shared/returns.ts](src/shared/returns.ts): tipos, estados y etiquetas que ahora usan el worker y el panel (evita que el filtro del panel y la API se desincronicen). [src/worker/returns.ts](src/worker/returns.ts) los reexporta, así que no cambió ningún import existente.
+- **API del panel** [src/worker/returns-admin.ts](src/worker/returns-admin.ts), registrada sobre `adminApp` para heredar el login: `GET /api/admin/returns` (paginado, filtro por estado y búsqueda por código/nombre/contacto/pedido/producto, con contadores por estado), `GET /api/admin/returns/:id` (detalle + historial) y `PATCH /api/admin/returns/:id` (estado y/o respuesta pública). El historial solo suma un hito cuando **cambia el estado**: editar la respuesta no duplica pasos en el seguimiento del cliente.
+- **Pestaña** en Ventas → Devoluciones ([admin/index.html](admin/index.html), [src/web/admin.ts](src/web/admin.ts)): chips por estado con contador, buscador, paginación y contador ámbar de solicitudes nuevas en el menú. Cada fila abre un modal con los datos de contacto (link directo a WhatsApp o email), pedido, producto, comentario, selector de estado, respuesta editable e historial fechado.
+- **Privacidad**: los datos personales solo se ven con sesión de panel. El seguimiento público sigue mostrando únicamente lo acordado (la respuesta nueva aparece, nombre y contacto no).
+- **Tests nuevos** [src/worker/returns-admin.test.ts](src/worker/returns-admin.test.ts) (11): 401 sin sesión, listado con contacto y contadores, filtros por estado y texto, paginación, detalle con historial, cambio de estado con hito, respuesta sin hito duplicado, borrado de respuesta, estados/cuerpos inválidos y 404. **518/518** en total; `npm run typecheck` y `npm run build` limpios.
+- **Verificado en local**: login en el panel, pestaña con badge y chips correctos, modal completo, guardado de estado + respuesta desde el modal (la tabla y los contadores se actualizaron, badge 2 → 1) y la página pública mostró la respuesta y el estado nuevo con **cero** coincidencias de nombre o contacto. Las filas de prueba se borraron de D1 local al terminar.
+
 ## 2026-11-03 — ETAPA 2 publicada en producción
 
 - **Migración remota aplicada** en D1 (`celu-store-db`): tablas `return_requests` y `return_events` verificadas con `sqlite_master`.

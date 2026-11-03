@@ -1283,6 +1283,18 @@ a.topnav-btn {
 .ord-badge.ord-pending { color: var(--term-amber); border-color: var(--term-amber); }
 .ord-badge.ord-paid { color: var(--brand); border-color: var(--brand); }
 .ord-badge.ord-cancelled, .ord-badge.ord-rejected { color: var(--danger); border-color: var(--danger); }
+
+/* ===== Panel: pestaña Devoluciones ===== */
+.ret-code { font-family: var(--font-mono, monospace); font-size: 12.5px; letter-spacing: .04em; }
+.ord-badge.ret-recibida { color: var(--term-amber); border-color: var(--term-amber); }
+.ord-badge.ret-revision { color: #7aa2f7; border-color: #7aa2f7; }
+.ord-badge.ret-aprobada { color: var(--brand); border-color: var(--brand); }
+.ord-badge.ret-resuelta { color: var(--brand); border-color: var(--brand); }
+.ord-badge.ret-cerrada { color: var(--muted); border-color: var(--border-bright); }
+.ret-hist { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.ret-hist li { padding: 0 0 8px 16px; position: relative; }
+.ret-hist li::before { content: "›"; position: absolute; left: 0; color: var(--brand); font-weight: 800; }
+.ret-hist li:last-child { padding-bottom: 0; }
 .field--check label { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; }
 .field--check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--brand); }
 

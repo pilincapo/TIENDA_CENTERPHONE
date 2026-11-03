@@ -17,28 +17,15 @@
 import { Hono } from "hono";
 import type { Env } from "./db";
 import { nowMs } from "./settings";
+import {
+  KIND_LABEL, RETURN_KINDS, RETURN_STATUSES, STATUS_LABEL,
+  type ReturnKind, type ReturnStatus,
+} from "../shared/returns";
 
-export const RETURN_KINDS = ["arrepentimiento", "cambio", "devolucion", "garantia"] as const;
-export type ReturnKind = (typeof RETURN_KINDS)[number];
-
-/** Estados posibles. El comercio los cambia desde el panel (ETAPA 3). */
-export const RETURN_STATUSES = ["recibida", "en_revision", "aprobada", "resuelta", "cerrada"] as const;
-export type ReturnStatus = (typeof RETURN_STATUSES)[number];
-
-export const KIND_LABEL: Record<ReturnKind, string> = {
-  arrepentimiento: "Arrepentimiento (compra a distancia)",
-  cambio: "Cambio",
-  devolucion: "Devolución",
-  garantia: "Garantía",
-};
-
-export const STATUS_LABEL: Record<ReturnStatus, string> = {
-  recibida: "Solicitud recibida",
-  en_revision: "En revisión",
-  aprobada: "Aprobada",
-  resuelta: "Resuelta",
-  cerrada: "Cerrada",
-};
+// El vocabulario vive en shared/returns.ts (lo usan el worker y el panel); se
+// reexporta acá para no cambiar los imports que ya existían.
+export { KIND_LABEL, RETURN_KINDS, RETURN_STATUSES, STATUS_LABEL };
+export type { ReturnKind, ReturnStatus };
 
 const KIND_PREFIX: Record<ReturnKind, string> = {
   arrepentimiento: "ARR",
