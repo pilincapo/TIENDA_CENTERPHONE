@@ -189,6 +189,25 @@ describe("GET /pedido/:id (página de estado del pedido)", () => {
     expect(html).not.toContain("pref-1");
   });
 
+  // Art. 34, último párrafo, Ley 24.240: la confirmación de la compra a
+  // distancia es el momento natural para informar el derecho de revocación.
+  it("incluye el recordatorio del derecho de revocación con enlace a la política", async () => {
+    const { db, orders } = makeDb();
+    seedOrder(orders, ORDER_ID);
+    const res = await orderPageApp.request(
+      `/pedido/${ORDER_ID}`,
+      { method: "GET" },
+      asEnv({ DB: db, KV: makeKv({ whatsappPhone: "5491100000000", paymentsEnabled: false, storeName: "CenterPhone Celulares" }), ADMIN_PASSWORD: "pass-de-test", ADMIN_SESSION_SECRET: "secret-de-test" }),
+    );
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('id="revoca"');
+    expect(html).toContain('href="/politica-de-cambios-y-devoluciones#arrepentimiento"');
+    expect(html).toContain("10 días corridos");
+    // Sin registro ni justificación: es el requisito del botón.
+    expect(html).toContain("sin justificar el motivo y sin registro");
+  });
+
   it("pinta la nota de checkout configurable en el cuerpo de la página", async () => {
     const { db, orders } = makeDb();
     seedOrder(orders, ORDER_ID);

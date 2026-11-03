@@ -24,16 +24,19 @@
     <link rel="stylesheet" href="/src/web/styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#contenido">Saltar al contenido</a>
     <header class="topbar">
       <a class="brand" href="/"><img class="brand-logo" src="/logo-small.jpg" alt="Tienda"/><span class="brand-name">Producto</span><span class="brand-tag" hidden></span></a>
-      <a class="topbar-link" href="/">← Volver al catálogo</a>
+      <!-- Dos formas del mismo enlace: en pantallas muy angostas solo la flecha
+           (el aria-label mantiene el nombre accesible completo). -->
+      <a class="topbar-link" href="/" aria-label="Volver al catálogo"><span class="topbar-link-long">← Volver al catálogo</span><span class="topbar-link-short" aria-hidden="true">←</span></a>
       <button class="topnav-btn" id="nav-how" type="button">Cómo comprar</button>
       <button class="topnav-btn" id="nav-contact" type="button">Contacto</button>
       <a class="topnav-btn" id="nav-track" href="/seguimiento">Seguimiento</a>
       <button class="topnav-btn cart-btn" id="cart-btn" type="button" hidden>🛒<span class="cart-badge" id="cart-badge" hidden>0</span></button>
     </header>
 
-    <main class="layout layout--single">
+    <main class="layout layout--single" id="contenido" tabindex="-1">
       <form class="detail-search" action="/" method="get" role="search" aria-label="Buscar en el catálogo">
         <span class="detail-search-icon" aria-hidden="true">🔍</span>
         <input type="search" name="q" placeholder="Buscar otro producto…" autocomplete="off" aria-label="Buscar otro producto" />
@@ -85,6 +88,9 @@
         </div>
       </div>
     </div>
+
+    <!-- Pie compartido (ver src/web/site-footer.ts). -->
+    <footer class="footer" data-site-footer aria-label="Cómo comprar y contacto" hidden></footer>
 
     <script type="module" src="/src/web/product.ts"></script>
   </body>

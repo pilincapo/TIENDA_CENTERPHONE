@@ -9,6 +9,7 @@ import { esc } from "../shared/html";
 import { waLink } from "../shared/whatsapp";
 import { productJsonLd, breadcrumbJsonLd } from "./schema";
 import { setupModals, fillStoreInfo } from "./store-modals";
+import { mountSiteFooter } from "./site-footer";
 import { track } from "./track";
 import { isFresh, cdnSrcset } from "./catalog";
 import { setupCartUI } from "./cart-ui";
@@ -206,6 +207,7 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
   // Botón "Cómo comprar" del header: modal compartido con el home.
   setupModals(settings);
   fillStoreInfo(settings);
+  mountSiteFooter(settings);
   // Cinta de anuncio configurable desde el panel (vacía = no se muestra).
   renderAnnouncement(settings);
   // Carrito + pago online (solo el producto de la ficha en el cache local).

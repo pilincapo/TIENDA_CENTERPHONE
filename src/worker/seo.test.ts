@@ -82,6 +82,14 @@ describe("sitemap.xml", () => {
     expect(xml).not.toContain("cat=");
   });
 
+  it("incluye las páginas legales en su ruta limpia y sin lastmod inventado", async () => {
+    const xml = await (await seoApp.request("/sitemap.xml", {}, mockEnv(), ctx)).text();
+    expect(xml).toContain("<loc>https://centerphone.com.ar/politica-de-cambios-y-devoluciones</loc>");
+    expect(xml).toContain("<loc>https://centerphone.com.ar/politica-de-privacidad</loc>");
+    // Nunca la variante .html: canonical y sitemap usan la ruta limpia.
+    expect(xml).not.toContain("politica-de-privacidad.html");
+  });
+
   it("lastmod usa la fecha real de cada ficha, no la del día", async () => {
     const env = mockEnv();
     env.DB = mockDbWith([

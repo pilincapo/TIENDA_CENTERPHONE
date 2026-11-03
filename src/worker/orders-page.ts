@@ -109,6 +109,11 @@ orderPageApp.get("/pedido/:id", async (c) => {
   .total b{color:var(--brand)}
   .buyer{color:var(--muted);font-size:12px;margin:8px 0 0}
   .pending-hint{color:var(--amber);font-size:13px;margin:12px 0 0}
+  /* Recordatorio del derecho de revocación (Ley 24.240, art. 34 in fine):
+     la confirmación de la compra a distancia es el momento natural para
+     informarlo. Enlace estático a la política, misma CSP (self). */
+  .revoca{font-size:13px;line-height:1.55;color:var(--muted);margin:16px 0 0;border-left:3px solid var(--amber);background:rgb(227 179 65 / .08);padding:10px 12px}
+  .revoca a{color:var(--amber);font-weight:700;text-decoration:underline}
   .wa-btn{display:block;background:var(--brand);color:#04180a;text-decoration:none;padding:14px;font-weight:700;font-size:14px;margin-top:18px;border:1px solid var(--brand);box-shadow:2px 2px 0 rgb(0 0 0/.45);text-align:center}
   .wa-btn:hover{background:var(--brand-dark);border-color:var(--brand-dark)}
   .back{display:block;margin-top:12px;color:var(--muted);text-decoration:underline;font-size:14px}
@@ -127,6 +132,7 @@ orderPageApp.get("/pedido/:id", async (c) => {
   <hr style="margin:4px 0 12px">
   <p class="total">Total <b id="total">${formatPrice(order.totalCents, symbol)}</b></p>
   <p class="buyer">Comprador: ${esc(order.buyerName)}</p>
+  <p class="revoca" id="revoca">Compraste a distancia: podés revocar la compra dentro de los 10 días corridos, sin justificar el motivo y sin registro. <a href="/politica-de-cambios-y-devoluciones#arrepentimiento">Botón de arrepentimiento</a></p>
   ${order.status === "pending" ? `<p class="pending-hint" id="pending-hint">Si ya pagaste, esta página se actualiza sola en unos segundos.</p>` : ""}
   ${waHref !== "" ? `<a class="wa-btn" id="wa-btn" href="${esc(waHref)}" target="_blank" rel="noopener">💬 Coordinar entrega por WhatsApp</a>` : ""}
   <a class="back" href="/">← Volver al catálogo</a>

@@ -19,6 +19,8 @@ import { armarBulto, andreaniQuote } from "./andreani";
 import { ogTagsHtml } from "./og";
 import { validateCart, type CartInput } from "./orders";
 import { orderPageApp } from "./orders-page";
+import { returnsApp } from "./returns";
+import { returnsPageApp } from "./returns-page";
 import { maintenanceMiddleware } from "./maintenance";
 import { waFeedApp } from "./wa-feed";
 import { runWeeklyDigest } from "./digest";
@@ -54,6 +56,9 @@ app.route("/api/admin", adminApp);
 app.route("/api/admin/import/tecnova", tecnovaApp);
 app.route("/", checkoutApp);
 app.route("/", orderPageApp);
+// Solicitudes de cambio/devolución/arrepentimiento (ETAPA 2): API + seguimiento.
+app.route("/", returnsApp);
+app.route("/", returnsPageApp);
 app.route("/", seoApp);
 // Feed CSV del catálogo de WhatsApp: lo descarga Meta (ver wa-feed.ts).
 app.route("/", waFeedApp);
@@ -345,6 +350,27 @@ app.get("/producto/*", async (c) => {
   const conTags = html.replace(/<!--OG:START-->[\s\S]*?<!--OG:END-->/, `<!--OG:START-->\n    ${tags}\n    <!--OG:END-->`);
   return new Response(conTags, { status: res.status, headers: res.headers });
 });
+/**
+ * Página pública de HTML estático (legales) servida en su ruta limpia.
+ * Las rutas están en run_worker_first (wrangler.jsonc) para que pasen por el
+ * worker y reciban sus cabeceras de seguridad; el asset real es el .html.
+ * Si el asset no está (build incompleto) se responde la 404 real del sitio,
+ * no un shell vacío con 200.
+ */
+async function staticPage(c: Context<{ Bindings: Env }>, asset: string): Promise<Response> {
+  const res = await c.env.ASSETS.fetch(new Request(new URL(asset, c.req.url)));
+  if (!res.ok) return notFoundPage(c);
+  return res;
+}
+
+// Política de cambios, devoluciones y garantía + política de privacidad.
+// Canonical y sitemap apuntan a estas rutas limpias (sin .html).
+app.get("/politica-de-cambios-y-devoluciones", (c) => staticPage(c, "/politica-de-cambios-y-devoluciones.html"));
+app.get("/politica-de-privacidad", (c) => staticPage(c, "/politica-de-privacidad.html"));
+// Formulario de solicitudes (ETAPA 2): HTML estático + su entry, mismo trato
+// que las legales (ruta limpia con las cabeceras del worker).
+app.get("/devoluciones", (c) => staticPage(c, "/devoluciones.html"));
+
 app.get("/admin", (c) => c.redirect("/admin/", 301));
 // /changelog.md es documentación interna (el panel la lee vía /api/admin/changelog,
 // autenticado): el asset directo queda bloqueado con una respuesta vacía.

@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cambios, devoluciones y arrepentimiento — CenterPhone Celulares</title>
+    <meta
+      name="description"
+      content="Iniciá una solicitud de arrepentimiento, cambio, devolución o garantía en CenterPhone. Sin registro y sin justificar el motivo: te damos un código de seguimiento."
+    />
+    <link rel="canonical" href="https://centerphone.com.ar/devoluciones" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0b0f14" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="stylesheet" href="/src/web/styles.css" />
+  </head>
+  <body class="page-legal">
+    <a class="skip-link" href="#contenido">Saltar al contenido</a>
+    <header class="topbar">
+      <a class="brand" href="/"><img class="brand-logo" src="/logo-small.jpg" alt="CenterPhone Celulares"/><span class="brand-name">CenterPhone</span><span class="brand-tag">Celulares</span></a>
+      <nav class="topnav" aria-label="Principal">
+        <a class="topnav-btn" href="/politica-de-cambios-y-devoluciones">Política</a>
+        <a class="topnav-btn" href="/">Catálogo</a>
+      </nav>
+    </header>
+
+    <main class="legal-page" id="contenido" tabindex="-1">
+      <nav class="breadcrumbs" aria-label="Ubicación">
+        <a href="/">Inicio</a> › <span>Solicitud de cambio, devolución o arrepentimiento</span>
+      </nav>
+
+      <h1>Iniciar una solicitud</h1>
+      <p class="legal-lead">
+        Podés pedir el <strong>arrepentimiento</strong> de una compra a distancia, un
+        <strong>cambio</strong>, una <strong>devolución</strong> o el uso de la <strong>garantía</strong>.
+        No hace falta registrarse ni tener cuenta, y no tenés que justificar el motivo: alcanza con
+        dejarnos un medio de contacto para responderte.
+      </p>
+
+      <noscript>
+        <p class="legal-note">
+          Este formulario necesita JavaScript. Si no podés usarlo, escribinos por WhatsApp al
+          <a href="https://wa.me/5493425819402" target="_blank" rel="noopener">+54 9 342 581 9402</a>
+          o acercate al local de Mendoza 2974, Santa Fe.
+        </p>
+      </noscript>
+
+      <form class="return-form" id="return-form" novalidate>
+        <div class="field">
+          <label for="rf-kind">¿Qué necesitás?</label>
+          <select id="rf-kind" name="kind">
+            <option value="arrepentimiento" selected>Arrepentimiento (compra a distancia)</option>
+            <option value="cambio">Cambio</option>
+            <option value="devolucion">Devolución</option>
+            <option value="garantia">Garantía</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="rf-name">Tu nombre</label>
+          <input id="rf-name" name="name" type="text" autocomplete="name" maxlength="80" required />
+        </div>
+
+        <div class="field">
+          <label for="rf-contact">WhatsApp o email</label>
+          <input
+            id="rf-contact"
+            name="contact"
+            type="text"
+            autocomplete="tel"
+            inputmode="text"
+            maxlength="120"
+            required
+            placeholder="Ej.: 342 581 9402 o nombre@correo.com"
+          />
+          <p class="field-hint">Lo usamos solo para responderte sobre esta solicitud.</p>
+        </div>
+
+        <div class="field">
+          <label for="rf-order">Número de pedido <span class="opt">(opcional)</span></label>
+          <input id="rf-order" name="orderRef" type="text" maxlength="40" placeholder="Ej.: el código que aparece en tu compra" />
+        </div>
+
+        <div class="field">
+          <label for="rf-product">Producto <span class="opt">(opcional)</span></label>
+          <input id="rf-product" name="product" type="text" maxlength="120" placeholder="Modelo o descripción" />
+        </div>
+
+        <div class="field">
+          <label for="rf-detail">Comentario <span class="opt">(opcional)</span></label>
+          <textarea id="rf-detail" name="detail" rows="4" maxlength="1000" placeholder="Si querés contarnos algo más, escribilo acá."></textarea>
+        </div>
+
+        <!-- Honeypot: invisible para personas, los bots lo completan. -->
+        <div class="rf-hp" aria-hidden="true">
+          <label for="rf-website">No completar</label>
+          <input id="rf-website" name="website" type="text" tabindex="-1" autocomplete="off" />
+        </div>
+
+        <p class="return-form-error" id="rf-error" hidden></p>
+
+        <button class="btn btn-primary" id="rf-submit" type="submit">Enviar solicitud</button>
+
+        <p class="legal-cta-note">
+          Al enviar, registramos la fecha y la hora y te mostramos un <strong>código de seguimiento</strong>.
+          También te lo informamos dentro de las 24 horas por el mismo medio en el que la iniciaste.
+          Más detalle en la <a href="/politica-de-cambios-y-devoluciones">política de cambios y devoluciones</a>.
+        </p>
+      </form>
+
+      <section class="return-done" id="return-done" hidden aria-live="polite">
+        <h2>¡Listo! Tu solicitud quedó registrada</h2>
+        <p class="return-code">Código <strong id="rd-code">—</strong></p>
+        <p>
+          Guardá este código: es lo que te vamos a pedir cuando nos escribas. También podés seguir
+          el estado en cualquier momento desde el enlace de abajo.
+        </p>
+        <div class="return-actions">
+          <a class="btn btn-primary" id="rd-link" href="/devoluciones">Ver el seguimiento</a>
+          <button class="btn" id="rd-copy" type="button">Copiar código</button>
+        </div>
+        <p class="legal-cta-note" id="rd-note"></p>
+      </section>
+    </main>
+
+    <!-- Pie compartido (ver src/web/site-footer.ts). -->
+    <footer class="footer" data-site-footer aria-label="Cómo comprar y contacto" hidden></footer>
+
+    <script type="module" src="/src/web/returns.ts"></script>
+  </body>
+</html>

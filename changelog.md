@@ -1,3 +1,81 @@
+## 2026-11-03 — ETAPA 2 publicada en producción
+
+- **Migración remota aplicada** en D1 (`celu-store-db`): tablas `return_requests` y `return_events` verificadas con `sqlite_master`.
+- **Deploy** con `npm run deploy` → versión `124acadd-71ba-450e-b22d-f53d074ec9ed`.
+- **Verificado en https://centerphone.com.ar**: `/devoluciones` 200 con CSP y sus tres assets 200; `/devoluciones/seguimiento` 302 al formulario; token inexistente 404 con `noindex`.
+- **Prueba de punta a punta en producción**: `POST /api/returns` devolvió `ARR-DW5D8C` con token; la API pública y la página de seguimiento respondieron 200 con el estado "Solicitud recibida" y **cero** coincidencias de nombre o email en el HTML; la fila y su evento quedaron en D1 (1 y 1). Después se **eliminó la solicitud de prueba** para no dejar basura: la tabla quedó en 0 filas.
+- El CTA de la política y el enlace del pie apuntan al formulario; el botón flotante sigue retirado.
+
+## 2026-11-03 — ETAPA 2: formulario de arrepentimiento con código de seguimiento
+
+- **Migración nueva** [db/migrations/013-return-requests.sql](db/migrations/013-return-requests.sql): `return_requests` (id token de 32 hex, `code` legible único, tipo, nombre, un solo contacto, pedido/producto/detalle opcionales, estado, respuesta, `ip_hash` en vez de IP) y `return_events` (historial de estados con fecha). Índices por fecha, estado y contacto.
+- **API** [src/worker/returns.ts](src/worker/returns.ts): `POST /api/returns` valida (nombre, WhatsApp u email, nada más obligatorio), genera `ARR-/CAM-/DEV-/GAR-XXXXXX` en el alfabeto sin caracteres ambiguos, registra la fecha/hora y el primer evento, y devuelve el código + token de seguimiento. `GET /api/returns/:token` devuelve solo lo público. Anti-abuso: honeypot, tope de 8 KB del cuerpo, mismo origen, rate limit de 5 envíos cada 10 minutos por IP y hash de IP con el secreto del worker.
+- **Formulario** [/devoluciones](devoluciones.html): tipo, nombre, WhatsApp o email, pedido, producto y comentario (todos opcionales menos nombre y contacto). Sin registro, sin cuenta y sin justificar el motivo; el comentario nunca es obligatorio. Al enviar muestra el código, lo deja copiar y enlaza al seguimiento.
+- **Seguimiento público** `/devoluciones/seguimiento/:token` ([src/worker/returns-page.ts](src/worker/returns-page.ts), servido por el worker con CSP y `noindex`): código, tipo, estado, fechas, producto, respuesta del comercio e historial. **No muestra** nombre, contacto ni comentarios. `/devoluciones/seguimiento` sin token redirige al formulario.
+- **Enlaces**: el CTA de la política y el enlace "Botón de arrepentimiento" del pie apuntan al formulario; [legal.ts](src/web/legal.ts) dejó de reescribir el CTA con el WhatsApp del panel.
+- **Tests nuevos** [src/worker/returns.test.ts](src/worker/returns.test.ts) (17): validación, código y token, honeypot, 413, JSON inválido, límite por IP, 404, y que ni la API ni la página pública filtren nombre/contacto/detalle. **507/507** en total; `npm run typecheck` y `npm run build` limpios.
+- **Verificado en local (8788)** de punta a punta: envío desde el formulario → `ARR-NRH9MT` + enlace, y la página de seguimiento con el código, "Solicitud recibida", un hito en el historial y sin datos personales.
+- **Pendiente**: la migración está aplicada **solo en local**; producción necesita `wrangler d1 execute --remote` y un deploy. El panel de administración (ver/cambiar estados, responder, historial) es la ETAPA 3.
+
+## 2026-11-03 — Sin botón flotante: la política queda enlazada solo desde el pie
+
+- **Retirado el `BOTÓN DE ARREPENTIMIENTO` flotante** de la home y de las fichas ([index.html](index.html), [product.html](product.html)), por pedido del titular.
+- Se quitó la clase `has-arrepi-bar` del `body` y todo el CSS del flotante (`.arrepi-float`, sus variantes de móvil y el padding inferior de 104px que lo compensaba) en [src/web/styles.css](src/web/styles.css). Ya no queda ninguna referencia en el código.
+- **Único punto de entrada**: la columna LEGAL del pie compartido, con "Cambios y devoluciones", "Botón de arrepentimiento" y "Política de privacidad". Verificado en el DOM: 3 enlaces a las políticas, todos dentro del `footer`, ninguno en el header.
+- Se mantiene el CTA dentro de la propia política (`/politica-de-cambios-y-devoluciones#arrepentimiento`), que sigue abriendo WhatsApp con el mensaje de solicitud precargado.
+- **Verificado** en local (8788) en home y ficha a 390px: sin elemento flotante, pie visible con los tres enlaces, WhatsApp flotante intacto y sin scroll horizontal. `npm run build` OK, `npm test` 490/490.
+
+## 2026-11-03 — Deploy a producción (ETAPA 1 + correcciones P0/P1/P2)
+
+- **Publicado** con `npm run deploy` (build + `wrangler deploy`): worker `celu-store`, versión `85635706-e75f-448a-be46-103fcaa4269d`, 15 assets, 271 KiB (70.8 KiB gzip). Sin migraciones nuevas: la ETAPA 1 no toca la base.
+- **Verificado en https://centerphone.com.ar**: `/politica-de-cambios-y-devoluciones` y `/politica-de-privacidad` 200 con CSP y `X-Frame-Options: DENY`; la variante `.html` responde 307 a la ruta limpia; home y ficha 200; `/admin/` 200; `/seguimiento` 302 (redirección configurada); `/api/public/settings` 200.
+- **En el navegador**: el CTA de arrepentimiento se ve ámbar con texto oscuro (9.5:1), el pie compartido monta los tres enlaces legales, `aria-current` en verde y a 320px el header no trunca ("Cómo comprar" y "Seguimiento" enteros, sin scroll horizontal). Las dos citas normativas (954/2025 y 3/2026) están en el HTML servido; cero menciones a la derogada 424/2020.
+- **Sitemap**: el dominio seguía sirviendo una copia vieja (1366 URLs, sin las legales) desde la caché del borde. Se purgó `https://centerphone.com.ar/sitemap.xml` por API y ahora responde con **1368 URLs**, incluidas ambas páginas legales.
+- Los cambios siguen **sin commitear** (no se pidió commit).
+
+## 2026-11-03 — Header: fin del truncado de etiquetas entre 381 y 480px (y bandas vecinas)
+
+- **Diagnóstico**: la marca completa + cuatro accesos + el carrito piden ~598px útiles con la tipografía de ≤640px. Por debajo, el navegador encogía **todas** las etiquetas a la vez y quedaban en 24-56px ("Có…", "Conta…", "Segui…"; medido a 382, 418 y 495px). El mismo problema aparecía entre 641 y ~694px en escritorio y en la ficha.
+- **Solución por tramos** ([src/web/styles.css](src/web/styles.css)):
+  - **≤720px**: se oculta el apellido "Celulares" y la marca queda en "CenterPhone".
+  - **≤640px**: se sueltan "Productos" (ancla al catálogo, que es esta misma página) y "Contacto" (horarios, dirección, mapa y WhatsApp están en el pie).
+  - **≤800px**: en la ficha, "← Volver al catálogo" (~190px) queda solo en flecha, con `aria-label` completo y el logo también linkeando al catálogo.
+  - **≤480px**: tipografía del header a 12px, gap a 6px y padding lateral a 10px; la marca a 14px.
+  - **≤380px**: además se oculta el nombre de la marca (queda el logo, con el nombre en `alt`/`title`).
+- **Especificidad**: las reglas nuevas usan `header.topbar` y `.topbar a.topbar-link` porque el bloque de ≤640px, más abajo en el archivo, pisaba `gap`, `padding` y `min-width` con la misma especificidad. También se corrigió el orden de `.topbar-link-short`, que quedaba anulado por su propia definición base.
+- **Verificado en local (8788)**, midiendo ancho y `scrollWidth` de cada ítem: sin recortes a 320, 360, 382, 485, 495 y 736px en home, ficha y páginas legales; `docW ≤ viewport` (sin scroll horizontal). `npm run build` OK.
+
+## 2026-11-03 — Correcciones P2 de la revisión de la ETAPA 1
+
+- **Skip link**: enlace `Saltar al contenido` como primer foco de home, ficha y páginas legales (`.skip-link`, fuera de pantalla hasta recibir foco). El `main` lleva `id="contenido"` y `tabindex="-1"` para que el salto mueva el foco de verdad. Se usa `:focus` y no `:focus-visible` porque el foco programático en un enlace no siempre activa el segundo.
+- **Orden de tabulación**: el `BOTÓN DE ARREPENTIMIENTO` fijo pasó de estar al final del `body` (después del pie y de los modales) a ir justo después del header. Al ser `position: fixed` no cambia nada en pantalla, pero con Tab se llega enseguida en vez de después de todo el catálogo. Foco visible propio (`.arrepi-float:focus-visible`).
+- **Header a 320px**: a ese ancho las etiquetas quedaban en 24-35px y se leían "Có…", "Se…" (medido). Nuevo tramo `≤380px`: se oculta el texto de la marca (queda el logo, con el nombre completo en `alt` y `title`, así el enlace conserva su nombre accesible), se oculta "Cómo comprar" (sus pasos están en el pie) y el enlace "← Volver al catálogo" se reduce a la flecha (`aria-label` completo). Gap del header y del nav a 6/8px. Resultado a 320px: "Seguimiento" completo, sin scroll horizontal.
+- **`aria-current`**: la página actual del header legal se distingue visualmente (verde + subrayado inferior), antes solo existía para lectores de pantalla.
+- **Confirmación de compra**: `/pedido/:id` incluye el recordatorio del derecho de revocación (10 días corridos, sin justificar ni registrarse) con enlace a `/politica-de-cambios-y-devoluciones#arrepentimiento`, conforme al art. 34, último párrafo, de la Ley 24.240. Test nuevo en `orders-page.test.ts`.
+- **Botón de baja de servicio**: no corresponde. El sitio vende productos, no servicios prestados a distancia, así que el supuesto de la Disposición no aplica (queda documentado, sin agregar un botón que no corresponde).
+- **Verificado**: `npm test` 490/490, `npm run typecheck` limpio, `npm run build` OK; medición en local (8788) a 320px de header en home, ficha y legales, y de la página de pedido. Sin deploy.
+
+## 2026-11-03 — Correcciones de la revisión de la ETAPA 1 (P0/P1)
+
+- **Contraste del CTA (P0)**: en la política, `.legal-section a` (0,1,1) le ganaba a `.btn-arrepentimiento` (0,1,0) y dejaba el botón con texto verde sobre fondo ámbar (**1.3:1**). Nueva regla `.legal-section a.btn-arrepentimiento` con el texto oscuro del diseño (contraste ≈ 10:1).
+- **Textos que prometían de más (P0)**: se quitó "un solo paso" (abre WhatsApp y hay que enviar el mensaje), la fecha/hora ahora dice "registramos el día y la hora en que recibimos tu solicitud" y el mensaje de WhatsApp pasó de consultar ("¿me indican cómo seguir?") a una **solicitud declarativa** de revocación con pedido de código. También en el href estático del HTML.
+- **Costos de devolución (P0)**: el arrepentimiento ya no queda condicionado ("cuando corresponde…"); ahora dice que los gastos están **a cargo del vendedor (art. 34, Ley 24.240)** y nunca se descuentan del reintegro. Igual criterio en el paso 3 y en la sección 7; en garantía, traslado a cargo del vendedor sin condicional.
+- **Normativa vigente (P1)**: la política cita **Disposición 954/2025** y **Disposición 3/2026** (verificación razonable de identidad, sin registro ni cuenta), además de Ley 24.240 art. 34 y CCyC art. 1110. No se menciona la derogada Res. 424/2020 en ningún archivo (verificado).
+- **Privacidad (P1)**: se corrigieron afirmaciones que no coincidían con el código: la dirección no se guarda en el sitio (solo el CP para cotizar), se agregó el **email que informa MercadoPago**, el seguimiento público **muestra el nombre del comprador** (ahora dicho explícitamente), las estadísticas se guardan **90 días** por evento y se usan agregadas, los pedidos se conservan por garantía/plazos legales (sin purga automática), se sumó **Google Fonts** como tercero y se aclaró que Cloudflare puede usar cookies técnicas.
+- **Anclas (P1)**: `scroll-margin-top` de las secciones legales de 24px a **72px**; con el header sticky de ~50px el título quedaba debajo al entrar por `#arrepentimiento`.
+- **Footer en móvil (P1)**: `body.has-arrepi-bar` (home y ficha) suma 104px de padding inferior para que la barra fija no tape el bloque del titular/CUIT al final de la página.
+- **Verificado**: `npm test` 489/489, `npm run typecheck` limpio, `npm run build` OK y revisión en local (8788) del color del CTA, el offset del ancla, el pie sin superposición y el nuevo mensaje de WhatsApp. Sin deploy.
+
+## 2026-11-03 — ETAPA 1: política de cambios/devoluciones, privacidad, footer único y botón de arrepentimiento
+
+- **Página nueva `/politica-de-cambios-y-devoluciones`** ([politica-de-cambios-y-devoluciones.html](politica-de-cambios-y-devoluciones.html), entrada `devoluciones` en [vite.config.ts](vite.config.ts)): titular y CUIT, cambios voluntarios presenciales (7 días), arrepentimiento a distancia (10 días corridos, sin registro ni justificar), garantías legales (6 meses nuevos / 3 meses usados), daños por mal uso (diagnóstico + presupuesto), procedimiento, costos de envío, reintegros y contacto. Aclara explícitamente que el **embalaje original no es requisito** para garantía ni arrepentimiento, y que nada limita los derechos de la Ley 24.240 / art. 1110 CCyC / Disposición 954/2025.
+- **Página nueva `/politica-de-privacidad`** ([politica-de-privacidad.html](politica-de-privacidad.html)): responsable, datos, finalidad, base legal, terceros (Cloudflare, MercadoPago, Andreani, WhatsApp), conservación, derechos (Ley 25.326 / AAIP), seguridad, almacenamiento local del carrito.
+- **Footer único** ([src/web/site-footer.ts](src/web/site-footer.ts)): un solo HTML para home, ficha y páginas legales, montado sobre `<footer data-site-footer>` con los datos del panel (marca, horarios, dirección+mapa, redes). Se eliminó el pie duplicado de [index.html](index.html) y el llenado de footer que estaba en [store-modals.ts](src/web/store-modals.ts); la ficha ahora también tiene pie. Nueva columna **LEGAL** con cambios/devoluciones, botón de arrepentimiento, privacidad y los datos del titular.
+- **Botón de arrepentimiento**: enlace fijo y estático (no depende del JS) con el texto exacto **BOTÓN DE ARREPENTIMIENTO** en home y fichas, más el CTA dentro de la política que abre WhatsApp con el mensaje de solicitud precargado (acción disponible hasta que la ETAPA 2 sume el formulario con código). En móvil pasa a barra inferior por encima del flotante de WhatsApp.
+- **Rutas y SEO**: `staticPage()` en [index.ts](src/worker/index.ts) sirve los `.html` en la ruta limpia con las cabeceras del worker; ambas rutas quedan en `run_worker_first` ([wrangler.jsonc](wrangler.jsonc)); la variante `.html` responde 307 a la ruta limpia (assets) y las dos páginas entran al sitemap sin `lastmod` inventado ([seo.ts](src/worker/seo.ts)).
+- **Tests nuevos**: [site-footer.test.ts](src/web/site-footer.test.ts) (enlaces legales, datos del titular, escapado de HTML, redes vacías), [legal-pages.test.ts](src/worker/legal-pages.test.ts) (200 en ruta limpia, CSP, 404 real si falta el asset) y caso de sitemap para las legales. **489/489** pruebas pasan; `npm run typecheck` y `npm run build` limpios.
+- **Verificado en local (8788)**: ambas rutas 200 con CSP; footer montado con los 3 enlaces legales y datos del panel; botón visible (texto exacto, 235×41 en escritorio, barra en móvil sin solaparse con WhatsApp); a 355px de ancho no hay scroll horizontal y los dos accesos del header se leen completos. Sin cambios en checkout, MercadoPago, precios ni catálogo. **Sin deploy** (ETAPA 1 pedida sin publicar).
+
 ## 2026-11-03 — Sitemap: `lastmod` real por producto (antes era la fecha del día)
 
 - `sitemap.xml` ponía **la fecha del día** como `lastmod` de las 1365 fichas en cada descarga: Google veía «cambió todo hoy» siempre y terminaba descartando la señal. Ahora cada URL lleva **su** fecha.

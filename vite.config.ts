@@ -13,6 +13,12 @@ export default defineConfig({
         index: "index.html",
         product: "product.html",
         admin: "admin/index.html",
+        // Páginas legales: HTML estático con el mismo styles.css. El worker las
+        // sirve en la ruta limpia (ver src/worker/index.ts).
+        devoluciones: "politica-de-cambios-y-devoluciones.html",
+        privacidad: "politica-de-privacidad.html",
+        // Formulario de solicitudes (ETAPA 2), también en su ruta limpia.
+        solicitud: "devoluciones.html",
       },
     },
   },

@@ -35,8 +35,16 @@ seoApp.get("/sitemap.xml", async (c) => {
   // Google las rastree y las agrupara como «Página alternativa con etiqueta
   // canónica adecuada» por cada categoría, sumando ruido en Search Console sin
   // ganancia de indexación. Siguen accesibles desde los chips del menú.
+  // Páginas fijas del sitio (legales). Sin `lastmod`: no tienen fecha propia
+  // confiable y una fecha inventada es justo lo que se corrigió arriba.
+  const paginas = [
+    { path: "/politica-de-cambios-y-devoluciones", priority: "0.4" },
+    { path: "/politica-de-privacidad", priority: "0.3" },
+  ];
   const urls: string[] = [
     `  <url><loc>${origin}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`,
+    ...paginas.map((p) =>
+      `  <url><loc>${origin}${p.path}</loc><changefreq>yearly</changefreq><priority>${p.priority}</priority></url>`),
     ...products.map((p) =>
       `  <url><loc>${origin}/producto/${encodeURIComponent(p.id)}</loc>${lastmodTag(p.updatedAt)}<changefreq>weekly</changefreq><priority>0.8</priority></url>`),
   ];
