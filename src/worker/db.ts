@@ -163,6 +163,29 @@ export async function listProducts(db: D1Database, all = false): Promise<Product
   return (results ?? []).map(rowToProduct);
 }
 
+export interface SitemapProduct {
+  id: string;
+  /** Fecha real de modificación (epoch ms); 0 si la fila no la tiene. */
+  updatedAt: number;
+}
+
+/**
+ * Productos publicados para `sitemap.xml`: solo id y fecha de modificación.
+ * No se usa `listProducts()` a propósito — el sitemap no necesita el producto
+ * entero y así no se arma un snapshot de 1400 filas para descartar el 90% de
+ * los campos. `updated_at` manda; `created_at` es el respaldo de las filas
+ * que nunca se editaron.
+ */
+export async function listProductsForSitemap(db: D1Database): Promise<SitemapProduct[]> {
+  const { results } = await db
+    .prepare("SELECT id, created_at, updated_at FROM products WHERE status = 'published' ORDER BY sort_order, created_at")
+    .all<Dict>();
+  return (results ?? []).map((row) => ({
+    id: String(row.id ?? ""),
+    updatedAt: num(row.updated_at) || num(row.created_at),
+  }));
+}
+
 // ---- Paginación para el panel (Products no carga todos de una) ----
 
 export interface ProductPageFilter {

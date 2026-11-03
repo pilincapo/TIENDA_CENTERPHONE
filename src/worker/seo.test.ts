@@ -39,9 +39,19 @@ function mockEnv(): Env {
   return { DB: db, KV: kv, ASSETS: assets, ADMIN_PASSWORD: "x", ADMIN_SESSION_SECRET: "y" } as unknown as Env;
 }
 
+// El sitemap filtra los ocultos en el SQL (`WHERE status = 'published'`), así que
+// el mock imita esa cláusula: si la ignorara, el test no probaría nada real.
 function mockDbWith(rows: Record<string, unknown>[]): D1Database {
   return {
-    prepare: () => ({ all: async () => ({ results: rows }), first: async () => null, run: async () => ({ success: true }) }),
+    prepare: (sql: string) => ({
+      all: async () => ({
+        results: sql.includes("status = 'published'")
+          ? rows.filter((r) => r.status !== "hidden")
+          : rows,
+      }),
+      first: async () => null,
+      run: async () => ({ success: true }),
+    }),
   } as unknown as D1Database;
 }
 
@@ -70,6 +80,23 @@ describe("sitemap.xml", () => {
     expect(xml).not.toContain("p-2");
     // Ninguna URL de categoría: era la causa de «Página alternativa con canónica adecuada».
     expect(xml).not.toContain("cat=");
+  });
+
+  it("lastmod usa la fecha real de cada ficha, no la del día", async () => {
+    const env = mockEnv();
+    env.DB = mockDbWith([
+      { id: "p-1", updated_at: Date.UTC(2026, 9, 21, 15, 0, 0), created_at: Date.UTC(2026, 7, 1) },
+      { id: "p-2", updated_at: 0, created_at: Date.UTC(2026, 8, 1) },
+      { id: "p-3", updated_at: 0, created_at: 0 },
+    ]);
+    const xml = await (await seoApp.request("/sitemap.xml", {}, env, ctx)).text();
+    // updated_at manda…
+    expect(xml).toContain("producto/p-1</loc><lastmod>2026-10-21</lastmod>");
+    // …y created_at es el respaldo de las filas nunca editadas.
+    expect(xml).toContain("producto/p-2</loc><lastmod>2026-09-01</lastmod>");
+    // Sin fecha válida se omite la etiqueta en vez de inventar la fecha de hoy.
+    expect(xml).toContain("producto/p-3</loc><changefreq>");
+    expect(xml).not.toMatch(/producto\/p-3<\/loc><lastmod>/);
   });
 
   it("robots.txt bloquea admin y el feed, y publica el sitemap", async () => {

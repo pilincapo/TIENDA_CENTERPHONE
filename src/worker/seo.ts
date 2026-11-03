@@ -4,9 +4,21 @@
 // Cache API — los bots no generan consultas a D1 en cada rastreo.
 import { Hono } from "hono";
 import type { Env } from "./db";
-import { listProducts } from "./db";
+import { listProductsForSitemap } from "./db";
 
 export const seoApp = new Hono<{ Bindings: Env }>();
+
+/**
+ * `lastmod` con la fecha REAL de modificación de cada ficha. Antes se emitía
+ * la fecha del día para las 1365 URLs, así que Google veía "todo cambió hoy"
+ * en cada descarga y terminaba ignorando la señal; ahora solo se mueve lo que
+ * de verdad se tocó (importación, precio, estado, renombre).
+ * Si la fila no tiene fecha válida se omite la etiqueta en vez de inventarla.
+ */
+function lastmodTag(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return "";
+  return `<lastmod>${new Date(ms).toISOString().slice(0, 10)}</lastmod>`;
+}
 
 seoApp.get("/sitemap.xml", async (c) => {
   const cache = caches.default;
@@ -16,8 +28,7 @@ seoApp.get("/sitemap.xml", async (c) => {
   }
 
   const origin = "https://centerphone.com.ar";
-  const products = await listProducts(c.env.DB);
-  const lastmod = new Date().toISOString().slice(0, 10);
+  const products = await listProductsForSitemap(c.env.DB);
 
   // Sin URLs de categoría (/?cat=...): son la home filtrada por JS, con el
   // mismo HTML y canonical hacia "/". Publicarlas en el sitemap hacía que
@@ -26,8 +37,8 @@ seoApp.get("/sitemap.xml", async (c) => {
   // ganancia de indexación. Siguen accesibles desde los chips del menú.
   const urls: string[] = [
     `  <url><loc>${origin}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`,
-    ...products.filter((p) => p.status === "published").map((p) =>
-      `  <url><loc>${origin}/producto/${encodeURIComponent(p.id)}</loc><lastmod>${lastmod}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`),
+    ...products.map((p) =>
+      `  <url><loc>${origin}/producto/${encodeURIComponent(p.id)}</loc>${lastmodTag(p.updatedAt)}<changefreq>weekly</changefreq><priority>0.8</priority></url>`),
   ];
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`;
