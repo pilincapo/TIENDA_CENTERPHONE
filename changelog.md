@@ -1,3 +1,68 @@
+## 2026-11-03 — Sitemap: `lastmod` real por producto (antes era la fecha del día)
+
+- `sitemap.xml` ponía **la fecha del día** como `lastmod` de las 1365 fichas en cada descarga: Google veía «cambió todo hoy» siempre y terminaba descartando la señal. Ahora cada URL lleva **su** fecha.
+- Nueva `listProductsForSitemap()` en [db.ts](src/worker/db.ts): consulta solo `id, created_at, updated_at` de los publicados (no arma el snapshot de 1400 filas para descartar el 90% de los campos). Manda `updated_at`; `created_at` es el respaldo de las filas que nunca se editaron.
+- [seo.ts](src/worker/seo.ts): helper `lastmodTag()` — ISO `YYYY-MM-DD` UTC. Si la fila no tiene fecha válida se **omite** la etiqueta en vez de inventar la fecha de hoy.
+- **Tests** ([seo.test.ts](src/worker/seo.test.ts)): caso nuevo para `updated_at`, respaldo por `created_at` y omisión sin fecha; el mock de D1 ahora respeta `WHERE status = 'published'` (antes lo ignoraba y el test de ocultos no probaba nada real). 13/13 pasan.
+- **Verificado en local**: `npx vitest run src/worker/seo.test.ts` (13/13) y `npm run typecheck` (los dos tsconfig). Publicado el mismo día (ver abajo).
+- **Publicado**: commit `9166d61`, deploy `931b5f4c-3c7c-4597-82c8-5bfbb547f564`. En producción, `/sitemap.xml` con cache-buster devuelve **1366 URLs** y **2 fechas reales** (714 con `2026-11-03`, 651 con `2026-11-02`) en lugar de una sola para todo; **0 `cat=`**, **0 duplicadas**, la home sigue sin `lastmod`. Muestra de 5 fichas al azar → **200**. Regresiones: `/`, `/api/catalog`, `/admin/`, `/robots.txt` y `/producto/5469` → **200**.
+- **Ojo con el borde**: la URL plana `/sitemap.xml` todavía servía la copia vieja en caché (`Age: 636`, fecha única) — la Cache API guarda 24 h y no hay purge desde acá. Google recibe las fechas reales cuando expire (≤24 h). Las fechas son reales pero **gruesas**: el importador reescribe `updated_at` en cada sync, así que la mayoría cae en el día del último sync de su fuente.
+
+## 2026-11-03 — Sitemap regenerado y reenviado a Search Console (fichas con nombres viejos)
+
+- **Sitemap fresco (dinámico desde D1)**: **1366 URLs** = home + **1365 productos publicados**, 0 duplicadas, sin `?cat=`, todas en `https://centerphone.com.ar`. Coincide con `/api/catalog` (1365 publicados). Solo quedan **2 ids numéricos** (`1317`, `190`) y son productos reales con ese id, no restos del renombre.
+- **Reenviado en Search Console** (propiedad `sc-domain:centerphone.com.ar`): Google lo volvió a descargar **3 segundos** después — **1366 enviadas, 0 errores, 0 advertencias** (`lastDownloaded 2026-11-03T11:40:04Z`). El envío viejo `https://www.centerphone.com.ar/sitemap.xml` sigue listado con 1366 y 0 errores (el host hace 301 al apex).
+- **Por qué Google muestra los nombres viejos**: la inspección de `/producto/5994` da `googleCanonical` = la **URL numérica vieja** y último rastreo **2026-10-01**, o sea antes del renombre. Hoy esa URL responde **301** al slug nuevo (verificado en 10 ids de muestra, todos de un solo salto), pero Google todavía no volvió a pasar por ellas; el slug nuevo ya está indexado (rastreado 2026-10-27). No es un problema del sitemap ni del 301: es índice pendiente de recrawl.
+- **Verificado**: 14 URLs de fichas tomadas de Search Console → 13 están en el sitemap y responden **200**; la restante es una renombrada y responde **301**. `/sitemap.xml` y `/robots.txt` en 200.
+- Sin cambios de código, sin commit ni deploy: el sitemap ya se genera al vuelo desde D1.
+
+## 2026-11-02 — Un solo `esc()` compartido (escape HTML) en todo el sitio
+
+- Nuevo helper compartido `src/shared/html.ts` con `esc()`: escapa `&`, `<`, `>`, `"` y `'`, para que sirva igual en contenido y en atributos con comillas simples o dobles.
+- Se eliminaron las **9 copias locales** de `esc()`: 7 en el frontend ([admin.ts](src/web/admin.ts), [catalog.ts](src/web/catalog.ts), [search-live.ts](src/web/search-live.ts), [cart-ui.ts](src/web/cart-ui.ts), [product.ts](src/web/product.ts), [store-modals.ts](src/web/store-modals.ts), [announcement.ts](src/web/announcement.ts)) y 2 en el worker ([orders-page.ts](src/worker/orders-page.ts), [maintenance.ts](src/worker/maintenance.ts)). Todas importan ahora el helper compartido.
+- **Cambio de comportamiento**: las dos copias del worker no escapaban la comilla simple (`'`); ahora sí. Hoy no cambia nada visible porque los únicos destinos son atributos entre comillas dobles y texto, pero cierra el riesgo de que un futuro atributo con comilla simple quedara sin escapar.
+- Sin cambios de estilos, de worker, de API ni de esquema. El mock de diseño `disenos/busqueda-en-linea.html` mantiene su `esc` inline porque es un archivo suelto que no entra al build.
+- **Verificado en local**: `npm run typecheck` (los dos tsconfig), `npm run build` y las **479** pruebas de `npm test` pasan. Sin commit ni deploy.
+
+## 2026-10-30 — Publicado en producción (búsqueda en línea en catálogo, ficha y panel)
+
+- `npm run deploy` → worker **celu-store**, 10 assets (269.63 KiB / 70.23 KiB gzip), en `https://celu-store.pilin123.workers.dev` y el dominio `https://centerphone.com.ar`. Versión con el código nuevo: `a870b736-5cc0-48f6-b0ff-4cc765c6b449`; un segundo deploy (`79385842-cb84-40b5-be0d-00936b133eba`) solo sumó esta entrada al changelog que muestra el panel.
+- Verificado sobre el dominio real: catálogo «iphone» → 18 resultados, panel de 720 px y 5 filas; ficha (redirección de id numérico a slug incluida) con «samsung» → 4 filas; `/admin/` sirve el bundle nuevo. Las tres rutas responden 200.
+
+## 2026-10-30 — Búsqueda en línea también en el listado de Productos del panel
+
+- El buscador de **Productos** del panel muestra ahora el mismo panel de resultados en línea del catálogo (lista compacta: miniatura, título con la coincidencia en ámbar, categoría y precio) mientras se escribe, con el total real y el pie «Ver los N resultados».
+- Busca en el **servidor**, respetando el filtro de estado (Todos / Sin stock) y de origen activos, y pide solo 5 filas por pausa (180 ms) abortando la petición anterior: no carga el catálogo entero en el navegador.
+- **Cambio de comportamiento**: la tabla ya no se recarga sola en cada pausa. Antes eso rehacía el DOM y habría destruido el panel a mitad de la búsqueda; ahora se filtra al elegir «Ver los N resultados», al pulsar **Enter** o al abrir un producto, igual que en el catálogo.
+- Elegir una fila abre el **formulario de edición** de ese producto (antes había que encontrarlo en la tabla). Sin resultados, «Ver todo el catálogo» limpia la búsqueda y repone la tabla completa.
+- Módulo compartido ([search-live.ts](src/web/search-live.ts)): nuevas opciones `fetchResults` (modo servidor, con `AbortSignal`) y `onReset`, y export de `LIVE_LIMIT`. El catálogo y la ficha siguen con el filtrado local de siempre.
+- Estilos ([styles.css](src/web/styles.css)): `.live-anchor` y `.prod-search-wrap` (240 px en escritorio, ancho completo de la fila por debajo de 800 px), reusando las clases `.live-*` ya existentes.
+- **Verificado en local**: como no conozco la contraseña del panel, levanté una instancia aparte en `127.0.0.1:8791` con `--var ADMIN_PASSWORD:…` temporal (sin tocar `.dev.vars`): «cable» → 5 de 180 coincidencias; el pie dejó la tabla en 180, 4 páginas e input intacto; Enter con «cargador» → 71 productos; «zzzqqq» → sin resultados y el botón repuso los 1213; clic en una fila abrió el modal «Editar producto» con el artículo correcto; a 360 px el panel ocupa el ancho de la fila (238 px) sin desborde horizontal. `npm run typecheck`, `npm run build` y las **479** pruebas pasan.
+- Sin cambios en el worker ni en el esquema, sin commit ni deploy.
+
+## 2026-10-30 — Búsqueda en línea bajo la barra (catálogo y ficha)
+
+- Al escribir en el buscador aparece debajo un panel con hasta **5 resultados** en lista compacta (miniatura, nombre con la coincidencia en ámbar, categoría y precio) y el pie «Ver los N resultados». Antes solo se veía el resultado después de enviar el formulario; ahora se elige un artículo sin salir de la página.
+- Módulo compartido nuevo `src/web/search-live.ts` (`highlightHtml`, `liveResults`, `mountLiveSearch`), para que catálogo y ficha se comporten igual. Busca en todo el catálogo (no solo en lo ya filtrado) y ordena primero los títulos que arrancan con lo buscado.
+- **Catálogo**: elegir una fila abre su ficha; «Ver los N resultados» cierra el panel y baja a la grilla, que ya viene filtrada por lo escrito (no navega ni recarga).
+- **Ficha**: elegir una fila abre esa ficha; sin selección, el form sigue enviando a `/?q=…` como antes.
+- **Sin resultados**, el panel lo dice dentro de sí («Sin resultados para «…»») y ofrece **Ver todo el catálogo**, que limpia la búsqueda y repone la grilla, en lugar de repetir la búsqueda fallida.
+- **Teclado y lectores**: flechas para recorrer, Enter para abrir, Escape para cerrar, `role="listbox"/"option"`, `aria-selected` y `aria-expanded`. Igualdad visual con los chips: foco ámbar interior.
+- **Estilos** (`styles.css`): bloque `.live-search` con la paleta existente, `z-index` 1002 para pasar por encima de la toolbar sticky, y ajustes a 480 px. Sin tokens nuevos.
+- **Pruebas**: `src/web/search-live.test.ts` (9 casos: resaltado con tildes, escapado de HTML, orden por relevancia y filtrado por categoría).
+- **Verificado en local** (`wrangler dev` en `127.0.0.1:8790`, sin errores de consola): catálogo «iphone» → 18 resultados, 5 filas y 5 coincidencias resaltadas; flechas + Enter abren `/producto/4695`; «Ver los 18 resultados» cierra el panel y deja la grilla en «18 de 18»; ficha «samsung» → 4 filas en un panel de 520 px alineado a la barra; «zzzqqq» muestra el estado vacío y su botón limpia la búsqueda; `requestSubmit()` sigue navegando a `/?q=zzzqqq`. A 360 px de viewport el panel mide 280 px (catálogo) y 288 px (ficha) sin desborde horizontal. `npm run typecheck`, `npm run build` y las **479** pruebas pasan.
+- Solo frontend público: sin migración D1, sin cambios en el worker, sin commit ni deploy.
+
+## 2026-10-30 — Ficha de producto: buscador propio y aviso en la página 404
+
+- **Hallazgo**: la ficha **no tenía buscador** (solo «Volver al catálogo»), así que «buscar desde la ficha» no existía. Además, una ficha inexistente no llega a `product.ts`: el worker responde `public/404.html`, que es una copia del catálogo con status 404 real. Un estado vacío dentro de `product.ts` habría sido código inalcanzable y se descartó tras comprobarlo en el navegador local.
+- **Buscador en la ficha** (`product.html`): form `GET` a `/` con campo `q`, lupa y botón **Buscar**. Funciona sin JavaScript y llega a `/?q=…`, donde el catálogo ya resuelve resultados o el estado vacío con sus categorías.
+- **Aviso en la 404** (`tools/build-web.js` + `catalog.ts`): el build marca `<body data-not-found="1">` en la página generada y `renderNotFoundNotice()` inserta, antes de la barra de filtros, «Página no encontrada», la dirección pedida, la aclaración de que abajo está todo el catálogo y un botón **Ir al inicio**. Es idempotente y solo corre en la 404.
+- **Estilos** (`styles.css`): `.detail-search` y `.notfound-note`, con ajustes a 800 y 480 px. Sin colores ni tokens nuevos.
+- **Verificado en local** (`wrangler dev` en `127.0.0.1:8794`): la ficha real muestra el buscador (520 px en desktop, 321 px a 360 px de viewport, sin desborde); `requestSubmit()` con `zzzqqq` navega a `/?q=zzzqqq` y muestra «No encontramos productos para «zzzqqq»» con 6 categorías; `/producto/no-existe` responde **404** con `data-not-found="1"` y el aviso con la dirección, 20 tarjetas y el botón. `npm run build`, `npm run typecheck` y las **470** pruebas pasan.
+- **Nota de verificación**: el clic del navegador automatizado sobre el botón no disparaba el submit (peculiaridad del entorno); el envío nativo del formulario se comprobó con `requestSubmit()` y la navegación resultante.
+- Solo frontend público: sin migración D1, sin cambios en el worker, sin commit ni deploy.
+
 ## 2026-10-30 — Catálogo: estado vacío útil y foco de teclado visible en los filtros
 
 - Cuando la búsqueda o los filtros no devuelven productos, el catálogo ahora muestra qué se buscó («No encontramos productos para «…»»), ofrece **Ver todo el catálogo** y **Borrar la búsqueda**, y sugiere hasta seis categorías raíz para seguir explorando con un toque. Antes era un texto genérico con un botón que solo limpiaba los filtros.

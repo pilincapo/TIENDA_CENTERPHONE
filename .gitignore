@@ -16,3 +16,6 @@ playwright-report/
 /.kiro/skills/security-audit/
 /.windsurf/skills/security-audit/
 /skills-lock.json
+
+# Adjuntos de conversaciones importadas (pueden traer secretos).
+.cloud-attachments/
