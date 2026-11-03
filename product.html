@@ -34,6 +34,11 @@
     </header>
 
     <main class="layout layout--single">
+      <form class="detail-search" action="/" method="get" role="search" aria-label="Buscar en el catálogo">
+        <span class="detail-search-icon" aria-hidden="true">🔍</span>
+        <input type="search" name="q" placeholder="Buscar otro producto…" autocomplete="off" aria-label="Buscar otro producto" />
+        <button class="btn" type="submit">Buscar</button>
+      </form>
       <nav class="breadcrumbs" id="breadcrumbs" aria-label="Ubicación"></nav>
       <section id="app" aria-live="polite"></section>
       <aside class="store-card" id="store-card" hidden>

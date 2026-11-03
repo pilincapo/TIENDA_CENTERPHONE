@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maqueta — búsqueda en línea (3 variantes)</title>
+<style>
+  /* Paleta real de la tienda (src/web/styles.css) */
+  :root {
+    --bg: #0b0f14; --panel: #10161d; --panel-2: #161e27;
+    --border: #223041; --border-bright: #33475e;
+    --text: #d7e2ea; --muted: #7d8f9f; --muted-2: #8fa3b3;
+    --brand: #3fb950; --brand-dark: #2e9e3f;
+    --amber: #e3b341; --amber-soft: rgb(227 179 65 / .12);
+    --green-soft: rgb(63 185 80 / .12);
+    --danger: #f85149;
+    --font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --shadow: 4px 4px 0 rgb(0 0 0 / .55);
+    --shadow-sm: 2px 2px 0 rgb(0 0 0 / .45);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #070a0e; color: var(--text); font-family: var(--font); }
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: 9; pointer-events: none;
+    background: repeating-linear-gradient(to bottom, transparent 0 2px, rgb(0 0 0 / .12) 3px, transparent 4px);
+    mix-blend-mode: multiply;
+  }
+
+  /* ---- Barra de la maqueta ---- */
+  .demo-bar {
+    position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; gap: 8px;
+    align-items: center; padding: 10px 16px; background: #05080b;
+    border-bottom: 1px solid var(--border);
+  }
+  .demo-bar strong { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--amber); }
+  .demo-bar .sp { flex: 1; }
+  .tab {
+    padding: 6px 12px; font-size: 12px; font-family: var(--font); cursor: pointer;
+    background: transparent; color: var(--muted); border: 1px solid var(--border-bright);
+  }
+  .tab:hover { color: var(--text); border-color: var(--brand); }
+  .tab.on { background: var(--green-soft); color: var(--brand); border-color: var(--brand); font-weight: 700; }
+  .seg { display: inline-flex; border: 1px solid var(--border-bright); }
+  .seg button {
+    padding: 6px 10px; font-size: 11.5px; font-family: var(--font); cursor: pointer;
+    background: transparent; color: var(--muted); border: 0; border-right: 1px solid var(--border);
+  }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--green-soft); color: var(--brand); }
+
+  /* ---- Lienzo: la tienda simulada ---- */
+  .canvas { padding: 26px 16px 60px; }
+  .store {
+    max-width: 980px; margin: 0 auto; background: var(--bg);
+    border: 1px solid var(--border); box-shadow: var(--shadow);
+  }
+  .topbar {
+    display: flex; align-items: center; gap: 12px; padding: 12px 18px;
+    border-bottom: 1px solid var(--border); background: var(--panel);
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+  .logo {
+    width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--brand); color: var(--brand); font-size: 11px;
+  }
+  .topnav { margin-left: auto; display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
+  .topnav .on { color: var(--brand); }
+
+  .hero { padding: 22px 18px 16px; }
+  .eyebrow { margin: 0 0 8px; font-size: 11.5px; color: var(--muted); }
+  .eyebrow b { color: var(--brand); }
+  .hero h1 { margin: 0 0 6px; font-size: 21px; letter-spacing: -.01em; }
+  .hero h1 span { color: var(--brand); }
+  .hint { margin: 0 0 14px; font-size: 12px; color: var(--muted); }
+
+  /* ---- La barra de búsqueda y su panel ---- */
+  .searchwrap { position: relative; max-width: 660px; }
+  .search {
+    display: flex; align-items: center; gap: 8px; padding: 0 0 0 12px;
+    border: 1px solid var(--border-bright); background: var(--panel); box-shadow: var(--shadow-sm);
+  }
+  .search:focus-within { outline: 2px solid var(--brand); outline-offset: -1px; }
+  .search .ico { color: var(--muted); font-size: 13px; }
+  .search input {
+    flex: 1; min-width: 0; padding: 12px 0; border: 0; background: transparent;
+    color: var(--text); font-family: var(--font); font-size: 13.5px;
+  }
+  .search input:focus { outline: none; }
+  .search .kbd {
+    border-left: 1px solid var(--border); padding: 12px 10px; font-size: 11px; color: var(--muted);
+  }
+  .search .x {
+    border: 0; background: transparent; color: var(--muted); cursor: pointer;
+    font-family: var(--font); font-size: 13px; padding: 8px;
+  }
+  .search .x:hover { color: var(--danger); }
+
+  .panel-live {
+    position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30;
+    background: var(--panel); border: 1px solid var(--brand);
+    box-shadow: var(--shadow); max-height: 380px; overflow: auto;
+  }
+  .panel-live[hidden] { display: none; }
+  .panel-head {
+    display: flex; justify-content: space-between; gap: 8px;
+    padding: 7px 12px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--muted); border-bottom: 1px solid var(--border); background: var(--panel-2);
+  }
+  .panel-head b { color: var(--brand); }
+  .panel-foot {
+    border-top: 1px solid var(--border); padding: 8px 12px; font-size: 11.5px;
+    color: var(--muted); display: flex; justify-content: space-between; gap: 8px;
+  }
+  .panel-foot a { color: var(--brand); text-decoration: none; }
+  .panel-foot a:hover { text-decoration: underline; }
+  .empty-live { padding: 18px 14px; font-size: 12.5px; color: var(--muted); text-align: center; }
+  .empty-live b { color: var(--text); }
+
+  /* --- Variante A: lista compacta --- */
+  .vA .row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+    border-bottom: 1px solid var(--border); cursor: pointer; text-decoration: none; color: inherit;
+  }
+  .vA .row:last-of-type { border-bottom: 0; }
+  .vA .row:hover, .vA .row.sel { background: var(--green-soft); }
+  .vA .thumb {
+    width: 30px; height: 30px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+    background: var(--panel-2); border: 1px solid var(--border); font-size: 14px;
+  }
+  .vA .name { flex: 1; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .vA .price { font-size: 12.5px; font-weight: 700; color: var(--brand); white-space: nowrap; }
+  .vA .cat { font-size: 10.5px; color: var(--muted); }
+
+  /* --- Variante B: consola --- */
+  .vB .panel-live { background: #05080b; border-color: var(--border-bright); }
+  .vB .cmd { padding: 9px 12px; font-size: 11.5px; color: var(--muted); border-bottom: 1px dashed var(--border); }
+  .vB .cmd b { color: var(--brand); }
+  .vB .line {
+    display: flex; align-items: baseline; gap: 8px; padding: 6px 12px; cursor: pointer;
+    font-size: 12px; color: var(--text); text-decoration: none;
+  }
+  .vB .line:hover, .vB .line.sel { background: var(--green-soft); }
+  .vB .car { color: var(--brand); flex: 0 0 auto; }
+  .vB .name { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vB .dots { flex: 1 1 auto; border-bottom: 1px dotted var(--border-bright); transform: translateY(-3px); min-width: 12px; }
+  .vB .price { color: var(--amber); font-weight: 700; flex: 0 0 auto; white-space: nowrap; }
+  .vB .tag { color: var(--muted); font-size: 10.5px; flex: 0 0 auto; }
+
+  /* --- Variante C: tarjetas --- */
+  .vC .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; }
+  @media (max-width: 640px) { .vC .cards { grid-template-columns: 1fr; } }
+  .vC .card {
+    display: flex; gap: 10px; align-items: center; padding: 8px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--panel-2); text-decoration: none; color: inherit;
+    transition: border-color .12s;
+  }
+  .vC .card:hover, .vC .card.sel { border-color: var(--brand); }
+  .vC .thumb {
+    width: 42px; height: 42px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+    background: var(--bg); border: 1px solid var(--border-bright); font-size: 18px;
+  }
+  .vC .meta { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .vC .name { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .vC .cat { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .vC .price { font-size: 12px; font-weight: 700; color: var(--brand); }
+  .vC .stock { font-size: 10px; color: var(--brand); }
+  .vC .stock.out { color: var(--muted); }
+  mark { background: var(--amber-soft); color: var(--amber); padding: 0 1px; }
+
+  /* ---- Notas de cada variante ---- */
+  .notes { max-width: 980px; margin: 22px auto 0; display: grid; gap: 10px; }
+  .note {
+    border: 1px solid var(--border); border-left: 3px solid var(--border-bright);
+    background: var(--panel); padding: 12px 14px; font-size: 12px; line-height: 1.55; color: var(--muted);
+  }
+  .note h3 { margin: 0 0 4px; font-size: 12.5px; color: var(--text); }
+  .note.now { border-left-color: var(--brand); }
+  .note.pick h3::before { content: "◆ "; color: var(--amber); }
+  .foot-note { max-width: 980px; margin: 18px auto 0; font-size: 11px; color: #56687a; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <div class="demo-bar">
+    <strong>Maqueta · búsqueda en línea</strong>
+    <span class="tab on" data-v="A">A · Lista compacta</span>
+    <span class="tab" data-v="B">B · Consola</span>
+    <span class="tab" data-v="C">C · Tarjetas</span>
+    <span class="sp"></span>
+    <span class="seg" id="place">
+      <button class="on" data-p="cat">En el catálogo</button>
+      <button data-p="prod">En la ficha</button>
+    </span>
+  </div>
+
+  <div class="canvas">
+    <div class="store vA" id="store">
+      <div class="topbar">
+        <span class="brand"><span class="logo">CP</span> Catálogo</span>
+        <span class="topnav">
+          <span class="on">Productos</span><span>Cómo comprar</span><span>Contacto</span><span>Seguimiento</span>
+        </span>
+      </div>
+
+      <div class="hero">
+        <p class="eyebrow" id="eyebrow">visitante@centerphone:~$ ls productos/ <b>_</b></p>
+        <h1 id="hero-title">La tecnología que necesitás, <span>al precio justo</span></h1>
+        <p class="hint" id="hero-hint">Escribí y mirá los resultados sin salir de la página.</p>
+
+        <div class="searchwrap">
+          <label class="search" for="q">
+            <span class="ico">🔍</span>
+            <input id="q" type="search" value="sam" autocomplete="off" aria-expanded="true" aria-controls="live" aria-autocomplete="list" />
+            <button class="x" id="clear" title="Limpiar" aria-label="Limpiar búsqueda">✕</button>
+            <span class="kbd" id="kbd">esc</span>
+          </label>
+
+          <div class="panel-live" id="live" role="listbox" aria-label="Resultados de búsqueda"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div class="note now">
+        <h3>A · Lista compacta</h3>
+        Una fila por producto: miniatura, nombre y precio a la derecha. Máximo 5, con pie «Ver los N resultados».
+        Es la más legible y la que menos tapa el catálogo. En la ficha se ve igual, con el ancho del buscador (520 px).
+      </div>
+      <div class="note">
+        <h3>B · Consola</h3>
+        Líneas monoespaciadas con puntos guía y precio en ámbar, como la salida de un `grep`. Es la más fiel a la
+        identidad terminal del sitio, pero el punto guía cuesta leerlo en pantallas chicas y con nombres largos.
+      </div>
+      <div class="note">
+        <h3>C · Tarjetas</h3>
+        Dos columnas con miniatura más grande, categoría y stock. Muestra más contexto por resultado (útil si el
+        título es parecido), pero ocupa el doble de alto y en móvil pasa a una sola columna.
+      </div>
+      <div class="note pick">
+        <h3>Mi recomendación</h3>
+        <strong>A</strong> en el catálogo y en la ficha. Si más adelante querés mostrar categoría y stock, se le
+        agrega una segunda línea a la fila sin cambiar la estructura.
+      </div>
+    </div>
+
+    <p class="foot-note">
+      Maqueta estática con datos de ejemplo: no modifica el sitio, no usa la API y no toca el build.
+      Escribí «iphone», «cargador» o «zzz» para ver el filtrado, el resaltado y el caso sin resultados.
+      Las flechas y Enter también funcionan dentro del panel.
+    </p>
+  </div>
+
+<script>
+  const PRODUCTS = [
+    { icon: "📱", name: "iPhone 15 128 GB", cat: "Celulares", price: 1299000, stock: true },
+    { icon: "📱", name: "Samsung Galaxy A55 5G", cat: "Celulares", price: 689999, stock: true },
+    { icon: "📱", name: "Motorola Edge 50 Fusion", cat: "Celulares", price: 549900, stock: true },
+    { icon: "📱", name: "Xiaomi Redmi Note 13", cat: "Celulares", price: 329999, stock: false },
+    { icon: "🔌", name: "Cargador USB-C 33W", cat: "Cargadores", price: 24900, stock: true },
+    { icon: "🔋", name: "Power bank 10.000 mAh", cat: "Cargadores", price: 38500, stock: true },
+    { icon: "🎧", name: "Auriculares Bluetooth TWS", cat: "Audio", price: 45000, stock: true },
+    { icon: "🛡️", name: "Funda silicona iPhone 15", cat: "Fundas", price: 9500, stock: true },
+    { icon: "💾", name: "MicroSD 64 GB Clase 10", cat: "Almacenamiento", price: 12900, stock: true },
+    { icon: "📺", name: "Smart TV 43\" Full HD", cat: "Hogar", price: 399000, stock: true }
+  ];
+
+  const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const money = (n) => "$" + new Intl.NumberFormat("es-AR").format(n);
+  const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const mark = (text, q) => {
+    if (!q) return esc(text);
+    const i = norm(text).indexOf(norm(q));
+    if (i < 0) return esc(text);
+    return esc(text.slice(0, i)) + "<mark>" + esc(text.slice(i, i + q.length)) + "</mark>" + esc(text.slice(i + q.length));
+  };
+
+  const el = {
+    store: document.getElementById("store"),
+    q: document.getElementById("q"),
+    live: document.getElementById("live"),
+    clear: document.getElementById("clear"),
+    kbd: document.getElementById("kbd"),
+    place: document.getElementById("place"),
+    eyebrow: document.getElementById("eyebrow"),
+    title: document.getElementById("hero-title"),
+    hint: document.getElementById("hero-hint")
+  };
+
+  let variant = "A";
+  let sel = -1;
+  let results = [];
+
+  function matches(q) {
+    const nq = norm(q.trim());
+    if (!nq) return PRODUCTS.slice(0, 5);
+    return PRODUCTS.filter((p) => norm(p.name + " " + p.cat).includes(nq));
+  }
+
+  function head(label, n) {
+    return `<div class="panel-head"><span>${label}</span><span><b>${n}</b> resultado${n === 1 ? "" : "s"}</span></div>`;
+  }
+
+  function render() {
+    const q = el.q.value;
+    results = matches(q);
+    const shown = results.slice(0, variant === "C" ? 6 : 5);
+    const total = results.length;
+    const label = q.trim() ? `Buscando "${esc(q.trim())}"` : "Más buscados";
+
+    if (total === 0) {
+      el.live.innerHTML = head(label, 0) + `
+        <div class="empty-live">Sin resultados para <b>«${esc(q.trim())}»</b>.<br />
+        Probá con otra palabra o <a href="#" onclick="return false" style="color:var(--brand)">mirá todo el catálogo</a>.</div>`;
+      el.live.hidden = false;
+      return;
+    }
+
+    let body = "";
+    if (variant === "A") {
+      body = shown.map((p, i) => `
+        <a class="row ${i === sel ? "sel" : ""}" role="option" aria-selected="${i === sel}" data-i="${i}" data-name="${esc(p.name)}">
+          <span class="thumb">${p.icon}</span>
+          <span class="name">${mark(p.name, q.trim())}<br><span class="cat">${esc(p.cat)}</span></span>
+          <span class="price">${money(p.price)}</span>
+        </a>`).join("");
+    } else if (variant === "B") {
+      body = `<div class="cmd">$ grep -i "${esc(q.trim() || "*")}" productos/ <span style="color:var(--brand)">▌</span></div>` +
+        shown.map((p, i) => `
+        <a class="line ${i === sel ? "sel" : ""}" role="option" aria-selected="${i === sel}" data-i="${i}" data-name="${esc(p.name)}">
+          <span class="car">›</span>
+          <span class="name">${mark(p.name, q.trim())}</span>
+          <span class="dots"></span>
+          <span class="price">${money(p.price)}</span>
+          <span class="tag">${esc(p.cat)}</span>
+        </a>`).join("");
+    } else {
+      body = `<div class="cards">` + shown.map((p, i) => `
+        <a class="card ${i === sel ? "sel" : ""}" role="option" aria-selected="${i === sel}" data-i="${i}" data-name="${esc(p.name)}">
+          <span class="thumb">${p.icon}</span>
+          <span class="meta">
+            <span class="name">${mark(p.name, q.trim())}</span>
+            <span class="cat">${esc(p.cat)}</span>
+            <span class="price">${money(p.price)}</span>
+            <span class="stock ${p.stock ? "" : "out"}">${p.stock ? "En stock" : "Sin stock"}</span>
+          </span>
+        </a>`).join("") + `</div>`;
+    }
+
+    const foot = variant === "B"
+      ? `<div class="panel-foot"><span>↑↓ para recorrer · Enter para abrir</span><a href="#" onclick="return false">ver los ${total} →</a></div>`
+      : `<div class="panel-foot"><span>${shown.length} de ${total}</span><a href="#" onclick="return false">Ver los ${total} resultados →</a></div>`;
+
+    el.live.innerHTML = head(label, total) + body + foot;
+    el.live.hidden = false;
+    el.live.querySelectorAll("[data-i]").forEach((node) => {
+      node.addEventListener("click", () => {
+        el.q.value = node.dataset.name ?? el.q.value;
+        render();
+      });
+    });
+  }
+
+  function setVariant(v) {
+    variant = v;
+    sel = -1;
+    el.store.className = "store v" + v;
+    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.v === v));
+    render();
+  }
+
+  function setPlace(p) {
+    document.querySelectorAll("#place button").forEach((b) => b.classList.toggle("on", b.dataset.p === p));
+    if (p === "prod") {
+      el.store.classList.add("is-product");
+      el.eyebrow.textContent = "Inicio › Celulares › Samsung Galaxy A55 5G";
+      el.title.textContent = "Samsung Galaxy A55 5G";
+      el.hint.textContent = "Buscá otro producto sin volver al catálogo.";
+      el.q.value = "car";
+      el.q.parentElement.style.maxWidth = "520px";
+    } else {
+      el.store.classList.remove("is-product");
+      el.eyebrow.innerHTML = "visitante@centerphone:~$ ls productos/ <b>_</b>";
+      el.title.innerHTML = "La tecnología que necesitás, <span>al precio justo</span>";
+      el.hint.textContent = "Escribí y mirá los resultados sin salir de la página.";
+      el.q.value = "sam";
+      el.q.parentElement.style.maxWidth = "660px";
+    }
+    sel = -1;
+    render();
+  }
+
+  el.q.addEventListener("input", () => { sel = -1; render(); });
+  el.q.addEventListener("focus", render);
+  el.clear.addEventListener("click", () => { el.q.value = ""; sel = -1; render(); el.q.focus(); });
+  el.q.addEventListener("keydown", (ev) => {
+    const max = Math.min(results.length, variant === "C" ? 6 : 5) - 1;
+    if (ev.key === "ArrowDown") { ev.preventDefault(); sel = sel >= max ? 0 : sel + 1; render(); }
+    else if (ev.key === "ArrowUp") { ev.preventDefault(); sel = sel <= 0 ? max : sel - 1; render(); }
+    else if (ev.key === "Escape") { el.live.hidden = true; }
+    else if (ev.key === "Enter" && sel >= 0) { ev.preventDefault(); }
+  });
+  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => setVariant(t.dataset.v)));
+  document.querySelectorAll("#place button").forEach((b) => b.addEventListener("click", () => setPlace(b.dataset.p)));
+
+  render();
+</script>
+</body>
+</html>

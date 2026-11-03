@@ -3,12 +3,7 @@
 // El HTML de los modales vive en cada página (index.html / product.html).
 
 import type { PublicSettings } from "./types-web";
-
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (ch) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  }[ch] as string));
-}
+import { esc } from "../shared/html";
 
 export function waHref(settings: PublicSettings, text: string): string | null {
   if (!settings.whatsappOk) return null;

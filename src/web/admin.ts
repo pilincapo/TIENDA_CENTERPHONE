@@ -3,6 +3,7 @@
 import type { Category, Order, OrderStatus, Product, StoreSettings, SyncLogEntry } from "../shared/types";
 import { ANNOUNCEMENT_MOTIONS, ANNOUNCEMENT_MOTION_LABELS, ANNOUNCEMENT_SPEEDS, ANNOUNCEMENT_SPEED_LABELS, MAX_ANNOUNCEMENT_PROMOS, MAX_ANNOUNCEMENT_PROMO_LEN } from "../shared/types";
 import { formatPrice } from "../shared/format";
+import { esc } from "../shared/html";
 import type { AutoImport } from "../shared/autoimport";
 import type { PriceRule } from "../shared/pricing";
 import { findOverlaps, groupNames } from "../shared/pricing";
@@ -10,6 +11,7 @@ import { normalizePhone } from "../shared/whatsapp";
 import { isTecnovaSourceUrl, TECNOVA_PUBLIC_URL } from "../shared/tecnova-url";
 import { avisoCatalogoVacio, feedResultante } from "../shared/wa-feed";
 import { initFormLabels } from "./form-labels";
+import { mountLiveSearch, LIVE_LIMIT } from "./search-live";
 
 const el = {
   login: document.getElementById("login") as HTMLElement,
@@ -35,12 +37,6 @@ async function api<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const data = (await res.json().catch(() => ({}))) as Dict;
   if (!res.ok) throw new Error(String((data as { error?: string }).error ?? `HTTP ${res.status}`));
   return data as T;
-}
-
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (ch) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  }[ch] as string));
 }
 
 function toast(msg: string, ok = true): void {
@@ -840,8 +836,10 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
           ${chip("published", "Todos", data.counts.published)}
           ${chip("hidden", "Sin stock", data.counts.hidden)}
         </div>
-        <input id="prod-search" type="search" placeholder="Buscar por título o código…" aria-label="Buscar productos por título o código" autocomplete="off"
-          value="${esc(prodState.q)}" style="max-width:240px; margin-left:10px"/>
+        <div class="live-anchor prod-search-wrap">
+          <input id="prod-search" type="search" placeholder="Buscar por título o código…" aria-label="Buscar productos por título o código" autocomplete="off"
+            value="${esc(prodState.q)}"/>
+        </div>
         <span class="muted" id="prod-search-count" ${prodState.q !== "" ? "" : "hidden"}>${prodState.q !== "" ? `${data.total} coincidencias` : ""}</span>
         <button class="btn btn-primary" id="new-product" style="margin-left:auto">+ Nuevo producto</button>
       </div>
@@ -923,19 +921,45 @@ async function viewProducts(statusFilter?: "published" | "hidden"): Promise<void
       void viewProducts();
     }
   });
-  // ---- Buscador: filtra en el servidor (título o código), con pausa al tipear ----
+  // ---- Buscador: resultados en línea mientras se escribe (mismo panel que el
+  // catálogo) y la tabla se filtra al elegir «Ver los N resultados», con Enter o
+  // al abrir una fila. Antes la tabla se recargaba en cada pausa, lo que además
+  // destruía el panel a mitad de la búsqueda.
   const searchInput = el.view.querySelector("#prod-search") as HTMLInputElement | null;
-  let searchTimer: number | undefined;
-  searchInput?.addEventListener("input", () => {
-    window.clearTimeout(searchTimer);
-    searchTimer = window.setTimeout(() => {
-      const q = (searchInput.value ?? "").trim();
-      if (q === prodState.q) return;
-      prodState.q = q;
-      prodState.page = 1;
-      refocusSearch = true;
-      void viewProducts();
-    }, 350);
+  const aplicarBusqueda = (q: string): void => {
+    const limpio = q.trim();
+    if (limpio === prodState.q) return;
+    prodState.q = limpio;
+    prodState.page = 1;
+    refocusSearch = true;
+    void viewProducts();
+  };
+  const searchAnchor = searchInput?.closest<HTMLElement>(".live-anchor") ?? null;
+  if (searchInput && searchAnchor) {
+    mountLiveSearch({
+      input: searchInput,
+      host: searchAnchor,
+      getProducts: () => products,
+      getCategories: () => categories,
+      getSymbol: () => "$",
+      fetchResults: async (q, signal) => {
+        const params = new URLSearchParams({ page: "1", limit: String(LIVE_LIMIT), status: prodState.status });
+        if (q !== "") params.set("q", q);
+        if (prodState.src !== "") params.set("src", prodState.src);
+        const r = await api<ProductsPage>(`/products?${params.toString()}`, { signal });
+        return { products: r.products, total: r.total };
+      },
+      onOpen: (p) => void openProductForm(p, categories),
+      onSeeAll: (q) => aplicarBusqueda(q),
+      onReset: () => aplicarBusqueda(""),
+    });
+  }
+  // Enter sin fila elegida aplica la búsqueda a la tabla (el panel ya marcó el
+  // evento cuando abrió un producto, y en ese caso no se filtra).
+  searchInput?.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Enter" || ev.defaultPrevented) return;
+    ev.preventDefault();
+    aplicarBusqueda(searchInput.value);
   });
   if (refocusSearch && searchInput) {
     refocusSearch = false;

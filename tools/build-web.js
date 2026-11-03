@@ -7,10 +7,13 @@ import { join } from "node:path";
 const dist = "public";
 const index = readFileSync(join(dist, "index.html"), "utf8");
 
-const notFound = index.replace(
-  /<title>.*?<\/title>/,
-  "<title>404 — No encontrado</title>"
-);
+// La página de error es el catálogo completo (mismo bundle). La marca
+// data-not-found la lee catalog.ts para mostrar arriba qué dirección no existe:
+// sin eso la 404 se veía igual que la portada y el visitante no sabía por qué
+// había llegado al catálogo.
+const notFound = index
+  .replace(/<title>.*?<\/title>/, "<title>404 — No encontrado</title>")
+  .replace("<body>", '<body data-not-found="1">');
 
 writeFileSync(join(dist, "404.html"), notFound);
 console.log("✔ public/404.html generado");

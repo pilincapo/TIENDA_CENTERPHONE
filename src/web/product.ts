@@ -5,6 +5,7 @@ import type { CatalogSnapshot } from "../shared/types";
 import type { PublicSettings } from "./types-web";
 import { sellsOnline } from "./types-web";
 import { formatPrice, availabilityLabel } from "../shared/format";
+import { esc } from "../shared/html";
 import { waLink } from "../shared/whatsapp";
 import { productJsonLd, breadcrumbJsonLd } from "./schema";
 import { setupModals, fillStoreInfo } from "./store-modals";
@@ -14,6 +15,7 @@ import { setupCartUI } from "./cart-ui";
 import { productTransferLine, discountPercentFrom } from "./transfer-banner";
 import { renderAnnouncement } from "./announcement";
 import { shippingQuoteHtml, quoteInitialState, fetchQuote, savePostalCode, savedPostalCode, errorState, doneState, type QuoteState } from "./shipping-quote";
+import { mountLiveSearch } from "./search-live";
 
 interface DetailResponse {
   product: Product;
@@ -28,12 +30,6 @@ const el = {
   waFloat: document.getElementById("wa-float") as HTMLAnchorElement,
 };
 
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (ch) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  }[ch] as string));
-}
-
 function productIdFromUrl(): string {
   const parts = location.pathname.split("/").filter(Boolean);
   return decodeURIComponent(parts[1] ?? "");
@@ -46,6 +42,27 @@ async function loadSnapshot(): Promise<CatalogSnapshot | null> {
   } catch {
     return null;
   }
+}
+
+// Snapshot y ajustes para el buscador en línea de la ficha: se llenan al
+// cargar el detalle, así el panel ya tiene catálogo cuando el visitante escribe.
+let liveSnapshot: CatalogSnapshot | null = null;
+let liveSettings: PublicSettings | null = null;
+
+/** Buscador en línea de la ficha: sugiere artículos y abre la ficha elegida;
+ *  sin selección, el form sigue enviando a /?q=… como siempre. */
+function setupLiveSearch(): void {
+  const input = document.querySelector<HTMLInputElement>('.detail-search input[name="q"]');
+  const host = document.querySelector<HTMLElement>(".detail-search");
+  if (!input || !host) return;
+  mountLiveSearch({
+    input,
+    host,
+    getProducts: () => liveSnapshot?.products ?? [],
+    getCategories: () => liveSnapshot?.categories ?? [],
+    getSymbol: () => liveSettings?.currencySymbol || "$",
+    onSeeAll: (query) => location.assign(`/?q=${encodeURIComponent(query)}`),
+  });
 }
 
 async function init(): Promise<void> {
@@ -62,6 +79,7 @@ async function init(): Promise<void> {
     const data = (await res.json()) as DetailResponse;
     track("product_view", { productId: id }, true);
     render(data, await loadSnapshot());
+    setupLiveSearch();
   } catch (e) {
     el.app.innerHTML = `<div class="state"><p>⚠️ No se pudo cargar el producto.</p>
       <p class="error">${esc(e instanceof Error ? e.message : String(e))}</p>
@@ -71,6 +89,8 @@ async function init(): Promise<void> {
 
 function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
   const { product, related, settings } = data;
+  liveSnapshot = snapshot;
+  liveSettings = settings;
   document.title = settings.storeName ? `${product.title} — ${settings.storeName}` : `${product.title}`;
   // La marca del footer también sigue al storeName (lo aplica fillStoreInfo).
   const symbol = settings.currencySymbol || "$";

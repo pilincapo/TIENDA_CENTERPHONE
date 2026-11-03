@@ -6,6 +6,7 @@
 import type { Product } from "../shared/types";
 import type { PublicSettings } from "./types-web";
 import { formatPrice } from "../shared/format";
+import { esc } from "../shared/html";
 import { cartTransferBanner, discountPercentFrom } from "./transfer-banner";
 import {
   shippingQuoteHtml, quoteInitialState, fetchQuote, savePostalCode, savedPostalCode,
@@ -48,12 +49,6 @@ function cachedProducts(): Product[] {
 
 function productById(id: string): Product | undefined {
   return init?.products.find((p) => p.id === id) ?? cachedProducts().find((p) => p.id === id);
-}
-
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (ch) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  }[ch] as string));
 }
 
 function ensureModal(): void {

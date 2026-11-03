@@ -9,14 +9,11 @@ import type { Order } from "../shared/types";
 import { getSettings } from "./settings";
 import { getOrder } from "./orders";
 import { formatPrice } from "../shared/format";
+import { esc } from "../shared/html";
 import { waLinkText } from "../shared/whatsapp";
 import { newNonce } from "./security";
 
 export const orderPageApp = new Hono<{ Bindings: Env }>();
-
-function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
 
 function statusBadge(status: Order["status"]): { label: string; cls: string; emoji: string } {
   switch (status) {

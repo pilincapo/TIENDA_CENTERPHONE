@@ -6,6 +6,7 @@ import type { Context, Next } from "hono";
 import type { Env } from "./db";
 import { getSettings } from "./settings";
 import { waLinkText } from "../shared/whatsapp";
+import { esc } from "../shared/html";
 import type { StoreSettings } from "../shared/types";
 
 // Rutas que NUNCA se bloquean: el vendedor tiene que poder entrar al panel
@@ -41,8 +42,6 @@ export function isMaintenanceBypass(path: string): boolean {
 const DEFAULT_MESSAGE = "Estamos actualizando la tienda para atenderte mejor. En un rato volvemos 🙌";
 
 export function maintenanceHtml(s: StoreSettings, storeName: string): string {
-  const esc = (x: string): string =>
-    x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const name = storeName.trim() !== "" ? esc(storeName) : "La tienda";
   const msg = s.maintenanceMessage.trim() !== "" ? esc(s.maintenanceMessage) : DEFAULT_MESSAGE;
   const wa = s.whatsappPhone !== "" && isValid(s.whatsappPhone)

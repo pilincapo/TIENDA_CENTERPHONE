@@ -4,6 +4,7 @@ import type { CatalogSnapshot, Category, Product, Tag } from "../shared/types";
 import type { PublicSettings } from "./types-web";
 import { sellsOnline } from "./types-web";
 import { formatPrice, tagLabel } from "../shared/format";
+import { esc } from "../shared/html";
 import { waLinkText } from "../shared/whatsapp";
 import { fillStoreInfo, setupModals } from "./store-modals";
 import { track } from "./track";
@@ -12,6 +13,7 @@ import { inCategorySet } from "./category-filter";
 import { matchesSearch } from "../shared/search";
 import { renderAnnouncement } from "./announcement";
 import { localBusinessJsonLd, webSiteJsonLd } from "./schema";
+import { mountLiveSearch } from "./search-live";
 
 type SortMode = "default" | "price-asc" | "price-desc" | "random";
 type ViewMode = "grid" | "list";
@@ -84,12 +86,6 @@ const el = {
   how: document.getElementById("how") as HTMLElement,
 };
 
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (ch) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  }[ch] as string));
-}
-
 async function init(): Promise<void> {
   setContent(`<div class="state"><div class="spinner"></div><p>Cargando catálogo…</p></div>`);
   try {
@@ -154,6 +150,8 @@ async function init(): Promise<void> {
     if (statCount && published > 0) statCount.textContent = String(published);
     if (statWrap && published > 0) statWrap.hidden = false;
     render();
+    renderNotFoundNotice();
+    setupLiveSearch();
     track("home_view", {}, true);
   } catch (e) {
     renderError(e instanceof Error ? e : new Error(String(e)));
@@ -330,6 +328,46 @@ function renderToolbar(): void {
   el.toolbar.querySelector("#clear-filters")?.addEventListener("click", clearFilters);
   updateToolbarMasks();
   setupToolbarMaskScroll();
+}
+
+/** Resultados en línea bajo la barra del hero (módulo compartido con la ficha).
+ *  Al elegir uno se abre su ficha; «Ver los N resultados» deja la búsqueda ya
+ *  aplicada en la grilla y lleva la vista al catálogo. */
+function setupLiveSearch(): void {
+  const host = el.search.closest<HTMLElement>(".hero-search");
+  if (!host) return;
+  mountLiveSearch({
+    input: el.search,
+    host,
+    getProducts: () => state.snapshot?.products ?? [],
+    getCategories: () => state.snapshot?.categories ?? [],
+    getSymbol: () => state.settings?.currencySymbol || "$",
+    onSeeAll: () => {
+      document.getElementById("content")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
+  });
+}
+
+/** La página 404 sirve este mismo catálogo (ver tools/build-web.js). Este aviso
+ *  dice qué dirección no existe y que abajo está todo, en vez de dejar al
+ *  visitante sin explicación en una copia idéntica de la portada. Idempotente:
+ *  render() redibuja la toolbar pero no mueve este bloque. */
+function renderNotFoundNotice(): void {
+  if (document.body.dataset.notFound !== "1") return;
+  if (document.getElementById("notfound-note")) return;
+  const note = document.createElement("div");
+  note.id = "notfound-note";
+  note.className = "notfound-note";
+  note.setAttribute("role", "status");
+  note.innerHTML = `
+    <span class="state-icon" aria-hidden="true">$_</span>
+    <div>
+      <p class="state-title">Página no encontrada</p>
+      <p class="muted">La dirección <b>${esc(location.pathname + location.search)}</b> no existe. Te mostramos el catálogo completo: buscá tu producto arriba o elegí una categoría.</p>
+    </div>
+    <a class="btn" href="/">Ir al inicio</a>
+  `;
+  el.toolbar.before(note);
 }
 
 // ---- Degradado "hay más chips" ----

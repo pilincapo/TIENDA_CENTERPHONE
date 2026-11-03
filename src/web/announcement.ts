@@ -8,6 +8,7 @@
 // la duración CSS de la animación (vía la clase `announce--<speed>`).
 
 import type { PublicSettings } from "./types-web";
+import { esc } from "../shared/html";
 import {
   ANNOUNCEMENT_SPEED_FACTOR,
   isAnnouncementMotion,
@@ -45,10 +46,6 @@ export const SPEED_FACTOR: Record<AnnouncementSpeed, number> = ANNOUNCEMENT_SPEE
 function speedSuffix(speed?: string | null): string {
   const s = isAnnouncementSpeed(speed) && speed !== "normal" ? speed : null;
   return s ? ` announce--${s}` : "";
-}
-
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch] as string));
 }
 
 /**
