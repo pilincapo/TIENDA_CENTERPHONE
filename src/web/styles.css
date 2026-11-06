@@ -31,7 +31,15 @@ html {
   /* Las filas scrolleables de la toolbar (overflow-x: auto) no deben
      propagar scroll horizontal al documento en móvil. */
   overflow-x: hidden;
+  /* Reserva el ancho de la barra de scroll aunque no haya scroll: al abrir un
+     modal se apaga el scroll de la página y, sin esto, el contenido saltaba
+     ~17 px porque la barra desaparecía. */
+  scrollbar-gutter: stable;
 }
+/* Modal abierto: el scroll vive en <html> (apagar el body no hacía nada), así
+   la rueda y el touch mueven el modal y no el catálogo de fondo. La gutter
+   estable de arriba evita el salto de layout al entrar y salir. */
+html.is-locked { overflow-y: hidden; }
 body {
   background: var(--bg); color: var(--text);
   font-family: var(--font-sans);
@@ -1207,6 +1215,9 @@ a.topnav-btn {
 .card-buy:hover { background: var(--brand-dark); border-color: var(--brand-dark); color: #04180a; }
 .card-add.added { border-color: var(--brand); color: var(--brand); }
 .modal-box--cart { max-width: 520px; }
+/* Aire entre el contenido y la barra de scroll del modal: sin esto el total
+   quedaba pegado al borde del área scrolleable. */
+.modal-box--cart .modal-body { padding-right: 6px; }
 .cart-lines { display: grid; gap: 14px; margin-bottom: 14px; }
 .cart-line {
   display: flex; gap: 12px; align-items: center;
@@ -1659,3 +1670,149 @@ a.topnav-btn {
   .btn-arrepentimiento { width: 100%; padding: 14px 10px; font-size: 12px; }
   .legal-steps li { padding-left: 34px; }
 }
+
+/* ---- Club de socios (/club) ---- */
+.club-benefits {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 22px 0 4px;
+}
+.club-benefit {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  padding: 16px;
+}
+.club-benefit-icon { font-size: 22px; }
+.club-benefit h2 { font-size: 15px; margin: 8px 0 6px; }
+.club-benefit p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.club-block {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.club-block h2 { font-size: 19px; margin: 0 0 8px; }
+.club-block .legal-lead { margin-bottom: 4px; }
+.club-alt { color: var(--muted); font-size: 14px; }
+.club-done { border: 1px solid var(--brand); background: var(--panel); padding: 20px; }
+.club-code-big {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: clamp(22px, 5vw, 34px);
+  letter-spacing: 0.14em;
+  color: var(--brand);
+  margin: 10px 0 14px;
+}
+.club-check { max-width: 460px; }
+.club-status { margin: 12px 0 0; font-size: 13px; }
+.club-status.ok { color: var(--brand); }
+.club-status.bad { color: var(--danger); }
+@media (max-width: 800px) {
+  .club-benefits { grid-template-columns: 1fr; }
+}
+
+/* ---- Carrito: código de socio ---- */
+.cart-member {
+  margin: 4px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+}
+.cart-member label { font-size: 12px; color: var(--muted); }
+.cart-member-row { display: flex; gap: 8px; margin-top: 6px; }
+.cart-member-row input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--border-bright);
+  color: var(--text);
+  padding: 9px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.cart-member-row input:focus { outline: none; border-color: var(--brand); }
+.cart-member-apply { white-space: nowrap; }
+.cart-member-msg { margin: 8px 0 0; font-size: 12px; }
+.cart-member-msg.ok { color: var(--brand); }
+.cart-member-msg.bad { color: var(--danger); }
+.cart-member-join { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.cart-member-join a { color: var(--term-amber); }
+.cart-member-total {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+.cart-member-total b { color: var(--term-amber); font-size: 15px; }
+.cart-member-save { color: var(--brand); }
+.cart-member-clear {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ---- Panel: pestaña Club ---- */
+.club-kpis { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0 4px; }
+.club-kpi {
+  flex: 1 1 160px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  padding: 12px 14px;
+}
+.club-kpi-n { display: block; font-size: 24px; color: var(--brand); font-weight: 700; }
+.club-kpi-l { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+.club-code { font-family: var(--mono, ui-monospace, monospace); letter-spacing: 0.08em; }
+.club-copy { padding: 4px 7px; margin-left: 6px; font-size: 12px; }
+.club-bday { color: var(--term-amber); font-size: 12px; }
+.ord-badge.ok { color: var(--brand); border-color: var(--brand); }
+.ord-badge.off { color: var(--muted); border-color: var(--border-bright); }
+
+/* Interruptor general del club: prende o apaga todo el sitio de una */
+.club-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-bright);
+  background: var(--panel-2);
+}
+.club-switch.on { border-left-color: var(--brand); }
+.club-switch-text { flex: 1 1 260px; }
+.club-switch-text p { margin: 4px 0 0; font-size: 12px; }
+.switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch-ui {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border: 1px solid var(--border-bright);
+  background: var(--panel);
+  transition: background 0.15s, border-color 0.15s;
+}
+.switch-ui::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--muted);
+  transition: transform 0.15s, background 0.15s;
+}
+.switch input:checked + .switch-ui { border-color: var(--brand); }
+.switch input:checked + .switch-ui::after { transform: translateX(16px); background: var(--brand); }
+.switch input:focus-visible + .switch-ui { outline: 2px solid var(--brand); outline-offset: 2px; }
+.switch-text { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }

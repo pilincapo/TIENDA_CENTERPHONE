@@ -31,6 +31,14 @@ export interface PublicSettings {
   transferDiscountPercent: number;
   /** CBU/alias para el cierre por transferencia (opcional). */
   transferCbu: string;
+  /** Club de socios activo: /club acepta altas y el carrito aplica el descuento. */
+  loyaltyEnabled: boolean;
+  /** Nombre visible del club. */
+  loyaltyName: string;
+  /** Nivel base (5, 10 o 15) de los socios nuevos y de los que no tienen nivel propio. */
+  loyaltyDiscountPercent: number;
+  /** Texto de bienvenida del alta (vacío = texto por defecto de la página). */
+  loyaltyWelcomeText: string;
   /** Modo mantenimiento activo: el catálogo muestra la página de contacto. */
   maintenanceMode: boolean;
   /** Cinta de anuncio sobre el topbar; vacía = no se renderiza. */

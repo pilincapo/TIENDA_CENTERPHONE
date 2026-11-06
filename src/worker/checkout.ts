@@ -18,11 +18,17 @@ import {
 import { createPreference, fetchPayment } from "./mercadopago";
 import { formatPrice } from "../shared/format";
 import type { Order, OrderItem } from "../shared/types";
+import { effectiveMemberPercent, memberDiscountCents, memberPhoneMatches } from "../shared/loyalty";
+import { getActiveMemberByCode, touchMemberOrder } from "./loyalty";
 
 export const checkoutApp = new Hono<{ Bindings: Env }>();
 
 // ---- Rate limit en memoria (por isolate), mismo patrón que el login ----
 const checkoutAttempts = new Map<string, { count: number; resetAt: number }>();
+/** Solo para tests: el rate limit vive en memoria del isolate. */
+export function resetCheckoutRateLimit(): void {
+  checkoutAttempts.clear();
+}
 function checkoutBlocked(ip: string): boolean {
   const now = Date.now();
   const entry = checkoutAttempts.get(ip);
@@ -61,12 +67,24 @@ function sameSiteOrigin(c: { req: { header: (n: string) => string | undefined; u
 
 /** Validación y persistencia compartida por /api/checkout y /api/orders/transfer.
  *  mode="mp": suma el recargo configurado (se cobra por MercadoPago).
- *  mode="transfer": resta el descuento por transferencia (cierre por WhatsApp). */
+ *  mode="transfer": resta el descuento por transferencia (cierre por WhatsApp).
+ *
+ *  El código de socio se valida en D1 y su descuento se aplica PRIMERO; el
+ *  descuento por transferencia (o el recargo de MP) se calcula sobre el saldo.
+ *  Así los porcentajes se acumulan sin que uno pise al otro. */
 async function finalizeOrder(c: {
   env: { DB: D1Database; KV: KVNamespace };
   req: { json: <T = unknown>() => Promise<T> };
-}, settings: { transferDiscountPercent?: number; mpSurchargePercent?: number }, mode: "mp" | "transfer"): Promise<{ error: string; status: 400 } | { order: Order; cartTotal: number; discountPercent: number }> {
-  const body = await c.req.json<{ items?: CartInput[]; name?: unknown; phone?: unknown }>().catch(() => null);
+}, settings: {
+  transferDiscountPercent?: number; mpSurchargePercent?: number;
+  loyaltyEnabled?: boolean; loyaltyDiscountPercent?: number; loyaltyName?: string;
+}, mode: "mp" | "transfer"): Promise<
+  { error: string; status: 400 } |
+  { order: Order; cartTotal: number; discountPercent: number; memberDiscountPercent: number }
+> {
+  const body = await c.req.json<{
+    items?: CartInput[]; name?: unknown; phone?: unknown; memberCode?: unknown;
+  }>().catch(() => null);
   const products = await listProducts(c.env.DB); // solo publicados
   const cart = validateCart(body?.items ?? [], products);
   if (!cart.ok) return { error: cart.error ?? "Carrito inválido", status: 400 as const };
@@ -78,9 +96,32 @@ async function finalizeOrder(c: {
 
   const orderId = newId() + newId(); // 32 hex: intratable, es la credencial de la página /pedido/:id
   const cartTotal = cart.totalCents ?? 0;
-  // El ajuste (recargo MP o descuento transferencia) se congela como ítem dentro
-  // de items_json y entra al total: /pedido/:id, el panel, la preferencia de MP
-  // y los mensajes de WhatsApp muestran SIEMPRE el mismo número, y el % queda
+
+  // Club de socios: el código lo manda el navegador, pero el descuento sale de
+  // D1 (socio activo) y del % guardado en el panel. Un código inválido o
+  // desactivado se ignora en silencio: el pedido se crea sin descuento.
+  const memberCodeRaw = typeof body?.memberCode === "string" ? body.memberCode.trim() : "";
+  const member = memberCodeRaw !== "" && settings.loyaltyEnabled === true
+    ? await getActiveMemberByCode(c.env.DB, memberCodeRaw)
+    : null;
+  // El código es personal: solo vale para el WhatsApp con el que se dio de
+  // alta. Si el cliente escribe otro número, se rechaza el pedido en vez de
+  // cobrarle sin el descuento que creía tener (o dejar pasar un código ajeno).
+  if (member && !memberPhoneMatches(member.phone, buyer.phone)) {
+    return {
+      error: "El código de socio no corresponde a este WhatsApp. Usá el número con el que te diste de alta o quitá el código.",
+      status: 400 as const,
+    };
+  }
+  // El % sale del nivel del socio (5/10/15); si no tiene nivel, del base
+  // configurado. El navegador nunca manda el porcentaje.
+  const memberPercent = member ? effectiveMemberPercent(member.discountPercent, settings.loyaltyDiscountPercent) : 0;
+  const memberCents = memberDiscountCents(cartTotal, memberPercent);
+  const baseAfterMember = cartTotal - memberCents;
+
+  // Los ajustes (socio, transferencia, recargo) se congelan como ítems dentro
+  // de items_json y entran al total: /pedido/:id, el panel, la preferencia de MP
+  // y los mensajes de WhatsApp muestran SIEMPRE el mismo número, y cada % queda
   // fijo al comprar aunque el vendedor lo cambie después.
   const discountPercent = mode === "transfer"
     ? Math.min(50, Math.max(0, Math.round(Number(settings.transferDiscountPercent ?? 0))))
@@ -88,30 +129,54 @@ async function finalizeOrder(c: {
   const surchargePercent = mode === "mp"
     ? Math.min(50, Math.max(0, Math.round(Number(settings.mpSurchargePercent ?? 0))))
     : 0;
-  const discountCents = discountPercent > 0 && cartTotal > 0 ? Math.round((cartTotal * discountPercent) / 100) : 0;
-  const surchargeCents = surchargePercent > 0 && cartTotal > 0 ? Math.round((cartTotal * surchargePercent) / 100) : 0;
-  const adjustment: OrderItem | null = discountCents > 0
-    ? { id: "descuento-transferencia", title: `Descuento transferencia (${discountPercent}%)`, qty: 1, priceCents: -discountCents }
-    : (surchargeCents > 0 ? { id: "recargo-mp", title: `Recargo pago online (${surchargePercent}%)`, qty: 1, priceCents: surchargeCents } : null);
-  const items: OrderItem[] = adjustment ? [...(cart.items ?? []), adjustment] : (cart.items ?? []);
+  const discountCents = discountPercent > 0 && baseAfterMember > 0
+    ? Math.round((baseAfterMember * discountPercent) / 100)
+    : 0;
+  const surchargeCents = surchargePercent > 0 && baseAfterMember > 0
+    ? Math.round((baseAfterMember * surchargePercent) / 100)
+    : 0;
+
+  const adjustments: OrderItem[] = [];
+  if (memberCents > 0) {
+    adjustments.push({
+      id: "descuento-socio",
+      title: `Descuento ${settings.loyaltyName || "Club CenterPhone"} (${memberPercent}%)`,
+      qty: 1,
+      priceCents: -memberCents,
+    });
+  }
+  if (discountCents > 0) {
+    adjustments.push({
+      id: "descuento-transferencia",
+      title: `Descuento transferencia (${discountPercent}%)`,
+      qty: 1,
+      priceCents: -discountCents,
+    });
+  }
+  if (surchargeCents > 0) {
+    adjustments.push({ id: "recargo-mp", title: `Recargo pago online (${surchargePercent}%)`, qty: 1, priceCents: surchargeCents });
+  }
+
   const order: Order = {
     id: orderId,
     status: "pending" as const,
-    totalCents: cartTotal - discountCents + surchargeCents,
+    totalCents: baseAfterMember - discountCents + surchargeCents,
     currency: "ARS",
     buyerName: buyer.name,
     buyerPhone: buyer.phone,
     payerEmail: null,
-    items,
+    items: [...(cart.items ?? []), ...adjustments],
     mpPreferenceId: null,
     mpPaymentId: null,
     paidAt: null,
     notifiedWa: false,
+    memberCode: member?.code ?? null,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
   await insertOrder(c.env.DB, order);
-  return { order, cartTotal, discountPercent };
+  if (member) await touchMemberOrder(c.env.DB, member.id);
+  return { order, cartTotal, discountPercent, memberDiscountPercent: memberPercent };
 }
 
 checkoutApp.post("/api/checkout", async (c) => {
@@ -132,10 +197,17 @@ checkoutApp.post("/api/checkout", async (c) => {
 
   const url = new URL(c.req.url);
   const siteUrl = c.env.CF_SITE_ORIGIN || url.origin;
+  // MercadoPago no acepta unit_price negativos: con descuento de socio se manda
+  // UN ítem por el total final (exacto) en vez de la lista con el ajuste
+  // negativo. Sin club, la preferencia conserva el detalle de siempre (incluido
+  // el ítem de recargo positivo).
+  const prefItems: OrderItem[] = order.memberCode
+    ? [{ id: "pedido", title: `Pedido ${order.id.slice(0, 8).toUpperCase()}`, qty: 1, priceCents: order.totalCents }]
+    : order.items;
   const pref = await createPreference({
     token,
     orderId: order.id,
-    items: order.items, // incluye el ítem de recargo si está configurado
+    items: prefItems,
     buyerName: order.buyerName,
     buyerPhone: order.buyerPhone,
     siteUrl,
@@ -172,20 +244,30 @@ checkoutApp.post("/api/orders/transfer", async (c) => {
   }
   const created = await finalizeOrder(c, settings, "transfer");
   if ("error" in created) return c.json({ error: created.error }, created.status);
-  const { order, cartTotal, discountPercent } = created;
+  const { order, cartTotal, discountPercent, memberDiscountPercent } = created;
 
   // CBU/alias configurable: si el vendedor lo cargó, va pre-cargado en el
   // mensaje de WhatsApp para que el comprador transfiera sin preguntar.
   const wa = settings.whatsappPhone.replace(/\D/g, "");
   const symbol = settings.currencySymbol || "$";
   const lines = order.items.filter((i) => i.priceCents > 0).map((i) => `• ${i.qty}x ${i.title} (${formatPrice(i.priceCents * i.qty, symbol)})`).join("\n");
-  const adjustment = order.items.find((i) => i.priceCents < 0);
-  const discountLine = adjustment ? `\n${adjustment.title}: -${formatPrice(-adjustment.priceCents, symbol)}` : "";
+  const discountLine = order.items
+    .filter((i) => i.priceCents < 0)
+    .map((i) => `\n${i.title}: -${formatPrice(-i.priceCents, symbol)}`)
+    .join("");
   const cbu = settings.transferCbu?.trim() ? `\nCBU/Alias: ${settings.transferCbu.trim()}` : "";
   const text = `Hola! Quiero comprar este pedido por transferencia:\nPedido: ${order.id}\n${lines}\nTotal: ${formatPrice(cartTotal, symbol)}${discountLine}\nTotal a transferir: ${formatPrice(order.totalCents, symbol)}${cbu}\n¿A dónde te paso los datos?`;
   const waHref = wa !== "" ? `https://wa.me/${wa}?text=${encodeURIComponent(text)}` : null;
 
-  return c.json({ ok: true, orderId: order.id, totalCents: order.totalCents, discountPercent, waHref });
+  return c.json({
+    ok: true,
+    orderId: order.id,
+    totalCents: order.totalCents,
+    discountPercent,
+    memberDiscountPercent,
+    memberCode: order.memberCode,
+    waHref,
+  });
 });
 
 /**

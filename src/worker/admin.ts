@@ -30,6 +30,7 @@ import {
 } from "./auth";
 import { changeAdminPassword, getRevocationEpoch, getSessionSecret, revokeActiveSessions, verifyAdminPassword } from "./admin-credentials";
 import { registerReturnAdminRoutes } from "./returns-admin";
+import { registerMemberAdminRoutes } from "./members-admin";
 
 export const adminApp = new Hono<{ Bindings: Env }>();
 
@@ -122,6 +123,8 @@ adminApp.post("/logout", async (c) => {
 // Devoluciones: se registran acá (y no directo en index.ts) para que pasen por
 // el middleware de sesión de arriba. Sin login, 401.
 registerReturnAdminRoutes(adminApp);
+// Club de socios: listado, alta manual y activación/desactivación (con login).
+registerMemberAdminRoutes(adminApp);
 
 // Historial de cambios del sitio: el changelog.md del repo viaja dentro de los
 // assets del deploy (tools/build-web.js lo copia a public/) y el panel lo lee
@@ -685,6 +688,11 @@ adminApp.put("/settings", async (c) => {
     mpSurchargePercent: clampPercent(body.mpSurchargePercent),
     transferDiscountPercent: clampPercent(body.transferDiscountPercent),
     transferCbu: String(body.transferCbu ?? "").slice(0, 120),
+    // Club de socios: el % es acumulable con el de transferencia (se aplica antes).
+    loyaltyEnabled: body.loyaltyEnabled === true,
+    loyaltyName: String(body.loyaltyName ?? "").trim().slice(0, 60) || "Club CenterPhone",
+    loyaltyDiscountPercent: clampPercent(body.loyaltyDiscountPercent),
+    loyaltyWelcomeText: String(body.loyaltyWelcomeText ?? "").trim().slice(0, 400),
     maintenanceMode: body.maintenanceMode === true,
     maintenanceMessage: String(body.maintenanceMessage ?? "").slice(0, 300),
     // Cinta de anuncio: varias promos, una por línea (el HTML se escapa al renderizar).

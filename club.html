@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Club CenterPhone — socios con hasta 15% de descuento</title>
+    <meta
+      name="description"
+      content="Sumate gratis al Club CenterPhone: hasta un 15% de descuento en celulares y tecnología, promociones y atención preferencial. Sin cuotas, sin tarjeta y sin contraseña."
+    />
+    <link rel="canonical" href="https://centerphone.com.ar/club" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0b0f14" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="stylesheet" href="/src/web/styles.css" />
+  </head>
+  <body class="page-legal page-club">
+    <a class="skip-link" href="#contenido">Saltar al contenido</a>
+    <header class="topbar">
+      <a class="brand" href="/"><img class="brand-logo" src="/logo-small.jpg" alt="CenterPhone Celulares"/><span class="brand-name">CenterPhone</span><span class="brand-tag">Celulares</span></a>
+      <nav class="topnav" aria-label="Principal">
+        <a class="topnav-btn" href="/">Catálogo</a>
+        <a class="topnav-btn" id="club-nav-link" href="/club" aria-current="page">Club</a>
+      </nav>
+    </header>
+
+    <main class="legal-page" id="contenido" tabindex="-1">
+      <nav class="breadcrumbs" aria-label="Ubicación">
+        <a href="/">Inicio</a> › <span>Club de socios</span>
+      </nav>
+
+      <h1 id="club-title">Club CenterPhone</h1>
+      <p class="legal-lead" id="club-lead">
+        Un club de beneficios <strong>gratis</strong>: te registrás en un minuto, recibís tu código de socio
+        y tenés <strong>hasta un 15% de descuento</strong> en todas tus compras. Sin cuotas, sin tarjeta y sin contraseña.
+      </p>
+      <p class="legal-lead" id="club-welcome" hidden></p>
+
+      <noscript id="club-noscript">
+        <p class="legal-note">
+          El alta necesita JavaScript. Si no podés usarlo, escribinos por WhatsApp al
+          <a href="https://wa.me/5493425819402" target="_blank" rel="noopener">+54 9 342 581 9402</a>
+          y te damos de alta desde el local.
+        </p>
+      </noscript>
+
+      <section class="club-benefits" id="club-benefits" aria-label="Beneficios del club">
+        <div class="club-benefit">
+          <span class="club-benefit-icon" aria-hidden="true">🏷️</span>
+          <h2>Hasta un 15% de descuento</h2>
+          <p>En todos los productos, todos los días. Tu nivel (5, 10 o 15%) se aplica en el carrito con tu código.</p>
+        </div>
+        <div class="club-benefit">
+          <span class="club-benefit-icon" aria-hidden="true">🎁</span>
+          <h2>Promos y avisos</h2>
+          <p>Te avisamos primero por WhatsApp cuando hay ofertas, ingresos o beneficios especiales.</p>
+        </div>
+        <div class="club-benefit">
+          <span class="club-benefit-icon" aria-hidden="true">⚡</span>
+          <h2>Sin trámites</h2>
+          <p>No hay cuotas ni renovaciones: tu código no vence mientras el club esté activo.</p>
+        </div>
+      </section>
+
+      <section class="club-block" id="club-join-block">
+        <h2>Quiero ser socio</h2>
+        <p class="legal-lead">Dejanos tus datos y te mostramos el código al instante. El email y el cumpleaños son opcionales: nos sirven para avisarte de promos.</p>
+
+        <form class="return-form" id="club-form" novalidate>
+          <div class="field">
+            <label for="club-name">Tu nombre</label>
+            <input id="club-name" name="name" type="text" autocomplete="name" maxlength="80" required />
+          </div>
+          <div class="field">
+            <label for="club-phone">Tu WhatsApp</label>
+            <input id="club-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="24" required placeholder="Ej.: 342 581 9402" />
+            <p class="field-hint">Con este número recuperás tu código si lo perdés.</p>
+          </div>
+          <div class="field">
+            <label for="club-email">Email <span class="opt">(opcional)</span></label>
+            <input id="club-email" name="email" type="email" autocomplete="email" maxlength="120" placeholder="nombre@correo.com" />
+          </div>
+          <div class="field">
+            <label for="club-birthday">Cumpleaños <span class="opt">(opcional)</span></label>
+            <input id="club-birthday" name="birthday" type="date" />
+            <p class="field-hint">Guardamos solo el día y el mes, para saludarte con una promo.</p>
+          </div>
+
+          <!-- Honeypot: invisible para personas, los bots lo completan. -->
+          <div class="rf-hp" aria-hidden="true">
+            <label for="club-website">No completar</label>
+            <input id="club-website" name="website" type="text" tabindex="-1" autocomplete="off" />
+          </div>
+
+          <p class="return-form-error" id="club-error" hidden></p>
+          <button class="btn btn-primary" id="club-submit" type="submit">Sumarme gratis</button>
+          <p class="legal-cta-note">Al sumarte aceptás recibir avisos del club por WhatsApp. Podés pedir la baja cuando quieras y no afecta tus compras ni tus derechos como consumidor.</p>
+        </form>
+
+      </section>
+
+      <p class="club-alt" id="club-disabled" hidden>
+        <strong>El Club está suspendido temporalmente.</strong> Estamos reorganizando los beneficios:
+        el alta, la consulta de códigos y el descuento quedan en pausa hasta nuevo aviso.
+        Mientras tanto podés seguir comprando normalmente por WhatsApp.
+      </p>
+
+      <section class="club-block club-done" id="club-done" hidden aria-live="polite">
+        <h2>¡Ya sos socio!</h2>
+        <p>Este es tu código. Guardalo o dejalo en este navegador: lo usamos para aplicar el descuento en el carrito.</p>
+        <p class="club-code-big" id="club-code">—</p>
+        <div class="return-actions">
+          <button class="btn btn-primary" id="club-copy" type="button">Copiar código</button>
+          <a class="btn" href="/">Ir al catálogo</a>
+        </div>
+        <p class="legal-cta-note" id="club-done-note"></p>
+      </section>
+
+      <section class="club-block" id="club-existing">
+        <h2>Ya soy socio</h2>
+        <p class="legal-lead">Pegá tu código para confirmar que sigue activo. Si lo perdiste, volvé a completar el alta con el mismo WhatsApp: te devolvemos el mismo código.</p>
+        <form class="return-form club-check" id="club-check-form">
+          <div class="field">
+            <label for="club-check-code">Código de socio</label>
+            <input id="club-check-code" name="code" type="text" maxlength="12" placeholder="SOC-XXXXXX" autocomplete="off" />
+          </div>
+          <button class="btn" type="submit">Consultar</button>
+        </form>
+        <p class="club-status" id="club-status" hidden></p>
+      </section>
+    </main>
+
+    <!-- Pie compartido (ver src/web/site-footer.ts). -->
+    <footer class="footer" data-site-footer aria-label="Cómo comprar y contacto" hidden></footer>
+
+    <script type="module" src="/src/web/club.ts"></script>
+  </body>
+</html>

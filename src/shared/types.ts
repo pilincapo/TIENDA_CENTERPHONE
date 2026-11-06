@@ -88,6 +88,8 @@ export interface Order {
   mpPaymentId: string | null;
   paidAt: number | null;
   notifiedWa: boolean;
+  /** Código de socio del Club usado en el pedido (null = compra sin club). */
+  memberCode: string | null;
   /** Fecha del archivo (epoch ms). Solo con status = "archived". */
   archivedAt?: number | null;
   /** Quien archivo (IP del panel o "panel"). Solo con status = "archived". */
@@ -180,6 +182,15 @@ export interface StoreSettings {
   transferDiscountPercent: number;
   /** CBU o alias para el cierre por transferencia (opcional; va pre-cargado en el mensaje de WhatsApp). */
   transferCbu: string;
+  // ---- Club de socios (suscripción gratuita, descuento acumulable) ----
+  /** Club activo: muestra /club y acepta altas. Apagado = sin altas ni descuento. */
+  loyaltyEnabled: boolean;
+  /** Nombre visible del club (ej. "Club CenterPhone"). */
+  loyaltyName: string;
+  /** Descuento % del socio (0-50; se aplica antes del descuento por transferencia). */
+  loyaltyDiscountPercent: number;
+  /** Texto de bienvenida del alta (opcional; vacío = el texto por defecto). */
+  loyaltyWelcomeText: string;
   whatsappPhone: string;
   currencySymbol: string;
   syncUrl: string;
@@ -277,6 +288,10 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   mpSurchargePercent: 0,
   transferDiscountPercent: 0,
   transferCbu: "",
+  loyaltyEnabled: false,
+  loyaltyName: "Club CenterPhone",
+  loyaltyDiscountPercent: 5,
+  loyaltyWelcomeText: "",
   maintenanceMode: false,
   maintenanceMessage: "",
   // Cinta de anuncio: vacía por defecto (no se muestra nada hasta configurarla).

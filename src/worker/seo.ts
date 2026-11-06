@@ -5,6 +5,7 @@
 import { Hono } from "hono";
 import type { Env } from "./db";
 import { listProductsForSitemap } from "./db";
+import { getSettings } from "./settings";
 
 export const seoApp = new Hono<{ Bindings: Env }>();
 
@@ -28,7 +29,7 @@ seoApp.get("/sitemap.xml", async (c) => {
   }
 
   const origin = "https://centerphone.com.ar";
-  const products = await listProductsForSitemap(c.env.DB);
+  const [products, settings] = await Promise.all([listProductsForSitemap(c.env.DB), getSettings(c.env.KV)]);
 
   // Sin URLs de categoría (/?cat=...): son la home filtrada por JS, con el
   // mismo HTML y canonical hacia "/". Publicarlas en el sitemap hacía que
@@ -37,7 +38,10 @@ seoApp.get("/sitemap.xml", async (c) => {
   // ganancia de indexación. Siguen accesibles desde los chips del menú.
   // Páginas fijas del sitio (legales). Sin `lastmod`: no tienen fecha propia
   // confiable y una fecha inventada es justo lo que se corrigió arriba.
+  // /club solo se publica mientras el club está prendido en el panel: apagado
+  // es una página en pausa y no debe competir en el índice.
   const paginas = [
+    ...(settings.loyaltyEnabled ? [{ path: "/club", priority: "0.6" }] : []),
     { path: "/politica-de-cambios-y-devoluciones", priority: "0.4" },
     { path: "/politica-de-privacidad", priority: "0.3" },
   ];

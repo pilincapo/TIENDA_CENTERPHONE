@@ -21,6 +21,7 @@ import { validateCart, type CartInput } from "./orders";
 import { orderPageApp } from "./orders-page";
 import { returnsApp } from "./returns";
 import { returnsPageApp } from "./returns-page";
+import { loyaltyApp } from "./loyalty";
 import { maintenanceMiddleware } from "./maintenance";
 import { waFeedApp } from "./wa-feed";
 import { runWeeklyDigest } from "./digest";
@@ -59,6 +60,8 @@ app.route("/", orderPageApp);
 // Solicitudes de cambio/devolución/arrepentimiento (ETAPA 2): API + seguimiento.
 app.route("/", returnsApp);
 app.route("/", returnsPageApp);
+// Club de socios: alta gratuita y validación del código (descuento acumulable).
+app.route("/", loyaltyApp);
 app.route("/", seoApp);
 // Feed CSV del catálogo de WhatsApp: lo descarga Meta (ver wa-feed.ts).
 app.route("/", waFeedApp);
@@ -134,6 +137,11 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     mpSurchargePercent: s.mpSurchargePercent,
     transferDiscountPercent: s.transferDiscountPercent,
     transferCbu: s.transferCbu,
+    // Club de socios: el frontend muestra el banner y precarga el código.
+    loyaltyEnabled: s.loyaltyEnabled,
+    loyaltyName: s.loyaltyName,
+    loyaltyDiscountPercent: s.loyaltyDiscountPercent,
+    loyaltyWelcomeText: s.loyaltyWelcomeText,
     maintenanceMode: s.maintenanceMode,
     // Cinta de anuncio configurable (texto plano; el frontend lo escapa).
     announcementBar: s.announcementBar,
@@ -370,6 +378,17 @@ app.get("/politica-de-privacidad", (c) => staticPage(c, "/politica-de-privacidad
 // Formulario de solicitudes (ETAPA 2): HTML estático + su entry, mismo trato
 // que las legales (ruta limpia con las cabeceras del worker).
 app.get("/devoluciones", (c) => staticPage(c, "/devoluciones.html"));
+// Club de socios: página pública con beneficios y alta gratuita.
+// Con el club apagado la página sigue respondiendo (no rompe enlaces ni
+// marcadores) pero queda fuera del índice: es una página en pausa.
+app.get("/club", async (c) => {
+  const res = await staticPage(c, "/club.html");
+  if (res.status !== 200) return res;
+  if ((await getSettings(c.env.KV)).loyaltyEnabled) return res;
+  const headers = new Headers(res.headers);
+  headers.set("X-Robots-Tag", "noindex");
+  return new Response(res.body, { status: res.status, headers });
+});
 
 app.get("/admin", (c) => c.redirect("/admin/", 301));
 // /changelog.md es documentación interna (el panel la lee vía /api/admin/changelog,

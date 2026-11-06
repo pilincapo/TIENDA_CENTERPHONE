@@ -13,6 +13,7 @@ import { seoApp } from "./seo";
 import { applyWorkersDevNoIndex } from "./security";
 import worker from "./index";
 import type { Env } from "./db";
+import { KV_SETTINGS_KEY } from "../shared/types";
 
 const ctx = { waitUntil: () => {}, passThroughOnException: () => {} } as unknown as ExecutionContext;
 
@@ -37,6 +38,14 @@ function mockEnv(): Env {
     prepare: () => ({ all: async () => ({ results: [] }), first: async () => null, run: async () => ({ success: true }) }),
   } as unknown as D1Database;
   return { DB: db, KV: kv, ASSETS: assets, ADMIN_PASSWORD: "x", ADMIN_SESSION_SECRET: "y" } as unknown as Env;
+}
+
+function kvWith(settings: Record<string, unknown>): KVNamespace {
+  return {
+    get: async (key: string) => (key === KV_SETTINGS_KEY ? JSON.stringify(settings) : null),
+    put: async () => {},
+    delete: async () => {},
+  } as unknown as KVNamespace;
 }
 
 // El sitemap filtra los ocultos en el SQL (`WHERE status = 'published'`), así que
@@ -88,6 +97,17 @@ describe("sitemap.xml", () => {
     expect(xml).toContain("<loc>https://centerphone.com.ar/politica-de-privacidad</loc>");
     // Nunca la variante .html: canonical y sitemap usan la ruta limpia.
     expect(xml).not.toContain("politica-de-privacidad.html");
+  });
+
+  it("publica /club solo mientras el club está activo", async () => {
+    // Apagado: la página sigue viva (con noindex) pero no se ofrece en el índice.
+    const off = await (await seoApp.request("/sitemap.xml", {}, mockEnv(), ctx)).text();
+    expect(off).not.toContain("<loc>https://centerphone.com.ar/club</loc>");
+
+    const env = mockEnv();
+    env.KV = kvWith({ loyaltyEnabled: true });
+    const on = await (await seoApp.request("/sitemap.xml", {}, env, ctx)).text();
+    expect(on).toContain("<loc>https://centerphone.com.ar/club</loc>");
   });
 
   it("lastmod usa la fecha real de cada ficha, no la del día", async () => {
@@ -192,5 +212,23 @@ describe("workers.dev (espejo) queda noindex", () => {
     const c = { res: new Response("ok", { status: 200 }) } as unknown as { res: Response };
     applyWorkersDevNoIndex(c, "centerphone.com.ar");
     expect(c.res.headers.get("X-Robots-Tag")).toBeNull();
+  });
+});
+
+describe("/club con el club apagado", () => {
+  it("sigue respondiendo 200 (la dirección no se rompe) y queda noindex", async () => {
+    const res = await worker.fetch(new Request("https://centerphone.com.ar/club"), mockEnv(), ctx);
+    expect(res.status).toBe(200);
+    // El aviso de suspensión se muestra igual: no es un 404 ni un redirect.
+    expect(await res.text()).toContain("asset:/club.html");
+    expect(res.headers.get("X-Robots-Tag")).toBe("noindex");
+  });
+
+  it("con el club activo responde 200 sin noindex", async () => {
+    const env = mockEnv();
+    env.KV = kvWith({ loyaltyEnabled: true });
+    const res = await worker.fetch(new Request("https://centerphone.com.ar/club"), env, ctx);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Robots-Tag")).toBeNull();
   });
 });

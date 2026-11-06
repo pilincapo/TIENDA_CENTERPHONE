@@ -138,18 +138,32 @@ export function setupModals(s: PublicSettings): void {
       const contact = document.getElementById("modal-contact");
       if (how) how.hidden = true;
       if (contact) contact.hidden = true;
+      syncScrollLock();
     }
   });
+}
+
+/**
+ * Apaga el scroll de la página mientras haya un modal abierto. El scroll vive
+ * en <html> (no en el body), así que se marca esa raíz con `.is-locked`;
+ * `scrollbar-gutter: stable` en styles.css reserva el ancho de la barra para
+ * que el contenido no salte al bloquear y desbloquear.
+ * Se deriva del DOM en cada llamada: no hay contador que pueda quedar trabado
+ * si un modal se cierra por otra vía.
+ */
+export function syncScrollLock(): void {
+  const anyOpen = Array.from(document.querySelectorAll<HTMLElement>(".modal")).some((m) => !m.hidden);
+  document.documentElement.classList.toggle("is-locked", anyOpen);
 }
 
 function openModal(id: string): void {
   const modal = document.getElementById(id);
   if (!modal) return;
   modal.hidden = false;
-  document.body.style.overflow = "hidden";
+  syncScrollLock();
   const obs = new MutationObserver(() => {
     if (modal.hidden) {
-      document.body.style.overflow = "";
+      syncScrollLock();
       obs.disconnect();
     }
   });

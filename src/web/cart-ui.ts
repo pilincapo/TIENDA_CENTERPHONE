@@ -7,7 +7,10 @@ import type { Product } from "../shared/types";
 import type { PublicSettings } from "./types-web";
 import { formatPrice } from "../shared/format";
 import { esc } from "../shared/html";
+import { memberDiscountCents, memberDiscountPercent, normalizeMemberCode } from "../shared/loyalty";
+import { saveMember, storedMemberCode, storedMemberPercent, clearMember } from "./member-storage";
 import { cartTransferBanner, discountPercentFrom } from "./transfer-banner";
+import { syncScrollLock } from "./store-modals";
 import {
   shippingQuoteHtml, quoteInitialState, fetchQuote, savePostalCode, savedPostalCode,
   errorState, doneState, cartItemsParam, type QuoteState,
@@ -27,6 +30,11 @@ export interface CartUIInit {
 
 let init: CartUIInit | null = null;
 let paying = false;
+// Socio validado en esta sesión: { code, percent } o null. El worker revalida
+// igual al crear el pedido; esto solo anticipa el número en el carrito.
+let member: { code: string; percent: number } | null = null;
+// Revalidación del código al corregir el WhatsApp (el código es personal).
+let phoneTimer: number | undefined;
 
 // Cache liviano de productos (sessionStorage) para que el modal resuelva
 // títulos/precios aunque la página ya haya re-renderizado.
@@ -70,6 +78,16 @@ function ensureModal(): void {
           <input id="cart-name" type="text" placeholder="Tu nombre" maxlength="80" autocomplete="name" />
           <input id="cart-phone" type="tel" placeholder="Tu WhatsApp (ej: 342 555 1234)" maxlength="24" autocomplete="tel" />
         </div>
+        <div class="cart-member" id="cart-member" hidden>
+          <label for="cart-member-code">Código de socio <span class="muted">(opcional)</span></label>
+          <div class="cart-member-row">
+            <input id="cart-member-code" type="text" maxlength="12" placeholder="SOC-XXXXXX" autocomplete="off" />
+            <button class="btn cart-member-apply" id="cart-member-apply" type="button">Aplicar</button>
+          </div>
+          <p class="field-hint">El código vale solo con el WhatsApp con el que te diste de alta.</p>
+          <p class="cart-member-msg" id="cart-member-msg" hidden></p>
+          <p class="cart-member-join" id="cart-member-join">¿Todavía no sos socio? <a href="/club" target="_blank" rel="noopener">Sumate gratis y ahorrá <b>hasta un 15% de descuento</b></a></p>
+        </div>
         <p class="cart-error" id="cart-error" hidden></p>
         <button class="btn btn-primary cart-pay" id="cart-pay" type="button">Pagar con MercadoPago</button>
         <button class="btn cart-transfer-btn" id="cart-transfer" type="button" hidden>Coordinar por transferencia</button>
@@ -90,12 +108,28 @@ function ensureModal(): void {
   });
   document.getElementById("cart-pay")?.addEventListener("click", () => void submitCheckout());
   document.getElementById("cart-transfer")?.addEventListener("click", () => void submitTransfer());
+  document.getElementById("cart-member-apply")?.addEventListener("click", () => void applyMemberCode());
+  document.getElementById("cart-member-code")?.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      void applyMemberCode();
+    }
+  });
+  // Al corregir el WhatsApp se revalida el código cargado: si no coincide con
+  // el del socio, el descuento se quita antes de llegar a pagar.
+  document.getElementById("cart-phone")?.addEventListener("input", () => {
+    if (!init?.settings.loyaltyEnabled) return;
+    const code = (document.getElementById("cart-member-code") as HTMLInputElement | null)?.value.trim() ?? "";
+    if (normalizeMemberCode(code) === "") return;
+    window.clearTimeout(phoneTimer);
+    phoneTimer = window.setTimeout(() => void validateMember(code, false), 500);
+  });
 }
 
 function closeCart(): void {
   const modal = document.getElementById("modal-cart");
   if (modal) modal.hidden = true;
-  document.body.style.overflow = "";
+  syncScrollLock();
 }
 
 function setPayError(msg: string): void {
@@ -103,6 +137,87 @@ function setPayError(msg: string): void {
   if (!errEl) return;
   errEl.textContent = msg;
   errEl.hidden = msg === "";
+}
+
+// ---- Club de socios dentro del carrito ----
+
+function setMemberMessage(msg: string, ok = true): void {
+  const el = document.getElementById("cart-member-msg");
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = msg === "";
+  el.classList.toggle("ok", ok);
+  el.classList.toggle("bad", !ok);
+}
+
+/** Valida el código en el worker y actualiza el descuento anticipado. */
+async function validateMember(code: string, notify: boolean): Promise<void> {
+  if (!init?.settings.loyaltyEnabled) return;
+  const normalized = normalizeMemberCode(code);
+  const input = document.getElementById("cart-member-code") as HTMLInputElement | null;
+  if (input) input.value = normalized;
+  if (normalized === "") {
+    member = null;
+    clearMember();
+    if (notify) setMemberMessage("Ingresá tu código de socio.", false);
+    renderCart();
+    return;
+  }
+  // Se manda el WhatsApp de la compra: el worker no acepta el código con otro
+  // número (es personal) y el carrito deja de mostrar el descuento.
+  const phone = (document.getElementById("cart-phone") as HTMLInputElement | null)?.value.trim() ?? "";
+  const qs = new URLSearchParams({ code: normalized });
+  if (phone !== "") qs.set("phone", phone);
+  try {
+    const res = await fetch(`/api/loyalty/validate?${qs.toString()}`);
+    const data = (await res.json().catch(() => null)) as
+      | { ok?: boolean; valid?: boolean; code?: string; discountPercent?: number; name?: string; reason?: string }
+      | null;
+    if (res.ok && data?.ok && data.valid) {
+      const percent = Math.max(0, Math.round(Number(data.discountPercent ?? 0)));
+      member = { code: data.code ?? normalized, percent };
+      saveMember(member.code, percent);
+      if (notify) {
+        setMemberMessage(`${data.name ? `¡Hola, ${data.name}! ` : ""}Código aplicado: ${percent}% de descuento.`, true);
+      } else {
+        // Revalidación silenciosa (al corregir el WhatsApp): si antes había un
+        // error de «no corresponde», ya no aplica.
+        setMemberMessage("", true);
+      }
+    } else {
+      member = null;
+      if (data?.reason === "phone_mismatch") {
+        setMemberMessage("Ese código no corresponde al WhatsApp de esta compra.", false);
+      } else if (notify) {
+        setMemberMessage("Ese código no está activo. Revisalo o sumate al club.", false);
+      }
+    }
+  } catch {
+    if (notify) setMemberMessage("No pudimos validar el código. Probá de nuevo.", false);
+  }
+  renderCart();
+}
+
+async function applyMemberCode(): Promise<void> {
+  const input = document.getElementById("cart-member-code") as HTMLInputElement | null;
+  await validateMember(input?.value ?? "", true);
+}
+
+/** Muestra el bloque y recupera el código guardado en este navegador. */
+function initMemberState(): void {
+  const block = document.getElementById("cart-member");
+  if (!init?.settings.loyaltyEnabled) {
+    if (block) block.hidden = true;
+    return;
+  }
+  if (block) block.hidden = false;
+  const stored = storedMemberCode();
+  if (stored === "") return;
+  const input = document.getElementById("cart-member-code") as HTMLInputElement | null;
+  if (input) input.value = stored;
+  const pct = storedMemberPercent();
+  if (pct > 0) member = { code: stored, percent: pct };
+  void validateMember(stored, false);
 }
 
 async function submitCheckout(): Promise<void> {
@@ -126,7 +241,7 @@ async function submitCheckout(): Promise<void> {
     const res = await fetch("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: lines, name, phone }),
+      body: JSON.stringify({ items: lines, name, phone, memberCode: member?.code ?? "" }),
     });
     const data = (await res.json().catch(() => null)) as { ok?: boolean; orderId?: string; initPoint?: string; error?: string } | null;
     if (!res.ok || !data?.initPoint) {
@@ -181,9 +296,9 @@ async function submitTransfer(): Promise<void> {
     const res = await fetch("/api/orders/transfer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: lines, name, phone }),
+      body: JSON.stringify({ items: lines, name, phone, memberCode: member?.code ?? "" }),
     });
-    const data = (await res.json().catch(() => null)) as { ok?: boolean; orderId?: string; totalCents?: number; discountPercent?: number; waHref?: string | null; error?: string } | null;
+    const data = (await res.json().catch(() => null)) as { ok?: boolean; orderId?: string; totalCents?: number; discountPercent?: number; memberDiscountPercent?: number; waHref?: string | null; error?: string } | null;
     if (!res.ok || !data?.ok || !data.orderId) {
       setPayError(data?.error ?? "No se pudo registrar el pedido. Probá de nuevo.");
       if (btn) {
@@ -199,7 +314,13 @@ async function submitTransfer(): Promise<void> {
     } catch { /* no-op */ }
     cartClear();
     updateBadge();
-    showTransferDone(data.orderId, data.totalCents ?? 0, data.discountPercent ?? 0, data.waHref ?? null);
+    showTransferDone(
+      data.orderId,
+      data.totalCents ?? 0,
+      data.discountPercent ?? 0,
+      data.memberDiscountPercent ?? 0,
+      data.waHref ?? null,
+    );
     paying = false;
   } catch {
     setPayError("Error de red. Verificá tu conexión y probá de nuevo.");
@@ -212,7 +333,13 @@ async function submitTransfer(): Promise<void> {
 }
 
 /** Pantalla de éxito del pedido por transferencia (dentro del modal). */
-function showTransferDone(orderId: string, totalCents: number, discountPercent: number, waHref: string | null): void {
+function showTransferDone(
+  orderId: string,
+  totalCents: number,
+  discountPercent: number,
+  memberDiscountPercent: number,
+  waHref: string | null,
+): void {
   if (!init) return;
   const symbol = init.settings.currencySymbol || "$";
   const body = document.getElementById("cart-body");
@@ -240,7 +367,7 @@ function showTransferDone(orderId: string, totalCents: number, discountPercent: 
       <div class="transfer-done-emoji">📝</div>
       <h3 class="transfer-done-title">¡Pedido registrado!</h3>
       <p class="transfer-done-sub">Transferí el total de abajo y avisá con el botón de WhatsApp. Pasalo a nombre de quien hace la transferencia.</p>
-      <div class="transfer-done-total">Total a transferir <b>${formatPrice(totalCents, symbol)}</b>${discountPercent > 0 ? ` <small class="muted">(ya con el ${discountPercent}% de descuento)</small>` : ""}</div>
+      <div class="transfer-done-total">Total a transferir <b>${formatPrice(totalCents, symbol)}</b>${discountPercent > 0 || memberDiscountPercent > 0 ? ` <small class="muted">(ya con${memberDiscountPercent > 0 ? ` el ${memberDiscountPercent}% de socio` : ""}${memberDiscountPercent > 0 && discountPercent > 0 ? " y" : ""}${discountPercent > 0 ? ` el ${discountPercent}% de transferencia` : ""})</small>` : ""}</div>
       ${cbuBlock}
       ${waBtn}
       <a class="btn cart-transfer-btn" href="${link}">Ver el estado de mi pedido</a>
@@ -384,11 +511,21 @@ function renderCart(): void {
       </div>`;
   }).join("");
   // El total a cobrar lo recalcula el worker: esto es solo anticipación visual.
+  // Orden del worker: primero el descuento de socio y después el de transferencia
+  // (o el recargo de MP) sobre el saldo.
   const surchargePercent = Math.min(50, Math.max(0, Math.round(Number(init.settings.mpSurchargePercent ?? 0))));
-  const totalSurcharge = surchargePercent > 0 ? total + Math.round((total * surchargePercent) / 100) : total;
+  const memberPct = member ? memberDiscountPercent(member.percent) : 0;
+  const memberCents = memberDiscountCents(total, memberPct);
+  const base = total - memberCents;
+  const totalSurcharge = surchargePercent > 0 ? base + Math.round((base * surchargePercent) / 100) : base;
   const discountPercent = discountPercentFrom(init.settings.transferDiscountPercent);
   // Banner destacado (pastilla -N% + precio tachado + ahorro); vacío sin descuento.
-  const transferNote = cartTransferBanner(total, discountPercent, symbol);
+  const transferNote = cartTransferBanner(base, discountPercent, symbol);
+  const memberLine = memberCents > 0
+    ? `<div class="cart-total cart-member-total">🎁 ${esc(init.settings.loyaltyName || "Club CenterPhone")} <b>-${memberPct}%</b>
+        <span class="cart-member-save">-${formatPrice(memberCents, symbol)}</span>
+        <button type="button" class="cart-member-clear" id="cart-member-clear">Quitar</button></div>`
+    : "";
   // Cotizador de envíos: estado inicial al abrir el modal; si el carrito cambió
   // después de cotizar, vuelve a cotizar. El precio mostrado NO se suma al total.
   const shipInitial = quoteInitialState(init.settings, lines);
@@ -407,11 +544,12 @@ function renderCart(): void {
   }
   body.innerHTML = `
     <div class="cart-lines">${rows}</div>
-    ${surchargePercent > 0 ? `<div class="cart-total cart-total-sub">Subtotal <b>${formatPrice(total, symbol)}</b></div>
-    <div class="cart-total">Total con pago online <b>${formatPrice(totalSurcharge, symbol)}</b> <small class="muted">(incluye recargo de ${surchargePercent}%)</small></div>` : `<div class="cart-total">Total <b>${formatPrice(total, symbol)}</b></div>`}
+    ${anyInvalid ? `<p class="cart-warn">Hay productos que ya no están disponibles: se quitarán al confirmar.</p>` : ""}
+    ${memberCents > 0 || surchargePercent > 0 ? `<div class="cart-total cart-total-sub">Subtotal <b>${formatPrice(total, symbol)}</b></div>` : ""}
+    ${memberLine}
+    ${surchargePercent > 0 ? `<div class="cart-total">Total con pago online <b>${formatPrice(totalSurcharge, symbol)}</b> <small class="muted">(incluye recargo de ${surchargePercent}%)</small></div>` : `<div class="cart-total">Total <b>${formatPrice(base, symbol)}</b></div>`}
     ${transferNote}
     <div id="cart-ship-inline"></div>
-    ${anyInvalid ? `<p class="cart-warn">Hay productos que ya no están disponibles: se quitarán al confirmar.</p>` : ""}
     ${consult}`;
   if (checkout) checkout.hidden = false;
   const noteEl = document.getElementById("cart-note");
@@ -440,6 +578,14 @@ function renderCart(): void {
       cartRemove(b.dataset.rm ?? "");
       renderCart();
     }));
+  document.getElementById("cart-member-clear")?.addEventListener("click", () => {
+    member = null;
+    clearMember();
+    const input = document.getElementById("cart-member-code") as HTMLInputElement | null;
+    if (input) input.value = "";
+    setMemberMessage("", true);
+    renderCart();
+  });
   // Cotizador de envíos: se repinta después de las líneas (usa #cart-ship-inline
   // que acabamos de escribir con body.innerHTML).
   renderShipBlock();
@@ -487,7 +633,7 @@ export function openCart(): void {
   const modal = document.getElementById("modal-cart");
   if (modal) {
     modal.hidden = false;
-    document.body.style.overflow = "hidden";
+    syncScrollLock();
   }
 }
 
@@ -505,7 +651,7 @@ export function buyNow(p: Product): void {
   const modal = document.getElementById("modal-cart");
   if (modal) {
     modal.hidden = false;
-    document.body.style.overflow = "hidden";
+    syncScrollLock();
     modal.querySelector<HTMLInputElement>("#cart-name")?.focus();
   }
 }
@@ -517,6 +663,7 @@ export function buyNow(p: Product): void {
 export function setupCartUI(settings: PublicSettings, products: Product[]): void {
   init = { settings, products };
   ensureModal();
+  initMemberState();
   cacheProducts(products);
   const btn = document.getElementById("cart-btn");
   if (btn) {

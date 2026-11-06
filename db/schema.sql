@@ -92,11 +92,13 @@ CREATE TABLE IF NOT EXISTS orders (
   archived_by        TEXT,                              -- IP del panel que archivo
   archive_note       TEXT,                              -- motivo opcional del archivo
   pre_archive_status TEXT,                              -- estado antes de archivar (para restaurar igual)
+  member_code        TEXT,                              -- código de socio usado (NULL = sin club)
   created_at         INTEGER NOT NULL,
   updated_at         INTEGER NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_orders_member_status ON orders(member_code, status);
 
 -- Redirects de productos: id viejo (hash del proveedor, p. ej. "6160") → id
 -- actual (nombre de página). Cuando el importador renombra una fila, la URL
@@ -108,3 +110,24 @@ CREATE TABLE IF NOT EXISTS product_redirects (
 );
 
 CREATE INDEX IF NOT EXISTS idx_redirects_to ON product_redirects(to_id);
+
+-- Club CenterPhone: socios con suscripción gratuita (ver db/migrations/014).
+-- El código SOC-XXXXXX es la credencial; el WhatsApp normalizado permite
+-- recuperarlo sin cuentas ni contraseñas.
+CREATE TABLE IF NOT EXISTS members (
+  id            TEXT PRIMARY KEY,
+  code          TEXT NOT NULL,
+  name          TEXT NOT NULL,
+  phone         TEXT NOT NULL,             -- solo dígitos, sin 54/9 ni 0 inicial
+  email         TEXT,
+  birthday      TEXT,                      -- "MM-DD" (sin año)
+  active        INTEGER NOT NULL DEFAULT 1,
+  source        TEXT NOT NULL DEFAULT 'web',
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL,
+  last_order_at INTEGER
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_members_code  ON members(code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_members_phone ON members(phone);
+CREATE INDEX IF NOT EXISTS idx_members_active ON members(active, created_at);

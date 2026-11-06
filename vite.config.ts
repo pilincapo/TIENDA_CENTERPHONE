@@ -19,6 +19,8 @@ export default defineConfig({
         privacidad: "politica-de-privacidad.html",
         // Formulario de solicitudes (ETAPA 2), también en su ruta limpia.
         solicitud: "devoluciones.html",
+        // Club de socios: página pública con alta gratuita (/club).
+        club: "club.html",
       },
     },
   },

@@ -14,7 +14,7 @@
     // capa de assets servía la página de error con 200 (soft 404 en Search
     // Console); el worker la devuelve con status 404 real. El resto de assets se
     // sirve directo (más rápido).
-    "run_worker_first": ["/", "/changelog.md", "/404", "/404.html", "/politica-de-cambios-y-devoluciones", "/politica-de-privacidad", "/devoluciones", "/devoluciones/*"]
+    "run_worker_first": ["/", "/changelog.md", "/404", "/404.html", "/politica-de-cambios-y-devoluciones", "/politica-de-privacidad", "/devoluciones", "/devoluciones/*", "/club"]
   },
   "triggers": {
     // Despierta cada 15 min; el worker decide si corresponde sincronizar

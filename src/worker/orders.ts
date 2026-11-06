@@ -53,6 +53,7 @@ export function rowToOrder(row: Dict): Order {
     mpPaymentId: row.mp_payment_id == null ? null : String(row.mp_payment_id),
     paidAt: row.paid_at == null ? null : num(row.paid_at),
     notifiedWa: num(row.notified_wa) === 1,
+    memberCode: row.member_code == null ? null : String(row.member_code),
     archivedAt: row.archived_at == null ? null : num(row.archived_at),
     archivedBy: row.archived_by == null ? null : String(row.archived_by),
     archiveNote: row.archive_note == null ? null : String(row.archive_note),
@@ -64,16 +65,16 @@ export function rowToOrder(row: Dict): Order {
 
 export async function insertOrder(db: D1Database, o: Order): Promise<void> {
   // D1 no permite reutilizar el mismo placeholder numerado (?13 dos veces):
-  // created_at y updated_at van como ?13 y ?14 con el mismo valor.
+  // created_at y updated_at van con placeholders distintos y el mismo valor.
   await db
     .prepare(
-      `INSERT INTO orders (id, status, total_cents, currency, buyer_name, buyer_phone, payer_email, items_json, mp_preference_id, mp_payment_id, paid_at, notified_wa, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)`
+      `INSERT INTO orders (id, status, total_cents, currency, buyer_name, buyer_phone, payer_email, items_json, mp_preference_id, mp_payment_id, paid_at, notified_wa, member_code, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)`
     )
     .bind(
       o.id, o.status, o.totalCents, o.currency, o.buyerName, o.buyerPhone,
       o.payerEmail, JSON.stringify(o.items), o.mpPreferenceId, o.mpPaymentId,
-      o.paidAt, o.notifiedWa ? 1 : 0, o.createdAt, o.updatedAt,
+      o.paidAt, o.notifiedWa ? 1 : 0, o.memberCode, o.createdAt, o.updatedAt,
     )
     .run();
 }

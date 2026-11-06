@@ -1,19 +1,22 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { checkoutApp } from "./checkout";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { checkoutApp, resetCheckoutRateLimit } from "./checkout";
 import type { Dict } from "./db";
+
+beforeEach(() => resetCheckoutRateLimit());
 
 // Mock mínimo de D1: guarda filas en un Map y aplica las 3 sentencias que usa
 // el flujo de pedidos (INSERT orders, UPDATE status, UPDATE preference).
 function makeDb() {
   const orders = new Map<string, Dict>();
   const products = new Map<string, Dict>();
+  const members = new Map<string, Dict>(); // por código de socio
   const executed: string[] = [];
 
   function apply(sql: string, args: unknown[]): void {
     executed.push(sql.slice(0, 40));
     if (/INSERT INTO orders/i.test(sql)) {
       // Mismo orden de columnas que el INSERT de orders.ts
-      const cols = ["id", "status", "total_cents", "currency", "buyer_name", "buyer_phone", "payer_email", "items_json", "mp_preference_id", "mp_payment_id", "paid_at", "notified_wa", "created_at", "updated_at"];
+      const cols = ["id", "status", "total_cents", "currency", "buyer_name", "buyer_phone", "payer_email", "items_json", "mp_preference_id", "mp_payment_id", "paid_at", "notified_wa", "member_code", "created_at", "updated_at"];
       const row: Dict = {};
       cols.forEach((c, i) => { row[c] = args[i]; });
       orders.set(String(row.id), row);
@@ -32,6 +35,12 @@ function makeDb() {
         row.mp_preference_id = args[1];
         row.updated_at = args[2];
       }
+    } else if (/UPDATE members SET last_order_at/i.test(sql)) {
+      const row = [...members.values()].find((m) => m.id === args[0]);
+      if (row) {
+        row.last_order_at = args[1];
+        row.updated_at = args[2];
+      }
     }
   }
 
@@ -41,7 +50,12 @@ function makeDb() {
       // listProducts usa .all() sin bind; los updates de orders usan .bind().
       const exec = (args: unknown[]) => ({
         run: async () => { apply(sql, args); return { success: true }; },
-        first: async () => (/FROM orders WHERE id/i.test(sql) ? orders.get(String(args[0])) ?? null : null),
+        first: async () => {
+          if (/FROM orders WHERE id/i.test(sql)) return orders.get(String(args[0])) ?? null;
+          if (/FROM members WHERE code/i.test(sql)) return members.get(String(args[0])) ?? null;
+          if (/FROM members WHERE phone/i.test(sql)) return [...members.values()].find((m) => m.phone === args[0]) ?? null;
+          return null;
+        },
         all: async () => ({
           results: sql.includes("FROM products") ? [...products.values()] : [...orders.values()],
         }),
@@ -49,7 +63,7 @@ function makeDb() {
       return { ...exec([]), bind: (...args: unknown[]) => exec(args) };
     },
   };
-  return { db, orders, products, executed };
+  return { db, orders, products, members, executed };
 }
 
 // KV con settings mínimos; getSettings solo hace kv.get(key) y hace merge.
@@ -65,6 +79,14 @@ function seedProduct(products: Map<string, Dict>): void {
     category_id: null, subcategory_id: null, tags: "[]", image_url: "",
     status: "published", availability: "in_stock", sort_order: 0,
     created_at: 1, updated_at: 1, source_url: null, brand: null,
+  });
+}
+
+function seedMember(members: Map<string, Dict>, over: Partial<Dict> = {}): void {
+  const code = String(over.code ?? "SOC-ABC234");
+  members.set(code, {
+    id: "m1", code, name: "Ana Gómez", phone: "3425819402", email: null, birthday: null,
+    active: 1, source: "web", created_at: 1, updated_at: 1, last_order_at: null, discount_percent: null, ...over,
   });
 }
 
@@ -446,5 +468,186 @@ describe("POST /api/checkout", () => {
     const { db } = makeDb();
     const res = await checkoutApp.request("/api/orders/no-existe", {}, asEnv({ DB: db, KV: makeKv(true) }), asCtx([]));
     expect(res.status).toBe(404);
+  });
+});
+
+describe("Club de socios en el checkout", () => {
+  const memberSettings = { loyaltyEnabled: true, loyaltyDiscountPercent: 10 };
+
+  it("aplica el descuento de socio y lo acumula con el de transferencia", async () => {
+    const { db, orders, products, members } = makeDb();
+    seedProduct(products);
+    seedMember(members);
+
+    const res = await checkoutApp.request(
+      "/api/orders/transfer",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost", "CF-Connecting-IP": "7.7.7.7" },
+        body: JSON.stringify({
+          items: [{ id: "p1", qty: 1 }], name: "Ana", phone: "342 581 9402", memberCode: "soc-abc234",
+        }),
+      },
+      asEnv({ DB: db, KV: makeKv(true, { ...memberSettings, transferDiscountPercent: 10 }) }),
+      asCtx([]),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { totalCents: number; memberDiscountPercent: number; memberCode: string };
+    expect(body.memberDiscountPercent).toBe(10);
+    expect(body.memberCode).toBe("SOC-ABC234");
+
+    // 10% de socio sobre 50.000.000 → 45.000.000; 10% de transferencia sobre
+    // ese saldo → 4.500.000. Total: 40.500.000 (acumulado, no 40.000.000).
+    const row = [...orders.values()][0]!;
+    expect(row.total_cents).toBe(40_500_000);
+    expect(row.member_code).toBe("SOC-ABC234");
+    const items = JSON.parse(String(row.items_json)) as { id: string; priceCents: number }[];
+    expect(items.map((i) => i.id)).toEqual(["p1", "descuento-socio", "descuento-transferencia"]);
+    expect(items[1]).toMatchObject({ priceCents: -5_000_000 });
+    expect(items[2]).toMatchObject({ priceCents: -4_500_000 });
+    expect(members.get("SOC-ABC234")!.last_order_at).not.toBeNull();
+  });
+
+  it("usa el nivel del socio (15%) aunque el base configurado sea 5%", async () => {
+    const { db, orders, products, members } = makeDb();
+    seedProduct(products);
+    seedMember(members, { discount_percent: 15 });
+
+    const res = await checkoutApp.request(
+      "/api/orders/transfer",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+        body: JSON.stringify({ items: [{ id: "p1", qty: 1 }], name: "Ana", phone: "342 581 9402", memberCode: "SOC-ABC234" }),
+      },
+      asEnv({ DB: db, KV: makeKv(true, { loyaltyEnabled: true, loyaltyDiscountPercent: 5 }) }),
+      asCtx([]),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { memberDiscountPercent: number };
+    expect(body.memberDiscountPercent).toBe(15);
+    // 15% de 50.000.000 = 7.500.000 de descuento.
+    expect([...orders.values()][0]!.total_cents).toBe(42_500_000);
+  });
+
+  it("un socio sin nivel usa el descuento base", async () => {
+    const { db, orders, products, members } = makeDb();
+    seedProduct(products);
+    seedMember(members, { discount_percent: null });
+
+    const res = await checkoutApp.request(
+      "/api/orders/transfer",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+        body: JSON.stringify({ items: [{ id: "p1", qty: 1 }], name: "Ana", phone: "342 581 9402", memberCode: "SOC-ABC234" }),
+      },
+      asEnv({ DB: db, KV: makeKv(true, { loyaltyEnabled: true, loyaltyDiscountPercent: 5 }) }),
+      asCtx([]),
+    );
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { memberDiscountPercent: number }).memberDiscountPercent).toBe(5);
+    expect([...orders.values()][0]!.total_cents).toBe(47_500_000);
+  });
+
+  it("rechaza el código si el WhatsApp de la compra no es el del socio", async () => {
+    const { db, orders, products, members } = makeDb();
+    seedProduct(products);
+    seedMember(members);
+
+    const res = await checkoutApp.request(
+      "/api/orders/transfer",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+        body: JSON.stringify({ items: [{ id: "p1", qty: 1 }], name: "Ana", phone: "342 555 0000", memberCode: "SOC-ABC234" }),
+      },
+      asEnv({ DB: db, KV: makeKv(true, memberSettings) }),
+      asCtx([]),
+    );
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toMatch(/no corresponde a este WhatsApp/);
+    // No se creó ningún pedido ni se tocó el último pedido del socio.
+    expect(orders.size).toBe(0);
+    expect(members.get("SOC-ABC234")!.last_order_at).toBeNull();
+  });
+
+  it("acepta el mismo WhatsApp escrito con +54 y 9", async () => {
+    const { db, orders, products, members } = makeDb();
+    seedProduct(products);
+    seedMember(members);
+
+    const res = await checkoutApp.request(
+      "/api/orders/transfer",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+        body: JSON.stringify({ items: [{ id: "p1", qty: 1 }], name: "Ana", phone: "+54 9 342 581 9402", memberCode: "SOC-ABC234" }),
+      },
+      asEnv({ DB: db, KV: makeKv(true, memberSettings) }),
+      asCtx([]),
+    );
+    expect(res.status).toBe(200);
+    expect([...orders.values()][0]!.member_code).toBe("SOC-ABC234");
+  });
+
+  it("ignora un código inactivo o inexistente sin romper el pedido", async () => {
+    const { db, orders, products, members } = makeDb();
+    seedProduct(products);
+    seedMember(members, { active: 0 });
+
+    for (const memberCode of ["SOC-ABC234", "SOC-ZZZZZZ"]) {
+      const res = await checkoutApp.request(
+        "/api/orders/transfer",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+          body: JSON.stringify({ items: [{ id: "p1", qty: 1 }], name: "Ana", phone: "342 555 0000", memberCode }),
+        },
+        asEnv({ DB: db, KV: makeKv(true, memberSettings) }),
+        asCtx([]),
+      );
+      expect(res.status).toBe(200);
+    }
+
+    const rows = [...orders.values()];
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.total_cents).toBe(50_000_000);
+      expect(row.member_code).toBeNull();
+      expect(JSON.parse(String(row.items_json))).toHaveLength(1);
+    }
+  });
+
+  it("con descuento de socio, MP recibe un solo ítem por el total exacto (sin unit_price negativo)", async () => {
+    const { db, orders, products, members } = makeDb();
+    seedProduct(products);
+    seedMember(members);
+    const fetchMock = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ id: "pref-club", init_point: "https://mpago.la/club" }),
+      { status: 201 },
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await checkoutApp.request(
+      "/api/checkout",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost", "CF-Connecting-IP": "8.8.8.8" },
+        body: JSON.stringify({ items: [{ id: "p1", qty: 1 }], name: "Ana", phone: "342 581 9402", memberCode: "SOC-ABC234" }),
+      },
+      asEnv({ DB: db, KV: makeKv(true, memberSettings), MERCADOPAGO_ACCESS_TOKEN: "t" }),
+      asCtx([]),
+    );
+    expect(res.status).toBe(200);
+
+    const [, initReq] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const prefBody = JSON.parse(String(initReq.body)) as { items: { unit_price: number }[] };
+    expect(prefBody.items).toHaveLength(1);
+    expect(prefBody.items[0]!.unit_price).toBe(450000); // 45.000.000 centavos
+
+    const row = [...orders.values()][0]!;
+    expect(row.total_cents).toBe(45_000_000);
+    expect(row.member_code).toBe("SOC-ABC234");
   });
 });
