@@ -21,6 +21,8 @@ export default defineConfig({
         solicitud: "devoluciones.html",
         // Club de socios: página pública con alta gratuita (/club).
         club: "club.html",
+        // Reseñas de Google curadas desde el panel (/resenas).
+        resenas: "resenas.html",
       },
     },
   },

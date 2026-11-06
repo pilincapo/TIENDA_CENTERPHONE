@@ -191,11 +191,23 @@ export interface StoreSettings {
   loyaltyDiscountPercent: number;
   /** Texto de bienvenida del alta (opcional; vacío = el texto por defecto). */
   loyaltyWelcomeText: string;
+  // ---- Reseñas de Google (curadas desde el panel) ----
+  /** Muestra la franja de la home, la línea de la ficha y la página /resenas. */
+  googleReviewsEnabled: boolean;
+  /** Promedio real de Google (0 = calcularlo con las reseñas cargadas). */
+  googleReviewsRating: number;
+  /** Total de reseñas en Google (0 = contar sólo las cargadas). */
+  googleReviewsCount: number;
+  /** Link "Escribir una reseña" (vacío = no se muestra el botón). */
+  googleReviewUrl: string;
   whatsappPhone: string;
   currencySymbol: string;
   syncUrl: string;
   syncIntervalMinutes: number;
   syncToken: string;
+  /** Artículos que no se importan ni se muestran nunca: una entrada por línea,
+   *  el código del producto o el link de su ficha (ver shared/sync-exclusions.ts). */
+  syncExcludeList: string;
   /** Token de la URL del feed del catálogo de WhatsApp (ver src/worker/wa-feed.ts).
    *  No se edita desde el formulario de Configuración: lo genera y rota el panel en
    *  Ajustes → Catálogo de WhatsApp. Vacío = el feed no existe (404). */
@@ -261,6 +273,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   syncUrl: "",
   syncIntervalMinutes: 60,
   syncToken: "",
+  syncExcludeList: "",
   // Se genera solo la primera vez que el panel pide la URL del feed de WhatsApp.
   whatsappFeedToken: "",
   storeName: "CenterPhone Celulares",
@@ -292,6 +305,10 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   loyaltyName: "Club CenterPhone",
   loyaltyDiscountPercent: 5,
   loyaltyWelcomeText: "",
+  googleReviewsEnabled: false,
+  googleReviewsRating: 0,
+  googleReviewsCount: 0,
+  googleReviewUrl: "",
   maintenanceMode: false,
   maintenanceMessage: "",
   // Cinta de anuncio: vacía por defecto (no se muestra nada hasta configurarla).

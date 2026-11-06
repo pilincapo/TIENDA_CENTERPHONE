@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mockup C — Página de reseñas</title>
+    <link rel="stylesheet" href="/src/web/styles.css" />
+    <link rel="stylesheet" href="/mockups/resenas/reviews.css" />
+  </head>
+  <body>
+    <span class="mock-tag">mockup C · página /resenas</span>
+    <header class="topbar">
+      <a class="brand" href="/"><img class="brand-logo" src="/logo-small.jpg" alt="Tienda"/><span class="brand-name">Reseñas</span></a>
+      <a class="topbar-link" href="/">← Volver al catálogo</a>
+      <nav class="topnav" aria-label="Principal">
+        <a class="topnav-btn" href="#">Cómo comprar</a>
+        <a class="topnav-btn" href="#">Contacto</a>
+      </nav>
+    </header>
+
+    <main class="layout layout--single" id="contenido">
+      <p class="reviews-eyebrow"><span class="prompt-user">visitante@centerphone</span>:~$ cat resenas/</p>
+      <div class="reviews-head" style="margin-bottom:10px">
+        <div>
+          <h1 class="reviews-title" style="font-size:28px">Reseñas de <b>CenterPhone</b></h1>
+          <p class="reviews-sub">126 opiniones de clientes que compraron por WhatsApp o en el local.</p>
+        </div>
+        <button class="btn btn-primary" type="button">Escribir una reseña</button>
+      </div>
+
+      <div class="tb-row" style="margin:18px 0 22px">
+        <button class="chip on">Todas</button>
+        <button class="chip">Celulares</button>
+        <button class="chip">Accesorios</button>
+        <button class="chip">5 estrellas</button>
+        <button class="chip">Con foto</button>
+      </div>
+
+      <div class="reviews-layout">
+        <div class="reviews-grid" style="grid-template-columns:1fr">
+          <article class="review">
+            <div class="review-top">
+              <span class="review-who">Lucía G. <span class="badge badge--verified">compra verificada</span></span>
+              <span class="review-when">3 de noviembre</span>
+            </div>
+            <div class="stars">★★★★★</div>
+            <p class="review-text">Compré el S24 Ultra y me lo trajeron al día siguiente a casa. Antes de pagar me mandaron video del equipo funcionando. Diez puntos.</p>
+            <div class="review-product">Samsung Galaxy S24 Ultra 512GB</div>
+          </article>
+          <article class="review">
+            <div class="review-top">
+              <span class="review-who">Martín R. <span class="badge badge--verified">compra verificada</span></span>
+              <span class="review-when">28 de octubre</span>
+            </div>
+            <div class="stars">★★★★<span class="off">★</span></div>
+            <p class="review-text">Buen precio y atención rápida. El envío tardó un día más de lo previsto por la lluvia, pero me avisaron sin que tenga que preguntar.</p>
+            <div class="review-product">Motorola Edge 50 Fusion 256GB</div>
+          </article>
+          <article class="review">
+            <div class="review-top">
+              <span class="review-who">Sofía P. <span class="badge badge--verified">compra verificada</span></span>
+              <span class="review-when">21 de octubre</span>
+            </div>
+            <div class="stars">★★★★★</div>
+            <p class="review-text">Tercera compra en el local. Me hicieron el descuento del club y me explicaron cómo usarlo en la web. Súper recomendable.</p>
+            <div class="review-product">iPhone 15 128GB</div>
+          </article>
+          <article class="review">
+            <div class="review-top">
+              <span class="review-who">Javier E. <span class="badge badge--verified">compra verificada</span></span>
+              <span class="review-when">12 de octubre</span>
+            </div>
+            <div class="stars">★★★★★</div>
+            <p class="review-text">Pedí por WhatsApp a la noche y al otro día ya estaba coordinando el retiro. Todo original, con factura y garantía.</p>
+            <div class="review-product">Xiaomi Redmi Note 13 Pro</div>
+          </article>
+        </div>
+
+        <aside style="display:flex;flex-direction:column;gap:16px">
+          <div class="review" style="gap:14px">
+            <div class="reviews-score">
+              <span class="reviews-score-num">4,8</span>
+              <div>
+                <div class="stars">★★★★★</div>
+                <div class="reviews-count">126 reseñas</div>
+              </div>
+            </div>
+            <div class="reviews-bars">
+              <div class="reviews-bar-row"><span>5 ★</span><div class="reviews-bar-track"><div class="reviews-bar-fill" style="width:86%"></div></div><span>108</span></div>
+              <div class="reviews-bar-row"><span>4 ★</span><div class="reviews-bar-track"><div class="reviews-bar-fill" style="width:9%"></div></div><span>12</span></div>
+              <div class="reviews-bar-row"><span>3 ★</span><div class="reviews-bar-track"><div class="reviews-bar-fill" style="width:3%"></div></div><span>4</span></div>
+              <div class="reviews-bar-row"><span>2 ★</span><div class="reviews-bar-track"><div class="reviews-bar-fill" style="width:1%"></div></div><span>1</span></div>
+              <div class="reviews-bar-row"><span>1 ★</span><div class="reviews-bar-track"><div class="reviews-bar-fill" style="width:1%"></div></div><span>1</span></div>
+            </div>
+          </div>
+
+          <form class="reviews-form" onsubmit="return false">
+            <h3>Dejá tu reseña</h3>
+            <p class="reviews-note" style="margin:0">Se publica con tu nombre y el WhatsApp de la compra (no se muestra el número).</p>
+            <div><label>Tu WhatsApp</label><input type="tel" placeholder="342 581 9402" /></div>
+            <div><label>Producto</label><select><option>Samsung Galaxy S24 Ultra 512GB</option><option>Otro / atención general</option></select></div>
+            <div><label>Puntaje</label><select><option>★★★★★ — Excelente</option><option>★★★★ — Muy bueno</option><option>★★★ — Bueno</option></select></div>
+            <div><label>Tu experiencia</label><textarea rows="3" placeholder="Contanos cómo fue la compra…"></textarea></div>
+            <button class="btn btn-primary" type="submit">Publicar reseña</button>
+          </form>
+        </aside>
+      </div>
+    </main>
+  </body>
+</html>

@@ -8,6 +8,7 @@ import { esc } from "../shared/html";
 import { waLinkText } from "../shared/whatsapp";
 import { fillStoreInfo, setupModals } from "./store-modals";
 import { mountSiteFooter } from "./site-footer";
+import { mountReviewsStrip } from "./review-links";
 import { track } from "./track";
 import { setupCartUI } from "./cart-ui";
 import { inCategorySet } from "./category-filter";
@@ -125,6 +126,8 @@ async function init(): Promise<void> {
       setupModals(state.settings);
       fillStoreInfo(state.settings);
       mountSiteFooter(state.settings);
+      // Prueba social arriba del catálogo: promedio y total de Google.
+      mountReviewsStrip(state.settings, document.getElementById("reviews-strip"));
       // Modo catálogo: sin carrito ni pagos (botón del header, modal y checkout).
       // Los botones "Comprar"/"Agregar" tampoco se renderizan (ver cardHtml).
       if (sellsOnline(state.settings)) setupCartUI(state.settings, state.snapshot?.products ?? []);

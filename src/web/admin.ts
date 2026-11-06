@@ -14,6 +14,7 @@ import { initFormLabels } from "./form-labels";
 import { mountLiveSearch, LIVE_LIMIT } from "./search-live";
 import { CONTACT_KIND_LABEL, KIND_LABEL, RETURN_STATUSES, STATUS_LABEL, type AdminReturn, type AdminReturnDetail, type ReturnStatus } from "../shared/returns";
 import { MEMBER_TIERS, birthdayLabel, type Member } from "../shared/loyalty";
+import { viewReviews } from "./admin-reviews";
 
 const el = {
   login: document.getElementById("login") as HTMLElement,
@@ -196,6 +197,7 @@ async function renderSerial(): Promise<void> {
     else if (tab === "orders") await viewOrders();
     else if (tab === "returns") await viewReturns();
     else if (tab === "club") await viewClub();
+    else if (tab === "reviews") await viewReviews({ root: el.view, api, toast });
     else if (tab === "settings") await viewSettings();
     else if (tab === "changelog") await viewChangelog();
     else if (tab === "seguridad") await viewSeguridad();
@@ -3705,6 +3707,17 @@ async function viewSettings(): Promise<void> {
           </div>
         </details>
         <details class="cfg-group" data-sec="avanzado">
+          <summary>🚫 Artículos excluidos <span class="cfg-hint">no se importan ni se muestran nunca</span></summary>
+          <div class="cfg-body">
+            <div class="field">
+              <label>Un artículo por línea: el código o el link de su ficha</label>
+              <textarea name="syncExcludeList" rows="5" placeholder="6233&#10;https://centerphone.com.ar/producto/6233">${esc(settings.syncExcludeList ?? "")}</textarea>
+              <p class="muted" style="margin:6px 0 0;font-size:12px">La sincronización no los agrega ni los actualiza, y si ya están cargados se ocultan al guardar (el botón <strong>Publicar catálogo</strong> lo muestra en el sitio). Sirve para cualquier forma del link: <code>/producto/6233</code>, la URL completa de la tienda o el link del proveedor.</p>
+              <p class="muted" style="margin:6px 0 0;font-size:12px">Sacar una línea <strong>no</strong> vuelve a publicar el producto: si querés mostrarlo de nuevo, se republica desde <strong>Productos → Re-publicar</strong>.</p>
+            </div>
+          </div>
+        </details>
+        <details class="cfg-group" data-sec="avanzado">
           <summary>Mantenimiento <span class="cfg-hint">cerrar la tienda al público</span></summary>
           <div class="cfg-body">
             <div class="field field--check">
@@ -3737,7 +3750,7 @@ async function viewSettings(): Promise<void> {
     ev.preventDefault();
     const fd = new FormData(form);
     try {
-      await api("/settings", {
+      const saved = await api<{ hiddenProducts?: number }>("/settings", {
         method: "PUT",
         body: JSON.stringify({
           whatsappPhone: fd.get("whatsappPhone"),
@@ -3773,9 +3786,15 @@ async function viewSettings(): Promise<void> {
           shippingPackageVolumen: Number(fd.get("shippingPackageVolumen") ?? 1080),
           maintenanceMode: (fd.get("maintenanceMode") ?? "") === "on",
           maintenanceMessage: fd.get("maintenanceMessage"),
+          syncExcludeList: fd.get("syncExcludeList"),
         }),
       });
-      toast("Configuración guardada");
+      const ocultados = saved?.hiddenProducts ?? 0;
+      toast(
+        ocultados > 0
+          ? `Configuración guardada · ${ocultados} artículo${ocultados === 1 ? "" : "s"} ocultado${ocultados === 1 ? "" : "s"} (se publica al publicar el catálogo)`
+          : "Configuración guardada",
+      );
       dirtyGuardArmed = false; // guardado OK: salir de la pestaña ya no avisa
     } catch (e) {
       toast(e instanceof Error ? e.message : "Error", false);

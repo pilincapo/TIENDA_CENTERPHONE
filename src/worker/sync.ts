@@ -9,6 +9,7 @@ import { hideProductsNotIn, insertSyncLog, listCategories, listPriceRules, listP
 import { dedupeEntreFuentes } from "./dedupe-sources";
 import { renombrarIds } from "./rename-ids";
 import { getSettings, newId, nowMs } from "./settings";
+import { exclusionSet, isExcluded } from "../shared/sync-exclusions";
 import { invalidateWaFeedCache } from "./wa-feed";
 
 export interface SyncOutcome {
@@ -230,6 +231,24 @@ async function importItemsChunk(
       console.error("import: falló el dedupe entre fuentes", e);
     }
   }
+  // Lista negra del dueño (Configuración → Catálogo y sistema): los artículos que
+  // no quiere en la tienda no se guardan ni se actualizan. Corre sobre el id final
+  // (después del renombre) porque es el que aparece en /producto/<id>, así que
+  // vale tanto el código como el link de la ficha. Como no entran en keepIds, el
+  // ocultado automático de la fuente también los deja fuera de la tienda.
+  const exclusiones = exclusionSet((await getSettings(env.KV)).syncExcludeList);
+  let excluidosCount = 0;
+  if (exclusiones.size > 0 && products.length > 0) {
+    const fuera = products.filter((p) => isExcluded(exclusiones, p.id));
+    excluidosCount = fuera.length;
+    if (fuera.length > 0) {
+      products = products.filter((p) => !isExcluded(exclusiones, p.id));
+      const nombres = fuera.slice(0, 5).map((p) => `"${p.title}"`).join(", ");
+      skipped.push(
+        `${fuera.length} artículo(s) excluidos en Configuración: ${nombres}${fuera.length > 5 ? "…" : ""}`,
+      );
+    }
+  }
   // Escrituras en chunks (un statement por chunk): sin esto una fuente de 160
   // productos dispara ~330 queries y revienta el límite de 50 por invocación
   // de D1 free — la causa de los errores recurrentes con listas grandes.
@@ -265,7 +284,9 @@ async function importItemsChunk(
   if (saved === 0 && rawItems.length === 0) {
     errors.unshift("La fuente no devolvió productos (posible cambio en el sitio de origen o extracción fallida)");
   }
-  const ok = saved > 0;
+  // Una fuente cuyos artículos están todos en la lista negra no es un error: el
+  // dueño los sacó a propósito y el historial no debe gritar en rojo.
+  const ok = saved > 0 || (excluidosCount > 0 && excluidosCount === rawItems.length);
   return {
     ok,
     // Hasta 40 avisos en el historial (antes 20): con fuentes grandes el recorte

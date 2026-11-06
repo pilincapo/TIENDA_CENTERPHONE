@@ -8,7 +8,7 @@ import { TAGS } from "../shared/types";
 import type { Dict, Env } from "./db";
 import {
   countProducts, countProductsByCategory, countProductsBySource, countProductsByStatus, countWhatsAppProducts, deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct,
-  getAutoImportByUrl, getProduct, insertSyncLog, lastSyncLogByDetail, listAutoImports, listCategories, listPriceRules,
+  getAutoImportByUrl, getProduct, hideProductsByIds, insertSyncLog, lastSyncLogByDetail, listAutoImports, listCategories, listPriceRules,
   listProductsPaged, listSyncLog, listSyncLogByTrigger, repararNombreCategoria, repararTextoProducto, setProductsWaPublish, setWhatsAppScope, upsertAutoImport, waCategoryScope, waSourceScope, whatsAppScopePreview,
   upsertCategory, upsertPriceRule, upsertProduct,
 } from "./db";
@@ -22,6 +22,7 @@ import { applyRuleSet, roundToPeso, type PriceRule } from "../shared/pricing";
 import { extractItems, normalizeExternalItems } from "../shared/normalize";
 import { extractFromUrl } from "./extract";
 import { forceHttpsUrl, getSettings, isStoreMode, newId, nowMs, sanitizeAnnouncementBar, saveSettings } from "./settings";
+import { parseExclusionList, sanitizeSyncExcludeList } from "../shared/sync-exclusions";
 import { configProblem, fetchSecurityEvents } from "./security-log";
 import { adminSetOrderStatus, adminSetOrderArchive, adminSetOrderUnarchive, countOrders, countOrdersByStatus, listOrdersPaged, setOrderNotifiedWa } from "./orders";
 import {
@@ -31,6 +32,7 @@ import {
 import { changeAdminPassword, getRevocationEpoch, getSessionSecret, revokeActiveSessions, verifyAdminPassword } from "./admin-credentials";
 import { registerReturnAdminRoutes } from "./returns-admin";
 import { registerMemberAdminRoutes } from "./members-admin";
+import { registerReviewsAdminRoutes } from "./reviews";
 
 export const adminApp = new Hono<{ Bindings: Env }>();
 
@@ -125,6 +127,7 @@ adminApp.post("/logout", async (c) => {
 registerReturnAdminRoutes(adminApp);
 // Club de socios: listado, alta manual y activación/desactivación (con login).
 registerMemberAdminRoutes(adminApp);
+registerReviewsAdminRoutes(adminApp);
 
 // Historial de cambios del sitio: el changelog.md del repo viaja dentro de los
 // assets del deploy (tools/build-web.js lo copia a public/) y el panel lo lee
@@ -672,6 +675,8 @@ adminApp.put("/settings", async (c) => {
     syncUrl: forceHttpsUrl(body.syncUrl, 500),
     syncIntervalMinutes: Math.max(15, Math.round(Number(body.syncIntervalMinutes ?? 60))),
     syncToken: String(body.syncToken ?? "").slice(0, 200),
+    // Artículos que el dueño no quiere en la tienda: códigos o links, uno por línea.
+    syncExcludeList: sanitizeSyncExcludeList(body.syncExcludeList),
     storeName: String(body.storeName ?? "").slice(0, 60),
     storeAddress: String(body.storeAddress ?? "").slice(0, 200),
     storeMapUrl: normalizeUrl(body.storeMapUrl, 500),
@@ -717,7 +722,13 @@ adminApp.put("/settings", async (c) => {
   // "paymentsEnabled" ya no se acepta: saveSettings lo deriva del modo.
   if (isStoreMode(body.storeMode)) next.storeMode = body.storeMode;
   const settings = await saveSettings(c.env.KV, next);
-  return c.json({ settings });
+  // Los excluidos que ya estaban cargados se ocultan en el acto (no hay que
+  // esperar a la próxima sincronización para dejar de verlos). Quitar una entrada
+  // de la lista NO los vuelve a publicar: eso se decide en Productos.
+  const excluidos = parseExclusionList(settings.syncExcludeList);
+  const hiddenProducts = await hideProductsByIds(c.env.DB, excluidos, nowMs());
+  if (hiddenProducts > 0) await markCatalogPending(c.env);
+  return c.json({ settings, hiddenProducts });
 });
 
 // ---- Reglas de precio ----

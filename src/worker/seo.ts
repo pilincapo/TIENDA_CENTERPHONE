@@ -42,6 +42,8 @@ seoApp.get("/sitemap.xml", async (c) => {
   // es una página en pausa y no debe competir en el índice.
   const paginas = [
     ...(settings.loyaltyEnabled ? [{ path: "/club", priority: "0.6" }] : []),
+    // /resenas sólo mientras el bloque está prendido: apagado es un aviso.
+    ...(settings.googleReviewsEnabled ? [{ path: "/resenas", priority: "0.5" }] : []),
     { path: "/politica-de-cambios-y-devoluciones", priority: "0.4" },
     { path: "/politica-de-privacidad", priority: "0.3" },
   ];

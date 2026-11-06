@@ -39,6 +39,14 @@ export interface PublicSettings {
   loyaltyDiscountPercent: number;
   /** Texto de bienvenida del alta (vacío = texto por defecto de la página). */
   loyaltyWelcomeText: string;
+  /** Reseñas de Google activas en el sitio (franja, ficha y /resenas). */
+  googleReviewsEnabled: boolean;
+  /** Promedio a mostrar (0 = se calcula con las reseñas cargadas en el panel). */
+  googleReviewsRating: number;
+  /** Total de reseñas en Google (0 = contar sólo las cargadas). */
+  googleReviewsCount: number;
+  /** Link "Escribir una reseña" en Google (vacío = no se muestra el botón). */
+  googleReviewUrl: string;
   /** Modo mantenimiento activo: el catálogo muestra la página de contacto. */
   maintenanceMode: boolean;
   /** Cinta de anuncio sobre el topbar; vacía = no se renderiza. */

@@ -14,8 +14,10 @@ export function newNonce(): string {
 // img: https: porque las imágenes de productos vienen de CDNs externos.
 // script: static.cloudflareinsights.com = beacon de Cloudflare Web Analytics
 // (inyectado por el proxy de Cloudflare en producción).
+// frame-src: sólo el mapa de Google que embebe /resenas (sin él cae en
+// default-src y el iframe queda bloqueado).
 // frame-ancestors 'none': no se puede embeber el sitio en iframes (clickjacking).
-export const CSP_TEMPLATE = `default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'nonce-%NONCE%' https://static.cloudflareinsights.com; connect-src 'self' https://cloudflareinsights.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`;
+export const CSP_TEMPLATE = `default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'nonce-%NONCE%' https://static.cloudflareinsights.com; connect-src 'self' https://cloudflareinsights.com; frame-src https://maps.google.com https://www.google.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`;
 
 export function securityHeaders(nonce: string): Record<string, string> {
   return {

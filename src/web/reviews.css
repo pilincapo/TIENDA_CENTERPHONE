@@ -1,0 +1,103 @@
+/* Reseñas de Google: franja de la home, línea de la ficha y página /resenas.
+   Se apoya en las variables de styles.css; el amarillo de las estrellas y el
+   logotipo son lo único que viene de Google. */
+
+/* ===== Franja de la home (arriba del catálogo) ===== */
+.rv-strip {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 0 0 14px; padding: 8px 12px;
+  background: var(--panel); border: 1px solid var(--border-bright);
+  font-size: 13px;
+}
+.rv-strip:hover { border-color: #fbbc04; }
+.rv-strip-label { color: var(--muted); }
+.rv-strip-link { margin-left: auto; color: var(--brand); text-decoration: none; white-space: nowrap; }
+.rv-strip-link:hover { border-bottom: 1px solid var(--brand); }
+
+/* ===== Línea de la ficha de producto ===== */
+.rv-inline {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 6px 0 12px; font-size: 12px;
+}
+.rv-inline a { color: var(--brand); text-decoration: none; }
+.rv-inline a:hover { border-bottom: 1px solid var(--brand); }
+
+/* ===== Marca y estrellas ===== */
+.rv-g { width: 18px; height: 18px; flex: 0 0 auto; vertical-align: -3px; }
+.rv-stars { color: #fbbc04; letter-spacing: 2px; font-size: 15px; line-height: 1; }
+.rv-stars .off { color: var(--border-bright); }
+
+/* ===== Encabezado de la página ===== */
+.rv-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+.rv-eyebrow { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+.rv-eyebrow .prompt-user { color: var(--brand); }
+.rv-title { margin: 0; font-size: 28px; line-height: 1.2; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rv-summary { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.rv-score { font-size: 36px; font-weight: 700; line-height: 1; }
+.rv-count { font-size: 12px; color: var(--muted); }
+.rv-write {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 9px 14px; font-size: 13px; font-weight: 600; text-decoration: none;
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border-bright);
+}
+.rv-write:hover { border-color: #fbbc04; color: #fbbc04; box-shadow: var(--term-shadow-sm); }
+
+/* ===== Filtros ===== */
+.rv-filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 18px 0 20px; }
+
+/* ===== Dos columnas (lista + lateral) ===== */
+.rv-layout { display: grid; grid-template-columns: 1fr 330px; gap: 26px; align-items: start; }
+@media (max-width: 900px) { .rv-layout { grid-template-columns: 1fr; } }
+
+.rv-grid { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
+@media (max-width: 640px) { .rv-grid { grid-template-columns: 1fr; } }
+
+/* ===== Tarjeta de reseña ===== */
+.rv-card {
+  background: var(--panel); border: 1px solid var(--border-bright);
+  padding: 14px; display: flex; flex-direction: column; gap: 10px;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.rv-card:hover { border-color: #fbbc04; box-shadow: var(--term-shadow-sm); transform: translate(-2px, -2px); }
+.rv-card-top { display: flex; align-items: center; gap: 10px; }
+.rv-avatar {
+  width: 32px; height: 32px; flex: 0 0 auto; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: #04180a;
+}
+.rv-who { min-width: 0; }
+.rv-author { display: block; font-size: 13px; font-weight: 700; color: var(--text); }
+.rv-meta { display: block; font-size: 10.5px; color: var(--muted); }
+.rv-stars-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rv-when { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.rv-text { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--text); white-space: pre-line; }
+.rv-reply {
+  margin: 0; padding: 8px 10px; font-size: 12.5px; line-height: 1.5;
+  color: var(--muted); background: var(--panel-2); border-left: 2px solid var(--brand);
+}
+.rv-reply b { color: var(--text); }
+.rv-foot {
+  margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--border);
+  display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted);
+}
+
+/* ===== Lateral ===== */
+.rv-panel { border: 1px solid var(--border-bright); background: var(--panel); padding: 16px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+.rv-panel h3 { margin: 0; font-size: 15px; }
+.rv-map { position: relative; border: 1px solid var(--border); background: var(--panel-2); height: 200px; }
+.rv-map iframe { width: 100%; height: 100%; border: 0; display: block; filter: grayscale(.2) contrast(1.05); }
+.rv-bars { display: flex; flex-direction: column; gap: 6px; }
+.rv-bar-row { display: grid; grid-template-columns: 30px 1fr 30px; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+.rv-bar-track { height: 8px; background: var(--panel-2); border: 1px solid var(--border); overflow: hidden; }
+.rv-bar-fill { height: 100%; background: #fbbc04; }
+.rv-note { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.rv-steps { margin: 0; padding-left: 18px; font-size: 12px; color: var(--muted); line-height: 1.7; }
+.rv-steps b { color: var(--text); font-weight: 600; }
+.rv-cta { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+
+/* Fila de la tabla del panel con la reseña oculta. */
+.rv-row-off { opacity: .5; }
+
+/* ===== Estados ===== */
+.rv-empty { padding: 32px 20px; border: 1px dashed var(--border-bright); background: var(--panel-2); text-align: center; color: var(--muted); font-size: 14px; }
+.rv-empty a { color: var(--brand); }

@@ -3,6 +3,7 @@
 import type { StoreMode, StoreSettings } from "../shared/types";
 import { DEFAULT_SETTINGS, KV_SETTINGS_KEY, MAX_ANNOUNCEMENT_PROMOS, MAX_ANNOUNCEMENT_PROMO_LEN } from "../shared/types";
 import { repairTextFields } from "../shared/encoding";
+import { sanitizeSyncExcludeList } from "../shared/sync-exclusions";
 
 export function isStoreMode(v: unknown): v is StoreMode {
   return v === "tienda" || v === "catalogo";
@@ -46,7 +47,30 @@ export function normalizeSettings(raw: Partial<StoreSettings> | null | undefined
   // el guardado, así que el sitio y el JSON-LD se ven bien al instante y el
   // próximo guardado del panel ya lo persiste corregido. Es solo memoria: no
   // agrega escrituras a KV en cada request (regla del free tier).
-  return repairTextFields({ ...base, storeMode, paymentsEnabled: storeMode === "tienda" });
+  // Reseñas de Google: el promedio va de 0 (calcular con las cargadas) a 5 con
+  // un decimal, el total es un entero y el link se fuerza a https (o se
+  // descarta si no es una URL válida: el botón no se muestra).
+  const ratingRaw = Number(base.googleReviewsRating ?? 0);
+  const googleReviewsRating = Number.isFinite(ratingRaw)
+    ? Math.min(5, Math.max(0, Math.round(ratingRaw * 10) / 10))
+    : 0;
+  const countRaw = Number(base.googleReviewsCount ?? 0);
+  const googleReviewsCount = Number.isFinite(countRaw) ? Math.max(0, Math.min(1_000_000, Math.trunc(countRaw))) : 0;
+  const googleReviewUrl = forceHttpsUrl(base.googleReviewUrl, 500);
+  // Lista de artículos excluidos: líneas limpias y sin repetidos. Pasa por acá
+  // tanto al leer como al guardar, así una lista pegada a mano nunca trae
+  // entradas vacías que hagan comparar de más en cada importación.
+  const syncExcludeList = sanitizeSyncExcludeList(base.syncExcludeList);
+
+  return repairTextFields({
+    ...base,
+    storeMode,
+    paymentsEnabled: storeMode === "tienda",
+    googleReviewsRating,
+    googleReviewsCount,
+    googleReviewUrl,
+    syncExcludeList,
+  });
 }
 
 export async function getSettings(kv: KVNamespace): Promise<StoreSettings> {

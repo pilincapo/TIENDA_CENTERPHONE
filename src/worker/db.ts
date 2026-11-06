@@ -493,6 +493,29 @@ export async function unhideProductsIn(db: D1Database, sourceUrl: string, ids: s
   return unhid;
 }
 
+/**
+ * Oculta los productos con estos ids, vengan de la fuente que vengan. Se usa con
+ * la lista de artículos excluidos de la configuración: lo que el dueño no quiere
+ * ver desaparece del catálogo al instante, sin esperar a la próxima importación.
+ * Devuelve cuántas filas cambiaron.
+ */
+export async function hideProductsByIds(db: D1Database, ids: string[], now: number): Promise<number> {
+  if (ids.length === 0) return 0;
+  let hidden = 0;
+  for (let i = 0; i < ids.length; i += ID_CHUNK) {
+    const chunk = ids.slice(i, i + ID_CHUNK);
+    // Los ids ocupan ?1..?n (no hay columna filtrada antes, a diferencia de
+    // hideProductsNotIn y sus amigos): el timestamp va al final.
+    const marks = chunk.map((_, j) => `?${j + 1}`).join(",");
+    const r = await db
+      .prepare(`UPDATE products SET status = 'hidden', updated_at = ?${chunk.length + 1} WHERE status <> 'hidden' AND id IN (${marks})`)
+      .bind(...chunk, now)
+      .run();
+    hidden += r.meta.changes ?? 0;
+  }
+  return hidden;
+}
+
 // ---- Catálogo de WhatsApp (feed CSV que descarga Meta) ----
 
 /**

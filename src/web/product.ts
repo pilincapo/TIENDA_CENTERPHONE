@@ -17,6 +17,7 @@ import { productTransferLine, discountPercentFrom } from "./transfer-banner";
 import { renderAnnouncement } from "./announcement";
 import { shippingQuoteHtml, quoteInitialState, fetchQuote, savePostalCode, savedPostalCode, errorState, doneState, type QuoteState } from "./shipping-quote";
 import { mountLiveSearch } from "./search-live";
+import { mountReviewLine } from "./review-links";
 
 interface DetailResponse {
   product: Product;
@@ -157,6 +158,8 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
       <div>
         <div class="badges">${freshBadge} ${tags} ${stockBadge}</div>
         <h1>${esc(product.title)}</h1>
+        <!-- Promedio del local en Google (ver review-links.ts). -->
+        <div class="rv-inline" id="review-line" hidden></div>
         <div class="price">${formatPrice(product.priceCents, symbol)}</div>
         ${transferLine}
         <div id="product-ship" class="product-ship"></div>
@@ -170,6 +173,10 @@ function render(data: DetailResponse, snapshot: CatalogSnapshot | null): void {
         </div>
       </div>
     </div>`;
+
+  // Promedio del local en Google, debajo del título. Sin datos del panel no se
+  // muestra nada (la línea queda con hidden).
+  mountReviewLine(settings, document.getElementById("review-line"));
 
   // Rich snippets: JSON-LD schema.org/Product con precio y disponibilidad.
   // Se actualiza en cada render (una ficha por carga, sin acumular nodos).

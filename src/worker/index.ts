@@ -22,6 +22,7 @@ import { orderPageApp } from "./orders-page";
 import { returnsApp } from "./returns";
 import { returnsPageApp } from "./returns-page";
 import { loyaltyApp } from "./loyalty";
+import { reviewsApp } from "./reviews";
 import { maintenanceMiddleware } from "./maintenance";
 import { waFeedApp } from "./wa-feed";
 import { runWeeklyDigest } from "./digest";
@@ -62,6 +63,7 @@ app.route("/", returnsApp);
 app.route("/", returnsPageApp);
 // Club de socios: alta gratuita y validación del código (descuento acumulable).
 app.route("/", loyaltyApp);
+app.route("/", reviewsApp);
 app.route("/", seoApp);
 // Feed CSV del catálogo de WhatsApp: lo descarga Meta (ver wa-feed.ts).
 app.route("/", waFeedApp);
@@ -142,6 +144,12 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     loyaltyName: s.loyaltyName,
     loyaltyDiscountPercent: s.loyaltyDiscountPercent,
     loyaltyWelcomeText: s.loyaltyWelcomeText,
+    // Reseñas de Google: la franja de la home y la línea de la ficha se arman
+    // con estos cuatro datos (la lista completa la pide /api/google-reviews).
+    googleReviewsEnabled: s.googleReviewsEnabled,
+    googleReviewsRating: s.googleReviewsRating,
+    googleReviewsCount: s.googleReviewsCount,
+    googleReviewUrl: s.googleReviewUrl,
     maintenanceMode: s.maintenanceMode,
     // Cinta de anuncio configurable (texto plano; el frontend lo escapa).
     announcementBar: s.announcementBar,
@@ -385,6 +393,17 @@ app.get("/club", async (c) => {
   const res = await staticPage(c, "/club.html");
   if (res.status !== 200) return res;
   if ((await getSettings(c.env.KV)).loyaltyEnabled) return res;
+  const headers = new Headers(res.headers);
+  headers.set("X-Robots-Tag", "noindex");
+  return new Response(res.body, { status: res.status, headers });
+});
+
+// Reseñas de Google: las carga el panel y la página las muestra. Con el bloque
+// apagado sigue respondiendo (no rompe enlaces) pero no se indexa.
+app.get("/resenas", async (c) => {
+  const res = await staticPage(c, "/resenas.html");
+  if (res.status !== 200) return res;
+  if ((await getSettings(c.env.KV)).googleReviewsEnabled) return res;
   const headers = new Headers(res.headers);
   headers.set("X-Robots-Tag", "noindex");
   return new Response(res.body, { status: res.status, headers });

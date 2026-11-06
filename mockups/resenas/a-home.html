@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mockup A — Reseñas en la home</title>
+    <link rel="stylesheet" href="/src/web/styles.css" />
+    <link rel="stylesheet" href="/mockups/resenas/reviews.css" />
+  </head>
+  <body>
+    <span class="mock-tag">mockup A · home</span>
+    <header class="topbar">
+      <a class="brand" href="/"><img class="brand-logo" src="/logo-small.jpg" alt="Tienda"/><span class="brand-name">Catálogo</span></a>
+      <nav class="topnav" aria-label="Principal">
+        <a href="#catalog">Productos</a>
+        <a class="topnav-btn" href="#">Cómo comprar</a>
+        <a class="topnav-btn" href="#">Contacto</a>
+        <a class="topnav-btn" href="#">Seguimiento</a>
+        <button class="topnav-btn cart-btn" type="button">🛒<span class="cart-badge">2</span></button>
+      </nav>
+    </header>
+
+    <section class="hero" id="catalog">
+      <p class="hero-eyebrow"><span class="prompt-user">visitante@centerphone</span>:~$ ls productos/ <span class="term-cursor"></span></p>
+      <div class="hero-row">
+        <h1 class="hero-title">La tecnología que necesitás, <span class="hero-accent">al precio justo</span></h1>
+      </div>
+      <div class="hero-stats">
+        <span><span class="arrow">›</span><b>1372</b> productos publicados</span>
+        <span><span class="arrow">›</span>Consultas por <b>WhatsApp</b></span>
+      </div>
+      <div class="hero-search">
+        <span class="hero-search-icon" aria-hidden="true">🔍</span>
+        <input type="search" placeholder="Buscar modelo, marca o descripción…" />
+      </div>
+    </section>
+
+    <div class="toolbar" aria-label="Filtros">
+      <div class="tb-row"><button class="chip on">Todos</button><button class="chip">Samsung</button><button class="chip">Motorola</button><button class="chip">iPhone</button><button class="chip">Accesorios</button></div>
+    </div>
+
+    <main class="catalog-main" id="contenido">
+      <section class="content">
+        <div class="grid">
+          <a class="card" href="#">
+            <div class="card-img">📱</div>
+            <div class="card-body">
+              <div class="badges"><span class="badge badge--new">nuevo</span></div>
+              <h3 class="card-title">Samsung Galaxy S24 Ultra 512GB</h3>
+              <div class="card-price">$ 1.449.999</div>
+              <div class="card-foot"><button class="btn btn-wa" type="button">Consultar</button></div>
+            </div>
+          </a>
+          <a class="card" href="#">
+            <div class="card-img">📱</div>
+            <div class="card-body">
+              <div class="badges"><span class="badge badge--offer">oferta</span></div>
+              <h3 class="card-title">Motorola Edge 50 Fusion 256GB</h3>
+              <div class="card-price">$ 649.999</div>
+              <div class="card-foot"><button class="btn btn-wa" type="button">Consultar</button></div>
+            </div>
+          </a>
+          <a class="card" href="#">
+            <div class="card-img">📱</div>
+            <div class="card-body">
+              <div class="badges"><span class="badge badge--featured">destacado</span></div>
+              <h3 class="card-title">iPhone 15 128GB</h3>
+              <div class="card-price">$ 1.899.000</div>
+              <div class="card-foot"><button class="btn btn-wa" type="button">Consultar</button></div>
+            </div>
+          </a>
+          <a class="card" href="#">
+            <div class="card-img">🎧</div>
+            <div class="card-body">
+              <div class="badges"><span class="badge badge--new">nuevo</span></div>
+              <h3 class="card-title">Auriculares JBL Tune 520BT</h3>
+              <div class="card-price">$ 89.999</div>
+              <div class="card-foot"><button class="btn btn-wa" type="button">Consultar</button></div>
+            </div>
+          </a>
+        </div>
+
+        <!-- ===== PROPUESTA: bloque de reseñas debajo del catálogo ===== -->
+        <section class="reviews mock-new" aria-label="Reseñas de clientes">
+          <p class="mock-chip">Sección nueva · debajo del catálogo, antes del pie</p>
+          <div class="reviews-head">
+            <div>
+              <p class="reviews-eyebrow"><span class="prompt-user">visitante@centerphone</span>:~$ cat resenas/ | tail -3</p>
+              <h2 class="reviews-title">Lo que dicen <b>nuestros clientes</b></h2>
+              <p class="reviews-sub"><span class="stars">★★★★★</span> 4,8 sobre 5 · 126 reseñas de compras por WhatsApp</p>
+            </div>
+            <a class="reviews-all" href="#">Ver las 126 reseñas →</a>
+          </div>
+          <div class="reviews-grid">
+            <article class="review">
+              <div class="review-top">
+                <span class="review-who">Lucía G.</span>
+                <span class="review-when">hace 3 días</span>
+              </div>
+              <div class="stars">★★★★★</div>
+              <p class="review-text">Compré el S24 y me lo trajeron al día siguiente. Me asesoraron por WhatsApp con paciencia, sin apuro. Impecable.</p>
+              <div class="review-product">Samsung Galaxy S24 Ultra · <span class="badge badge--verified">compra verificada</span></div>
+            </article>
+            <article class="review">
+              <div class="review-top">
+                <span class="review-who">Martín R.</span>
+                <span class="review-when">hace 1 semana</span>
+              </div>
+              <div class="stars">★★★★<span class="off">★</span></div>
+              <p class="review-text">Buen precio y todo en orden. Tardó un poco el envío por la lluvia pero me avisaron en el momento.</p>
+              <div class="review-product">Motorola Edge 50 Fusion · <span class="badge badge--verified">compra verificada</span></div>
+            </article>
+            <article class="review">
+              <div class="review-top">
+                <span class="review-who">Sofía P.</span>
+                <span class="review-when">hace 2 semanas</span>
+              </div>
+              <div class="stars">★★★★★</div>
+              <p class="review-text">Ya es la tercera compra. El club de socios me hizo el descuento y encima pasé a buscarlo por el local.</p>
+              <div class="review-product">iPhone 15 128GB · <span class="badge badge--verified">compra verificada</span></div>
+            </article>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="muted">CenterPhone Celulares · Mendoza 2974, Santa Fe · Lun a sáb de 9 a 19 h</div>
+    </footer>
+  </body>
+</html>

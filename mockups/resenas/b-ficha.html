@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mockup B — Reseñas en la ficha de producto</title>
+    <link rel="stylesheet" href="/src/web/styles.css" />
+    <link rel="stylesheet" href="/mockups/resenas/reviews.css" />
+  </head>
+  <body>
+    <span class="mock-tag">mockup B · ficha</span>
+    <header class="topbar">
+      <a class="brand" href="/"><img class="brand-logo" src="/logo-small.jpg" alt="Tienda"/><span class="brand-name">Producto</span></a>
+      <a class="topbar-link" href="/">← Volver al catálogo</a>
+      <nav class="topnav" aria-label="Principal">
+        <a class="topnav-btn" href="#">Cómo comprar</a>
+        <a class="topnav-btn" href="#">Contacto</a>
+      </nav>
+    </header>
+
+    <main class="layout layout--single" id="contenido">
+      <form class="detail-search" role="search">
+        <span class="detail-search-icon" aria-hidden="true">🔍</span>
+        <input type="search" placeholder="Buscar otro producto…" />
+        <button class="btn" type="submit">Buscar</button>
+      </form>
+      <nav class="breadcrumbs" aria-label="Ubicación"><a href="/">Catálogo</a> / <a href="#">Samsung</a> / Galaxy S24 Ultra</nav>
+
+      <div class="product-detail">
+        <div class="img">📱</div>
+        <div>
+          <div class="badges"><span class="badge badge--new">nuevo</span><span class="badge badge--featured">destacado</span></div>
+          <h1>Samsung Galaxy S24 Ultra 512GB</h1>
+
+          <!-- PROPUESTA: resumen de estrellas bajo el título, linkea a la lista -->
+          <p class="reviews-inline mock-new" style="margin:2px 0 10px">
+            <a class="stars" href="#resenas" style="text-decoration:none">★★★★★</a>
+            <span class="reviews-count">4,7 · 23 reseñas</span>
+            <span class="muted">·</span>
+            <a class="reviews-all" href="#resenas">Escribir una reseña</a>
+          </p>
+
+          <div class="price">$ 1.449.999</div>
+          <p class="muted">10% OFF por transferencia: $ 1.304.999</p>
+          <p class="desc">Pantalla Dynamic AMOLED 2X de 6,8", 512 GB, cámara de 200 MP con S Pen incluido. Titanium Black.</p>
+          <p class="muted">Disponibilidad: En stock</p>
+          <div class="actions">
+            <button class="btn btn-wa" type="button">💬 Consultar por WhatsApp</button>
+            <button class="btn" type="button">Agregar al carrito</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== PROPUESTA: reseñas del producto, antes de Relacionados ===== -->
+      <section class="reviews mock-new" id="resenas" aria-label="Reseñas del producto">
+        <div class="reviews-head">
+          <div>
+            <p class="reviews-eyebrow"><span class="prompt-user">visitante@centerphone</span>:~$ cat resenas/s24-ultra</p>
+            <h2 class="reviews-title">Reseñas de <b>este producto</b></h2>
+            <div class="reviews-compact-head">
+              <div class="reviews-score">
+                <span class="reviews-score-num">4,7</span>
+                <div>
+                  <div class="stars">★★★★★</div>
+                  <div class="reviews-count">23 reseñas · 18 compras verificadas</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button class="btn" type="button">Escribir una reseña</button>
+        </div>
+        <div class="reviews-grid">
+          <article class="review">
+            <div class="review-top"><span class="review-who">Lucía G.</span><span class="review-when">hace 3 días</span></div>
+            <div class="stars">★★★★★</div>
+            <p class="review-text">La batería aguanta el día entero y la cámara es otra cosa. Me lo configuraron en el local antes de entregármelo.</p>
+            <div class="review-product"><span class="badge badge--verified">compra verificada</span></div>
+          </article>
+          <article class="review">
+            <div class="review-top"><span class="review-who">Diego M.</span><span class="review-when">hace 2 semanas</span></div>
+            <div class="stars">★★★★<span class="off">★</span></div>
+            <p class="review-text">Excelente equipo, aunque es grande para el bolsillo. El S Pen lo uso más de lo que pensaba.</p>
+            <div class="review-product"><span class="badge badge--verified">compra verificada</span></div>
+          </article>
+          <article class="review">
+            <div class="review-top"><span class="review-who">Ana T.</span><span class="review-when">hace 1 mes</span></div>
+            <div class="stars">★★★★★</div>
+            <p class="review-text">Llegó sellado y con garantía. Precio mejor que en cualquier otro lado de Santa Fe.</p>
+            <div class="review-product"><span class="badge badge--verified">compra verificada</span></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="related">
+        <h2>Relacionados</h2>
+        <div class="grid grid--list" style="max-width:620px">
+          <a class="card" href="#"><div class="card-img">📱</div><div class="card-body"><h3 class="card-title">Galaxy S23 FE</h3><div class="card-price">$ 799.999</div></div></a>
+          <a class="card" href="#"><div class="card-img">📱</div><div class="card-body"><h3 class="card-title">Galaxy A55</h3><div class="card-price">$ 549.999</div></div></a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

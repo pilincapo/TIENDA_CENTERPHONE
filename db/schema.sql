@@ -131,3 +131,22 @@ CREATE TABLE IF NOT EXISTS members (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_members_code  ON members(code);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_members_phone ON members(phone);
 CREATE INDEX IF NOT EXISTS idx_members_active ON members(active, created_at);
+
+-- Reseñas de Google curadas desde el panel (ver db/migrations/017).
+-- Se cargan a mano: la API devuelve hasta 5 y no permite guardarlas.
+CREATE TABLE IF NOT EXISTS google_reviews (
+  id          TEXT PRIMARY KEY,
+  author      TEXT NOT NULL,
+  author_meta TEXT,
+  rating      INTEGER NOT NULL,
+  body        TEXT NOT NULL DEFAULT '',
+  reviewed_at INTEGER,
+  local_reply TEXT,
+  featured    INTEGER NOT NULL DEFAULT 0,
+  active      INTEGER NOT NULL DEFAULT 1,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_google_reviews_active ON google_reviews(active, featured, sort_order);

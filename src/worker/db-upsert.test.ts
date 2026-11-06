@@ -5,6 +5,7 @@
 // importación completa se pasaba del límite.
 import { describe, expect, it } from "vitest";
 import {
+  hideProductsByIds,
   setProductsWaPublish,
   setWhatsAppScope,
   upsertCategoriesBatch,
@@ -85,6 +86,26 @@ describe("upsertProductsBatch (límite de 50 queries por invocación)", () => {
   it("sin productos no prepara ningún statement", async () => {
     const { db, statements } = makeDb();
     expect(await upsertProductsBatch(db, [], NOW)).toEqual([]);
+    expect(statements).toHaveLength(0);
+  });
+
+  it("los artículos excluidos se ocultan por id, sin importar la fuente", async () => {
+    const { db, statements } = makeDb();
+    const hidden = await hideProductsByIds(db, ["6233", "samsung-a15"], NOW);
+    expect(hidden).toBe(3); // makeDb devuelve cambios = cantidad de binds
+    expect(statements).toHaveLength(1);
+    expect(statements[0]!.sql).toContain("status = 'hidden'");
+    expect(statements[0]!.sql).not.toContain("source_url");
+    // Numeración desde ?1 (sin columna previa) y el timestamp al final: con ?2
+    // las dos entradas quedaban corridas y D1 devolvía error 500.
+    expect(statements[0]!.sql).toContain("updated_at = ?3");
+    expect(statements[0]!.sql).toContain("IN (?1,?2)");
+    expect(statements[0]!.binds).toEqual(["6233", "samsung-a15", NOW]);
+  });
+
+  it("una lista vacía de excluidos no toca D1", async () => {
+    const { db, statements } = makeDb();
+    expect(await hideProductsByIds(db, [], NOW)).toBe(0);
     expect(statements).toHaveLength(0);
   });
 });
