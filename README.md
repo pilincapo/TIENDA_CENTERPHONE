@@ -109,6 +109,12 @@ Cualquiera de estas formas funciona (los nombres aceptan español e inglés, y e
 - **Auto-importaciones**: URLs programadas con hasta 3 horarios (hora Argentina), ejecución manual inmediata y estado de la última corrida.
 - **Configuración**: nombre de la tienda, número de WhatsApp, dirección, horarios, redes sociales, moneda, URL de sync clásica.
 
+## Guías
+
+- [Guía del Club de socios](GUIA_CLUB_SOCIOS.md): niveles 5/10/15, altas y cómo se aplica el descuento.
+- [Guía del catálogo y WhatsApp](GUIA_CATALOGO_WHATSAPP.md).
+- [Runbook de producción](RUNBOOK_PRODUCCION.md).
+
 ## Verificación
 
 ```bash
