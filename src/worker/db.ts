@@ -163,6 +163,57 @@ export async function listProducts(db: D1Database, all = false): Promise<Product
   return (results ?? []).map(rowToProduct);
 }
 
+/**
+ * Productos PUBLICADOS por id, para validar un carrito sin leer el catálogo
+ * entero. /api/checkout y /api/shipping/quote solo necesitan las filas que el
+ * cliente pidió: con `listProducts()` cada intento leía el catálogo completo
+ * (2.744 filas medidas en D1 con 1.372 publicados, ver changelog 2026-11-17) y
+ * eso se comía casi todo el free tier de filas leídas.
+ *
+ * La validación real sigue en `validateCart`: un id inexistente u oculto no
+ * vuelve de esta consulta y el carrito se rechaza igual. El filtro por estado
+ * es el mismo que hacía `listProducts()` en JS, aplicado en SQL.
+ * Los ids viajan en un solo bind JSON (mismo patrón que el upsert), así las 20
+ * líneas máximas del carrito no se acercan al límite de 100 parámetros de D1.
+ */
+const MAX_CART_LOOKUP_IDS = 50;
+
+export async function getProductsByIds(db: D1Database, ids: string[]): Promise<Product[]> {
+  const wanted = [...new Set(ids.filter((id) => id !== ""))].slice(0, MAX_CART_LOOKUP_IDS);
+  if (wanted.length === 0) return [];
+  const { results } = await db
+    .prepare("SELECT * FROM products WHERE status = 'published' AND id IN (SELECT value FROM json_each(?1))")
+    .bind(JSON.stringify(wanted))
+    .all<Dict>();
+  return (results ?? []).map(rowToProduct);
+}
+
+/**
+ * Relacionadas de una ficha: misma categoría, publicadas, sin el propio
+ * producto. Se resuelve en SQL con LIMIT en vez de traer el catálogo y filtrar
+ * en JS (que era el costo de /api/products/:id: ~2.744 filas por visita).
+ * Con `idx_products_related` (status, category_id, sort_order, created_at) el
+ * ORDER BY sale del índice y el LIMIT corta la lectura en las filas pedidas.
+ */
+export async function listRelatedProducts(
+  db: D1Database,
+  categoryId: string,
+  excludeId: string,
+  limit = 8
+): Promise<Product[]> {
+  const capped = Math.max(1, Math.min(20, limit));
+  const { results } = await db
+    .prepare(
+      `SELECT * FROM products
+       WHERE status = 'published' AND category_id = ?1 AND id <> ?2
+       ORDER BY sort_order, created_at
+       LIMIT ?3`
+    )
+    .bind(categoryId, excludeId, capped)
+    .all<Dict>();
+  return (results ?? []).map(rowToProduct);
+}
+
 export interface SitemapProduct {
   id: string;
   /** Fecha real de modificación (epoch ms); 0 si la fila no la tiene. */

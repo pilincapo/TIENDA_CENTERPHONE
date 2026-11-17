@@ -6,7 +6,7 @@ import type { Env } from "./db";
 import { adminApp } from "./admin";
 import { tecnovaApp } from "./tecnova";
 import { forceHttpsUrl, getSettings } from "./settings";
-import { getProduct, listProducts } from "./db";
+import { getProduct, getProductsByIds, listRelatedProducts } from "./db";
 import { destinoDeRedirect } from "./rename-ids";
 import { getSnapshot, isSyncDue, regenerateSnapshot, runSync } from "./sync";
 import { runAutoImports } from "./autoimport";
@@ -109,10 +109,10 @@ app.get("/api/products/:id", async (c) => {
   if (product.status === "hidden") {
     return c.json({ product: { ...product, availability: "out_of_stock" as const, hiddenNoStock: true }, related: [], settings: publicSettings(settings) });
   }
+  // Relacionadas en SQL con LIMIT: traer el catálogo completo para filtrar 8
+  // costaba ~2.744 filas leídas por cada visita a una ficha (ver db.ts).
   const related = product.categoryId
-    ? (await listProducts(c.env.DB))
-        .filter((p) => p.id !== product.id && p.categoryId === product.categoryId)
-        .slice(0, 8)
+    ? await listRelatedProducts(c.env.DB, product.categoryId, product.id, 8)
     : [];
   return c.json({ product, related, settings: publicSettings(settings) });
 });
@@ -209,7 +209,11 @@ app.get("/api/shipping/quote", async (c) => {
     })
     .filter((i) => i.id !== "");
   if (itemsRaw.length === 0) return c.json({ ok: false, error: "Carrito vacío" });
-  const cart = validateCart(itemsRaw as CartInput[], await listProducts(c.env.DB));
+  // Solo las filas del carrito: la cotización no necesita el catálogo entero.
+  const cart = validateCart(
+    itemsRaw as CartInput[],
+    await getProductsByIds(c.env.DB, itemsRaw.map((i) => i.id)),
+  );
   if (!cart.ok) return c.json({ ok: false, error: cart.error ?? "Carrito inválido" });
 
   if ((settings.shippingAndreaniContrato ?? "") === "" || (settings.shippingAndreaniCliente ?? "") === "") {

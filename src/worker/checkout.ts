@@ -10,7 +10,7 @@
 import { Hono } from "hono";
 import type { Env } from "./db";
 import { getSettings } from "./settings";
-import { listProducts } from "./db";
+import { getProductsByIds } from "./db";
 import { newId } from "./settings";
 import {
   getOrder, insertOrder, sanitizeBuyer, setOrderPreference, updateOrderStatus, validateCart, type CartInput,
@@ -85,7 +85,13 @@ async function finalizeOrder(c: {
   const body = await c.req.json<{
     items?: CartInput[]; name?: unknown; phone?: unknown; memberCode?: unknown;
   }>().catch(() => null);
-  const products = await listProducts(c.env.DB); // solo publicados
+  // Solo las filas del carrito (publicadas): listProducts() leía el catálogo
+  // completo (~2.744 filas) en cada intento de compra. validateCart sigue
+  // recalculando precios y rechazando lo que no vuelva de acá.
+  const idsCarrito = (Array.isArray(body?.items) ? body.items : [])
+    .map((i) => (typeof i?.id === "string" ? i.id : ""))
+    .filter((id) => id !== "");
+  const products = await getProductsByIds(c.env.DB, idsCarrito);
   const cart = validateCart(body?.items ?? [], products);
   if (!cart.ok) return { error: cart.error ?? "Carrito inválido", status: 400 as const };
 
