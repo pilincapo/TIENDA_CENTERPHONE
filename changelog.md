@@ -5,7 +5,9 @@
 - **El CSV ahora se arma con el snapshot** ([wa-feed.ts](src/worker/wa-feed.ts), [sync.ts](src/worker/sync.ts)): `regenerateSnapshot` ya lee el catálogo completo, así que arma el feed con ese mismo array (`guardarWaFeed`) y lo deja en KV. La descarga pasó a leer solo KV: **1.393 → 0 filas de D1**.
 - **TTL de 7 días como backstop**: la frescura no la da el vencimiento sino la reescritura en cada regeneración (importaciones, syncs, publicar) y la invalidación de los cambios de marcas de WhatsApp. Estirar el TTL era imprescindible: con importaciones cada hora, cada invalidación habría forzado un rearmado igual.
 - **Guarda anti-borrado intacta**: si no queda ningún producto publicable, `guardarWaFeed` borra la copia en vez de guardar un archivo vacío, y el endpoint responde 500 leyendo D1 como antes (un feed vacío vacía el catálogo de Meta).
-- **Verificado**: `npm run typecheck` en 0 y los tests de `wa-feed-cache.test.ts` con 2 casos nuevos (la copia del snapshot se sirve sin leer D1; un feed vacío no se guarda).
+- **Verificado**: `npm run typecheck` en 0 y **609 tests** en 61 archivos, con 2 casos nuevos en `wa-feed-cache.test.ts` (la copia del snapshot se sirve sin leer D1; un feed vacío no se guarda).
+- **Deploy**: `npm run deploy` → versión **`17646ded-e15a-4201-a8a9-609e33af4b40`**, con `CF_SITE_ORIGIN` (`https://centerphone.com.ar`) presente en los bindings del worker (sin esa variable `guardarWaFeed` no escribe la copia).
+- **Verificado en producción** con `wrangler tail`: la primera descarga armó desde D1 (`d1_uso ruta=/api/whatsapp/feed.csv filas=1415 consultas=2`) y la guardó; la segunda y la tercera respondieron `X-Wa-Feed-Cache: kv` con **`wa-feed: servido desde KV (100 producto(s), sin leer D1)` y ninguna línea `d1_uso`**. Las tres descargas salieron idénticas (mismo md5, **38.937 bytes**), así que el contenido del feed no cambió.
 
 ## 2026-11-18 — El sitemap deja de pagar 1.371 filas por cada variante de URL
 
