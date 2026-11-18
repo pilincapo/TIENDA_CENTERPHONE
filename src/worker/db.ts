@@ -11,6 +11,9 @@ export type Dict = Record<string, unknown>;
 export interface Env {
   DB: D1Database;
   KV: KVNamespace;
+  // Analytics Engine con el consumo de filas de D1 por ruta (ver d1-usage.ts).
+  // Opcional: sin el binding la instrumentación se salta (tests y dev local).
+  D1_USAGE?: AnalyticsEngineDataset;
   ASSETS: Fetcher;
   ADMIN_PASSWORD: string;
   ADMIN_SESSION_SECRET: string;
@@ -40,6 +43,18 @@ export interface Env {
 
 function num(v: unknown): number {
   return typeof v === "number" ? v : Number(v ?? 0);
+}
+
+/**
+ * La única fila de un agregado, vía `.all()` en vez de `.first()`.
+ *
+ * Sobre un `COUNT(*)`/`SUM()` el costo es el mismo (una fila), pero `.all()`
+ * conserva `meta.rows_read` y así la instrumentación mide los conteos, que son
+ * justo los que recorren la tabla entera. `first()` devuelve la fila, sin meta.
+ */
+export async function filaUnica<T>(stmt: D1PreparedStatement): Promise<T | null> {
+  const { results } = await stmt.all<T>();
+  return results[0] ?? null;
 }
 
 export function rowToProduct(row: Dict): Product {
@@ -302,7 +317,7 @@ export async function listProductsPaged(db: D1Database, f: ProductPageFilter): P
 /** Cantidad de productos que devuelve el mismo filtro (para las páginas). */
 export async function countProducts(db: D1Database, f: Pick<ProductPageFilter, "status" | "q" | "src">): Promise<number> {
   const { sql, args } = productWhere(f.status ?? "", f.q ?? "", f.src ?? "");
-  const row = await db.prepare(`SELECT COUNT(*) AS n FROM products ${sql}`).bind(...args).first<Dict>();
+  const row = await filaUnica<Dict>(db.prepare(`SELECT COUNT(*) AS n FROM products ${sql}`).bind(...args));
   return Number(row?.n ?? 0);
 }
 
@@ -320,15 +335,15 @@ export async function countProductsByStatus(db: D1Database): Promise<{ published
 
 /** Totales por origen (para los chips de origen del panel): dominio contenido en source_url. */
 export async function countProductsBySource(db: D1Database): Promise<{ tecnova: number; hacetupedido: number; manual: number }> {
-  const row = await db
-    .prepare(
+  const row = await filaUnica<Dict>(
+    db.prepare(
       `SELECT
          SUM(CASE WHEN source_url LIKE '%tecnova%' THEN 1 ELSE 0 END) AS tecnova,
          SUM(CASE WHEN source_url LIKE '%hacetupedido%' THEN 1 ELSE 0 END) AS hacetupedido,
          SUM(CASE WHEN source_url IS NULL THEN 1 ELSE 0 END) AS manual
        FROM products`
     )
-    .first<Dict>();
+  );
   return { tecnova: Number(row?.tecnova ?? 0), hacetupedido: Number(row?.hacetupedido ?? 0), manual: Number(row?.manual ?? 0) };
 }
 
@@ -589,9 +604,9 @@ export async function listWhatsAppFeedProducts(db: D1Database): Promise<Product[
  * el panel avisa cuando una acción masiva dejaría el catálogo casi vacío.
  */
 export async function countWhatsAppProducts(db: D1Database): Promise<number> {
-  const row = await db
-    .prepare("SELECT COUNT(*) AS n FROM products WHERE wa_publish = 1 AND status = 'published' AND image_url <> ''")
-    .first<Dict>();
+  const row = await filaUnica<Dict>(
+    db.prepare("SELECT COUNT(*) AS n FROM products WHERE wa_publish = 1 AND status = 'published' AND image_url <> ''")
+  );
   return Number(row?.n ?? 0);
 }
 
@@ -645,7 +660,8 @@ export function waSourceScope(src: string): WaScope | null {
  * cuántos de esos ya están en el archivo que descarga Meta.
  */
 export async function whatsAppScopePreview(db: D1Database, scope: WaScope): Promise<WaScopePreview> {
-  const row = await db
+  const row = await filaUnica<Dict>(
+    db
     .prepare(
       `SELECT
          COUNT(*) AS total,
@@ -658,7 +674,7 @@ export async function whatsAppScopePreview(db: D1Database, scope: WaScope): Prom
        FROM products WHERE ${scope.where}`
     )
     .bind(...scope.args)
-    .first<Dict>();
+  );
   return {
     total: num(row?.total),
     yaMarcados: num(row?.ya_marcados),

@@ -26,8 +26,25 @@ import { reviewsApp } from "./reviews";
 import { maintenanceMiddleware } from "./maintenance";
 import { waFeedApp } from "./wa-feed";
 import { runWeeklyDigest } from "./digest";
+import { instrumentarD1, nuevoUso, registrarUsoD1 } from "./d1-usage";
 
 const app = new Hono<{ Bindings: Env }>();
+
+// Instrumentación de D1 por request (ver d1-usage.ts): envuelve el binding antes
+// de cualquier handler y registra ruta, estado y filas leídas al terminar. Va
+// primero para cubrir también mantenimiento, seguridad y el 404 final. Costo en
+// D1: cero filas — solo se lee el `meta.rows_read` que D1 ya devuelve.
+app.use("*", async (c, next) => {
+  const uso = nuevoUso();
+  const real = c.env.DB;
+  c.env.DB = instrumentarD1(real, uso);
+  try {
+    await next();
+  } finally {
+    c.env.DB = real;
+    registrarUsoD1(c, uso);
+  }
+});
 
 // Cabeceras de seguridad en todas las respuestas (CSP con nonce por request,
 // X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy). Se aplican

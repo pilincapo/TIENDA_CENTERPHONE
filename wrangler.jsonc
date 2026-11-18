@@ -28,6 +28,19 @@
       "database_id": "b56c2cb6-5865-4c3f-98e0-192846a1576e"
     }
   ],
+  // Analytics Engine: registra el consumo de filas de D1 por ruta (ver
+  // src/worker/d1-usage.ts). El plan gratis incluye 100.000 data points/día.
+  // PENDIENTE: el binding no se puede subir hasta habilitar Analytics Engine en
+  // la cuenta — wrangler devuelve 10089 («You need to enable Analytics Engine»)
+  // y rechaza la versión entera. Mientras tanto el worker funciona igual: sin
+  // binding solo deja la línea de Workers Logs cuando un request pasa las 500
+  // filas. Al habilitarlo, se descomenta esto y se vuelve a deployar.
+  // "analytics_engine_datasets": [
+  //   {
+  //     "binding": "D1_USAGE",
+  //     "dataset": "celu_store_d1_usage"
+  //   }
+  // ],
   "kv_namespaces": [
     {
       "binding": "KV",

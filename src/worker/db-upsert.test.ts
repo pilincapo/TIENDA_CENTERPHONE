@@ -31,6 +31,10 @@ function makeDb(fila: Record<string, unknown> | null = null): { db: D1Database; 
         statements.push({ sql, binds });
         return { success: true, meta: { changes: binds.length } };
       },
+      all: async () => {
+        statements.push({ sql, binds });
+        return { results: fila ? [fila] : [] };
+      },
       first: async () => {
         statements.push({ sql, binds });
         return fila;

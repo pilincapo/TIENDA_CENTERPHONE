@@ -2,8 +2,7 @@
 // Sin servicios externos: una fila por evento en stats_events, agregado con GROUP BY.
 // Free tier: los inserts son 1 query por evento (beacon), las lecturas se agrupan en SQL.
 
-import type { Dict } from "./db";
-import type { Env } from "./db";
+import { filaUnica, type Dict, type Env } from "./db";
 import { nowMs } from "./settings";
 
 export type StatEventType = "product_view" | "search" | "home_view" | "wa_click" | "track_view";
@@ -71,9 +70,13 @@ export interface StatsSummary {
 export async function getStatsSummary(env: Env, days: number): Promise<StatsSummary> {
   const since = nowMs() - Math.min(Math.max(days, 1), 90) * DAY_MS;
   const db = env.DB;
+  // Con `filaUnica` (no `first()`) para que la instrumentación mida estas
+  // consultas: son las que recorren `stats_events`.
   const count = async (type: string): Promise<number> => {
-    const r = await db.prepare(`SELECT COUNT(*) AS n FROM stats_events WHERE type = ?1 AND ts >= ?2`).bind(type, since).first<{ n: number }>();
-    return r?.n ?? 0;
+    const row = await filaUnica<{ n: number }>(
+      db.prepare(`SELECT COUNT(*) AS n FROM stats_events WHERE type = ?1 AND ts >= ?2`).bind(type, since),
+    );
+    return row?.n ?? 0;
   };
 
   // La hora se guarda en UTC; para agrupar por hora Argentina: ts-3h sobre el índice.

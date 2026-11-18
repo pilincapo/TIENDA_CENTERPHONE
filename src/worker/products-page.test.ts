@@ -41,6 +41,9 @@ function makeDb(): D1Database {
           return null;
         },
         all: async () => {
+          if (/COUNT\(\*\) AS n FROM products/.test(sql) && !/GROUP BY/.test(sql)) {
+            return { results: [{ n: filtra(sql, binds).length }] };
+          }
           if (/GROUP BY status/.test(sql)) {
             const published = PRODUCTOS.filter((p) => p.status === "published").length;
             const hidden = PRODUCTOS.length - published;
