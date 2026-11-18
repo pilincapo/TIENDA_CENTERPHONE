@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="es" data-v="a">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maqueta — versión clara de la home (3 variantes)</title>
+<link rel="stylesheet" href="version-clara.css" />
+</head>
+<body>
+
+<!-- Barra de la maqueta: no es parte del sitio. Con ?clean=1 se oculta. -->
+<div class="bar" id="bar">
+  <strong>Maqueta · home</strong>
+  <div class="tabs" role="tablist" aria-label="Variantes">
+    <button class="tab on" data-v="a" role="tab">A · Actual</button>
+    <button class="tab" data-v="b" role="tab">B · Clara</button>
+    <button class="tab" data-v="c" role="tab">C · Oscura ordenada</button>
+  </div>
+  <div class="seg" role="group" aria-label="Ancho">
+    <button class="on" data-w="desk">Escritorio</button>
+    <button data-w="mobile">Móvil</button>
+  </div>
+  <p class="hint" id="hint"></p>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="phone" viewBox="0 0 120 200">
+    <rect x="7" y="3" width="106" height="194" rx="18" fill="currentColor" opacity=".2" />
+    <rect x="14" y="14" width="92" height="172" rx="11" fill="currentColor" opacity=".12" />
+    <circle cx="60" cy="189" r="4.5" fill="currentColor" opacity=".35" />
+    <rect x="46" y="6" width="28" height="6" rx="3" fill="currentColor" opacity=".3" />
+  </symbol>
+</svg>
+
+<div class="canvas" id="canvas">
+  <div class="store" id="store">
+
+    <div class="announce">📦 Envío gratis en Santa Fe · 3 y 6 cuotas sin interés</div>
+
+    <header class="topbar">
+      <a class="brand" href="#">
+        <img src="../public/logo-small.jpg" alt="CenterPhone Celulares" />
+        <span class="brand-name">CenterPhone</span>
+        <span class="brand-tag">Celulares</span>
+      </a>
+      <nav class="topnav">
+        <a href="#catalogo">Productos</a>
+        <a href="#">Cómo comprar</a>
+        <a href="#">Contacto</a>
+        <a href="#">Seguimiento</a>
+        <button class="cart" type="button">🛒 <b>2</b></button>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <p class="eyebrow-term"><span class="pu">visitante@centerphone</span>:~$ ls productos/ <span class="cursor"></span></p>
+      <p class="eyebrow-pill">Catálogo · Santa Fe, Argentina</p>
+      <h1>La tecnología que necesitás, <span class="accent">al precio justo</span></h1>
+      <p class="hero-sub">Consultá stock y precio por WhatsApp. Envío gratis en la ciudad de Santa Fe y retiro en el local.</p>
+      <div class="stats">
+        <span><i>›</i><b>212</b> productos publicados</span>
+        <span><i>›</i>Consultas por <b>WhatsApp</b></span>
+      </div>
+      <div class="search">
+        <span class="search-icon" aria-hidden="true">🔍</span>
+        <input type="search" placeholder="Buscar modelo, marca o descripción…" aria-label="Buscar productos" />
+      </div>
+    </section>
+
+    <a class="rv-strip" href="#">
+      <span class="rv-g" aria-hidden="true">G</span>
+      <span class="stars" aria-hidden="true">★★★★★</span>
+      <span><b>4,9</b> <span class="rv-label">· 87 reseñas en Google</span></span>
+      <span class="rv-link">Ver todas →</span>
+    </a>
+
+    <div class="toolbar" id="catalogo">
+      <div class="tb-top">
+        <label class="tb-sort">Ordenar
+          <select aria-label="Ordenar">
+            <option>Aleatorio</option>
+            <option>Menor precio</option>
+            <option>Mayor precio</option>
+            <option>Más recientes</option>
+          </select>
+        </label>
+        <span class="tb-count">8 de 212</span>
+        <div class="tb-view">
+          <button class="on" type="button" aria-label="Vista en grilla">▦</button>
+          <button type="button" aria-label="Vista en lista">☰</button>
+        </div>
+      </div>
+      <div class="tb-row">
+        <span class="tb-label">Categoría</span>
+        <button class="chip on" type="button">Todos</button>
+        <button class="chip" type="button">Apple</button>
+        <button class="chip" type="button">Samsung</button>
+        <button class="chip" type="button">Motorola</button>
+        <button class="chip" type="button">Xiaomi</button>
+        <button class="chip" type="button">Accesorios</button>
+      </div>
+      <div class="tb-row">
+        <span class="tb-label">Subcategoría</span>
+        <button class="chip chip-sub" type="button">↳ iPhone</button>
+        <button class="chip chip-sub" type="button">↳ Mac</button>
+        <button class="chip chip-sub" type="button">↳ iPad</button>
+        <button class="chip chip-sub" type="button">↳ Apple Watch</button>
+      </div>
+      <div class="tb-row">
+        <span class="tb-label">Estado</span>
+        <button class="chip" type="button">Nuevo</button>
+        <button class="chip" type="button">Destacado</button>
+        <button class="chip" type="button">Oferta</button>
+        <button class="chip chip-clear" type="button">✕ Limpiar (1)</button>
+      </div>
+    </div>
+
+    <main class="catalog">
+      <div class="grid">
+
+        <article class="card">
+          <div class="card-img"><svg aria-hidden="true"><use href="#phone" /></svg></div>
+          <div class="card-body">
+            <div class="badges"><span class="badge b-fresh">nuevo</span><span class="badge b-feat">destacado</span></div>
+            <h3 class="card-title">iPhone 15 128 GB</h3>
+            <div class="card-foot"><span class="price">$1.249.999</span><button class="card-wa" type="button">Consultar</button></div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-img"><svg aria-hidden="true"><use href="#phone" /></svg></div>
+          <div class="card-body">
+            <div class="badges"><span class="badge b-fresh">nuevo</span></div>
+            <h3 class="card-title">Samsung Galaxy S24 Ultra 512 GB</h3>
+            <div class="card-foot"><span class="price">$1.899.999</span><button class="card-wa" type="button">Consultar</button></div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-img"><svg aria-hidden="true"><use href="#phone" /></svg></div>
+          <div class="card-body">
+            <div class="badges"><span class="badge b-offer">oferta</span></div>
+            <h3 class="card-title">Motorola Edge 50 Fusion 256 GB</h3>
+            <div class="card-foot"><span class="price">$649.999</span><button class="card-wa" type="button">Consultar</button></div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-img"><svg aria-hidden="true"><use href="#phone" /></svg></div>
+          <div class="card-body">
+            <div class="badges"></div>
+            <h3 class="card-title">Xiaomi Redmi Note 13 Pro 256 GB</h3>
+            <div class="card-foot"><span class="price">$429.999</span><button class="card-wa" type="button">Consultar</button></div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-img"><svg aria-hidden="true"><use href="#phone" /></svg></div>
+          <div class="card-body">
+            <div class="badges"><span class="badge b-offer">oferta</span></div>
+            <h3 class="card-title">iPhone 13 128 GB</h3>
+            <div class="card-foot"><span class="price">$899.999</span><button class="card-wa" type="button">Consultar</button></div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-img"><svg aria-hidden="true"><use href="#phone" /></svg></div>
+          <div class="card-body">
+            <div class="badges"><span class="badge b-feat">destacado</span></div>
+            <h3 class="card-title">Samsung Galaxy A55 256 GB</h3>
+            <div class="card-foot"><span class="price">$529.999</span><button class="card-wa" type="button">Consultar</button></div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-img"><svg aria-hidden="true"><use href="#phone" /></svg></div>
+          <div class="card-body">
+            <div class="badges"><span class="badge b-fresh">nuevo</span></div>
+            <h3 class="card-title">Xiaomi POCO X6 Pro 512 GB</h3>
+            <div class="card-foot"><span class="price">$479.999</span><button class="card-wa" type="button">Consultar</button></div>
+          </div>
+        </article>
+
+        <article class="card out">
+          <div class="card-img"><svg aria-hidden="true"><use href="#phone" /></svg></div>
+          <div class="card-body">
+            <div class="badges"><span class="badge b-out">sin stock</span></div>
+            <h3 class="card-title">Motorola Moto G84 256 GB</h3>
+            <div class="card-foot"><span class="price">$349.999</span><button class="card-wa" type="button">Consultar</button></div>
+          </div>
+        </article>
+
+      </div>
+      <div class="load-more-wrap">
+        <button class="load-more" type="button">Cargar más <span class="lm">(204 restantes)</span></button>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-in">
+        <div class="footer-steps">
+          <div class="fstep">
+            <span class="fstep-num">01</span>
+            <h3>Explorá</h3>
+            <p>Buscá por nombre de producto o explorá las categorías para encontrar lo que necesitás.</p>
+          </div>
+          <div class="fstep">
+            <span class="fstep-num">02</span>
+            <h3>Consultá</h3>
+            <p>Te mostramos el precio y te ayudamos a verificar disponibilidad real.</p>
+          </div>
+          <div class="fstep">
+            <span class="fstep-num">03</span>
+            <h3>Coordinamos</h3>
+            <p>Escribinos por WhatsApp y avanzamos con una atención directa.</p>
+          </div>
+        </div>
+        <div class="footer-cols">
+          <div class="fcol fcol-brand">
+            <p class="fbrand">CenterPhone Celulares</p>
+            <p class="ftag">Tecnología para elegir con información clara y atención directa.</p>
+          </div>
+          <div class="fcol">
+            <p class="fhead">Horarios</p>
+            <p>Lun a vie 9:00–13:00<br />y 16:00–20:00<br />Sáb 9:00–13:00</p>
+          </div>
+          <div class="fcol">
+            <p class="fhead">Visitános</p>
+            <p>Mendoza 2974,<br />Santa Fe ↗</p>
+          </div>
+          <div class="fcol">
+            <p class="fhead">Seguinos</p>
+            <p class="social"><a href="#">Facebook</a><a href="#">Instagram</a></p>
+          </div>
+          <div class="fcol">
+            <p class="fhead">Legal</p>
+            <ul>
+              <li><a href="#">Cambios y devoluciones</a></li>
+              <li><a href="#">Botón de arrepentimiento</a></li>
+              <li><a href="#">Política de privacidad</a></li>
+            </ul>
+            <p class="owner">Titular: Esquivel Jorge Alberto<br />CUIT 20-24995402-1<br />Mendoza 2974, Santa Fe</p>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <a class="wa" href="#" aria-label="WhatsApp">💬</a>
+  </div>
+</div>
+
+<script>
+  // Conmutador de las tres variantes + ancho. Los parámetros ?v= y ?w= permiten
+  // sacar las capturas sin tocar la página; ?clean=1 esconde esta barra.
+  const HINTS = {
+    a: "La home tal como está hoy: fondo oscuro, tipografía mono, scanlines, bordes rectos y sombras duras.",
+    b: "Tema claro: fondo #f6f7f9, tarjetas blancas, tipografía sans (mono solo en el precio), radios de 10-12 px, verde de marca a #157f3c para que el texto llegue a contraste AA.",
+    c: "Misma paleta de hoy, sin scanlines ni animaciones: más aire, radios suaves, buscador más grande y filtros agrupados con etiquetas.",
+  };
+  const html = document.documentElement;
+  const store = document.getElementById("store");
+  const canvas = document.getElementById("canvas");
+  const hint = document.getElementById("hint");
+  const params = new URLSearchParams(location.search);
+
+  function setVariant(v) {
+    const val = HINTS[v] ? v : "a";
+    html.dataset.v = val;
+    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.v === val));
+    hint.textContent = HINTS[val];
+    history.replaceState(null, "", "?v=" + val + (store.classList.contains("mobile") ? "&w=mobile" : ""));
+  }
+
+  function setWidth(w) {
+    const mobile = w === "mobile";
+    canvas.classList.toggle("mobile", mobile);
+    store.classList.toggle("mobile", mobile);
+    document.querySelectorAll(".seg button").forEach((b) => b.classList.toggle("on", b.dataset.w === w));
+  }
+
+  document.querySelectorAll(".tab").forEach((btn) => {
+    btn.addEventListener("click", () => setVariant(btn.dataset.v));
+  });
+  document.querySelectorAll(".seg button").forEach((btn) => {
+    btn.addEventListener("click", () => setWidth(btn.dataset.w));
+  });
+
+  setVariant(params.get("v") || "a");
+  setWidth(params.get("w") || "desk");
+  if (params.get("clean") === "1") document.getElementById("bar").style.display = "none";
+</script>
+</body>
+</html>

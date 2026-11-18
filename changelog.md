@@ -1,3 +1,35 @@
+## 2026-11-18 — El color de la barra del navegador pasa a #0d1319 en todas las páginas
+
+- **Pedido**: "sigue habiendo #0b0f14 en las demás páginas (ficha, reseñas, club, devoluciones, legales, 404) y en el manifest... encontrá de dónde se emite ese color y unificalo con #0d1319".
+- **De dónde salía**: no era un solo lugar. Cada página declaraba su propio `<meta name="theme-color" content="#0b0f14" />` —`club.html`, `devoluciones.html`, `resenas.html`, `product.html` y las dos legales—, así que el cambio anterior solo cubrió la home; `site.webmanifest` fijaba además `theme_color` y `background_color` en ese color; y `public/404.html` se genera desde el index compilado, por lo que arrastraba el valor viejo hasta recompilar.
+- **Los cambios**: los seis meta pasan a `#0d1319`, el manifest cambia sus dos claves, y las páginas que arma el worker con su propia paleta inline ([maintenance.ts](src/worker/maintenance.ts), [orders-page.ts](src/worker/orders-page.ts) —dos bloques— y [returns-page.ts](src/worker/returns-page.ts)) cambian `--bg` al mismo valor.
+- **Verificado**: `npm run typecheck` en 0 y `npm run build` en 0. En el dev server `127.0.0.1:8787`, `/`, `/resenas`, `/club`, `/devoluciones`, `/politica-de-privacidad`, `/politica-de-cambios-y-devoluciones`, una ficha, una ruta inexistente (404) y `/manifest.webmanifest` sirven `#0d1319` y no contienen ninguna aparición de `#0b0f14`; los ocho HTML de `public/` y el manifest compilado también salen con el color nuevo.
+- **Sin tocar**: `hacetupedido.html` (página guardada de la tienda de origen, con su propio `theme-color` rosa) y el resto del tema.
+
+## 2026-11-18 — La variante C (oscura ordenada) pasa al sitio real
+
+- **Pedido**: "aplicá la variante C (oscura ordenada) al sitio real: misma paleta sin scanlines ni animaciones, radios suaves, más aire y filtros agrupados con etiquetas, corrigiendo los colores fijos de `styles.css` y `reviews.css`. Verificá en el dev server local. Sin deploy ni commit".
+- **Paleta** ([styles.css](src/web/styles.css)): el bloque `:root` pasa a la paleta de la maqueta —fondo `#0d1319`, paneles `#151d26`/`#1b242e`, bordes `#26333f`/`#38495a`, texto `#e2e9ef`, gris `#93a4b3` y verde de marca `#4cc45e`— y suma los tokens que faltaban (`--on-brand`, `--on-amber`, `--blue`, `--blue-soft`, `--danger-soft`, `--muted-soft`, `--scrim`, `--font-mono`). El texto queda en ~13:1 y el gris en ~6.5:1 sobre fondo y panel (AA).
+- **Colores fijos fuera**: una cincuentena de valores sueltos —`#04180a` en 17 lugares, `#58a6ff`, `#7aa2f7`, `#ff6b6b`, `#ffd43b`, `#1a1200`, `#241a02`, `#131b25` y los `rgb()/rgba()` de badges, botones, modales, carrito y panel— ahora salen de variables. Quedan a propósito el verde de WhatsApp (`#25d366`), el amarillo de Google (`#fbbc04`) y los `#000`/`#fff` de máscaras y logo.
+- **Sin scanlines ni parpadeo**: se fue la capa CRT `body::before` y el cursor de terminal (`.term-cursor`, su `@keyframes blink` y el `<span>` en [index.html](index.html)). La única animación que sigue es la de la cinta, que depende de la configuración del panel.
+- **Radios suaves**: `--radius` pasa de `0` a `10px` (tarjetas, paneles, modales, inputs, formularios y páginas legales) y `--radius-sm` a `8px` (botones, selects chicos, miniaturas y `.card-wa`); chips, contador y badges de producto quedan en pastilla. Las sombras duras `4px 4px 0` se cambian por `0 12px 26px` y `0 1px 2px`, y el hover deja de desplazar en diagonal: ahora sube 2 px.
+- **Más aire**: hero de 40/6 a 46/12 px, catálogo de 16/24 a 22/28, grilla de 16 a 18 px, cuerpo de tarjeta de 12/8 a 14/9, buscador 2 px más alto, topbar 1 px más separada y con borde simple, pie con 24/56 px y pasos con 20 px de separación.
+- **Filtros agrupados**: cada fila de la toolbar lleva su etiqueta —**Categorías**, **Subcategorías** y **Etiquetas**— armada en [catalog.ts](src/web/catalog.ts); se ocultan por debajo de 800 px, donde el ancho lo necesitan los chips. La barra pasa a panel (fondo `--panel`, borde y radio) alineada con las tarjetas, sin `backdrop-filter`.
+- **Reseñas** ([reviews.css](src/web/reviews.css)): franja, tarjetas, panel lateral, mapa, respuestas, barras de puntaje y estado vacío toman los mismos radios, y el hover también deja de desplazar en diagonal.
+- **Tipografía**: la interfaz pasa a sans (`--font-sans`) y el mono queda para datos —precios de tarjeta y ficha, códigos, ejes de gráficos— con `--font-mono` ya definido (antes caía al valor heredado).
+- **Pestaña del navegador**: `theme-color` de `#0b0f14` a `#0d1319`.
+- **Verificado**: `npm run typecheck` en 0 y `npm run build` en 0; dev server en `127.0.0.1:8787` con `/`, `/resenas` y `/politica-de-privacidad` en 200. Capturas de home (escritorio y 390 px), una ficha y `/resenas` revisadas: etiquetas visibles en escritorio y ocultas en móvil, precios en mono, chips en pastilla y sin scanlines. Medido en el navegador: el header mide 59 px y la toolbar queda en `top: 59px` (49/49 en móvil), así que la barra sticky no deja hueco ni se monta de más.
+- **Sin tocar**: estructura, lógica, panel, filtros, carrito y checkout. Sin deploy ni commit.
+
+## 2026-11-18 — Maqueta de la home en tres variantes para elegir la versión clara
+
+- **Pedido**: "me hacés una versión clara de la página y me mostrás cómo quedaría".
+- **Qué se agregó**: [disenos/version-clara.html](disenos/version-clara.html) y [disenos/version-clara.css](disenos/version-clara.css), una maqueta aislada (no carga ni modifica el CSS del sitio) con la home completa —cinta, barra, hero con buscador, franja de Google, filtros, 8 tarjetas, "Cargar más" y pie— y un conmutador arriba con tres variantes: **A · actual** (paleta real, mono, scanlines, sombras duras), **B · clara** (fondo `#f6f7f9`, tarjetas blancas, sans, radios de 10-12 px y verde de marca a `#157f3c` para llegar a contraste AA) y **C · oscura ordenada** (misma paleta sin scanlines ni animaciones, más aire y filtros agrupados con etiquetas). Suma conmutador escritorio/móvil y los parámetros `?v=`, `?w=` y `?clean=1` que usan las capturas.
+- **Capturas**: `screenshots/version-clara/a-actual.png`, `b-clara.png`, `c-ordenada.png` y `b-clara-movil.png`, sacadas con Playwright sobre el Edge del sistema (`--channel=msedge`), sin descargar navegadores.
+- **Arreglo visto en la captura móvil**: a 390 px el botón "Consultar" salía cortado; el ajuste de precio y botón en filas separadas solo existía en el conmutador de ancho y pasó también al `@media` de pantallas chicas.
+- **Sin tocar**: no se modificó la app (ni `styles.css`, ni `index.html`, ni la lógica). Falta elegir A, B o C para aplicar la variante al sitio real.
+- **Verificado**: maqueta servida en `127.0.0.1:8790` (respuesta 200) y capturas revisadas a 1300 px y a 390 px de ancho.
+
 ## 2026-11-18 — El feed de WhatsApp deja de leer el catálogo en cada descarga de Meta
 
 - **Pedido**: "hacé que el feed CSV de WhatsApp se sirva desde el snapshot o desde KV en vez de recorrer el catálogo entero en cada descarga de Meta, y decime cuántas filas se ahorran por descarga".

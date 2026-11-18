@@ -47,7 +47,7 @@ orderPageApp.get("/pedido/:id", async (c) => {
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <title>Pedido no encontrado</title>
 <style>
-  :root{--bg:#0b0f14;--panel:#10161d;--border-bright:#33475e;--text:#d7e2ea;--muted:#7d8f9f;--brand:#3fb950;--shadow:4px 4px 0 rgb(0 0 0 / .55);--font:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  :root{--bg:#0d1319;--panel:#10161d;--border-bright:#33475e;--text:#d7e2ea;--muted:#7d8f9f;--brand:#3fb950;--shadow:4px 4px 0 rgb(0 0 0 / .55);--font:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center}
   body::before{content:"";position:fixed;inset:0;z-index:9;pointer-events:none;background:repeating-linear-gradient(to bottom,transparent 0 2px,rgb(0 0 0/.12) 3px,transparent 4px);mix-blend-mode:multiply}
   .card{background:var(--panel);border:1px solid var(--border-bright);box-shadow:var(--shadow);padding:36px 28px;max-width:440px;position:relative;z-index:10}
@@ -85,7 +85,7 @@ orderPageApp.get("/pedido/:id", async (c) => {
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <title>Pedido ${esc(order.id.slice(0, 8))}… — ${esc(storeName)}</title>
 <style>
-  :root{--bg:#0b0f14;--panel:#10161d;--panel-2:#161e27;--border:#223041;--border-bright:#33475e;
+  :root{--bg:#0d1319;--panel:#10161d;--panel-2:#161e27;--border:#223041;--border-bright:#33475e;
         --text:#d7e2ea;--muted:#7d8f9f;--brand:#3fb950;--brand-dark:#2e9e3f;--danger:#f85149;--amber:#e3b341;
         --shadow:4px 4px 0 rgb(0 0 0 / .55);
         --font:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}

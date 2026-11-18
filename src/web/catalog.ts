@@ -272,6 +272,7 @@ function renderToolbar(): void {
       </div>
     </div>
     <div class="tb-row">
+      <span class="tb-label">Categorías</span>
       <button class="chip ${state.category === "" ? "on" : ""}" data-cat="">Todos</button>
       ${cats.map((c) => `
         <button class="chip ${state.category === c.id ? "on" : ""}" data-cat="${esc(c.id)}">${esc(c.name)}</button>
@@ -279,11 +280,13 @@ function renderToolbar(): void {
     </div>
     ${subs.length ? `
     <div class="tb-row tb-row--sub">
+      <span class="tb-label">Subcategorías</span>
       ${subs.map((s) => `
         <button class="chip chip--sub ${state.category === s.id ? "on" : ""}" data-cat="${esc(s.id)}">↳ ${esc(s.name)}</button>
       `).join("")}
     </div>` : ""}
     <div class="tb-row">
+      <span class="tb-label">Etiquetas</span>
       ${(["new", "featured", "offer"] as Tag[]).map((t) => `
         <button class="chip ${state.tags.has(t) ? "on" : ""}" data-tag="${t}">${tagLabel(t)}</button>
       `).join("")}

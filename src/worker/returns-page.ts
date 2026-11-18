@@ -25,7 +25,7 @@ function fecha(ms: number): string {
 }
 
 const STYLE = `
-  :root{--bg:#0b0f14;--panel:#10161d;--panel-2:#161e27;--border:#223041;--border-bright:#33475e;
+  :root{--bg:#0d1319;--panel:#10161d;--panel-2:#161e27;--border:#223041;--border-bright:#33475e;
         --text:#d7e2ea;--muted:#7d8f9f;--brand:#3fb950;--amber:#e3b341;
         --shadow:4px 4px 0 rgb(0 0 0 / .55);
         --font:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}

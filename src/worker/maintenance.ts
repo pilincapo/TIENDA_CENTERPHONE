@@ -64,7 +64,7 @@ export function maintenanceHtml(s: StoreSettings, storeName: string): string {
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <title>${name} — Volvemos en un rato</title>
 <style>
-  :root{--bg:#0b0f14;--panel:#10161d;--panel-2:#161e27;--border:#223041;--border-bright:#33475e;
+  :root{--bg:#0d1319;--panel:#10161d;--panel-2:#161e27;--border:#223041;--border-bright:#33475e;
         --text:#d7e2ea;--muted:#7d8f9f;--brand:#3fb950;--brand-dark:#2e9e3f;
         --shadow:4px 4px 0 rgb(0 0 0 / .55);
         --font:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
