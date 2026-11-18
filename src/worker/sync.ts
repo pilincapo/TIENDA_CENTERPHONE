@@ -10,7 +10,7 @@ import { dedupeEntreFuentes } from "./dedupe-sources";
 import { renombrarIds } from "./rename-ids";
 import { getSettings, newId, nowMs } from "./settings";
 import { exclusionSet, isExcluded } from "../shared/sync-exclusions";
-import { invalidateWaFeedCache } from "./wa-feed";
+import { guardarWaFeed, invalidateWaFeedCache } from "./wa-feed";
 
 export interface SyncOutcome {
   ok: boolean;
@@ -126,6 +126,10 @@ export async function regenerateSnapshot(env: Env): Promise<CatalogSnapshot> {
   // Publicar limpia la marca de "sin publicar": el snapshot que acabamos de
   // escribir ya incluye todos los cambios del panel.
   await env.KV.put(KV_CATALOG_PENDING_KEY, "");
+  // El CSV de WhatsApp sale de este mismo catálogo: ya está leído, así que la
+  // descarga de Meta (cada hora) no vuelve a pagar 1.371 filas de D1.
+  const settings = await getSettings(env.KV);
+  await guardarWaFeed(env, products, categories, settings.storeName ?? "");
   // Purga de zona (solo tiene efecto con Cache Rules de zona, no con la Cache API
   // del worker). No bloquea: los errores no propagan.
   await purgeCatalogEdgeCache(env);

@@ -9,9 +9,10 @@
 //    se cachea nunca;
 //  - sin token o con token inválido no se lee ni D1 ni la copia (404 y listo).
 import { describe, expect, it } from "vitest";
-import { WA_FEED_CACHE_KEY, invalidateWaFeedCache, waFeedApp } from "./wa-feed";
+import { WA_FEED_CACHE_KEY, guardarWaFeed, invalidateWaFeedCache, waFeedApp } from "./wa-feed";
 import { markCatalogPending } from "./sync";
 import { KV_SETTINGS_KEY } from "../shared/types";
+import type { Product } from "../shared/types";
 import type { Env } from "./db";
 
 const TOKEN = "token-de-prueba";
@@ -141,6 +142,49 @@ describe("feed de WhatsApp servido desde KV", () => {
     // Tampoco se cachea el 500: la descarga siguiente vuelve a intentar contra D1.
     await waFeedApp.request(FEED_URL, {}, env);
     expect(lecturas()).toBe(2);
+  });
+
+  it("la copia que deja regenerateSnapshot se sirve sin tocar D1", async () => {
+    const { env, lecturas } = makeEnv([FILA]);
+    const producto: Product = {
+      id: "5469",
+      title: "iPhone 13 128 GB",
+      description: "Nuevo",
+      priceCents: 1234500,
+      categoryId: "celulares",
+      subcategoryId: null,
+      tags: [],
+      imageUrl: "https://cdn.ejemplo.com/13.jpg",
+      status: "published",
+      availability: "in_stock",
+      waPublish: true,
+      sortOrder: 0,
+      createdAt: 1,
+      sourceUrl: "https://tecnova.com.ar/",
+      brand: null,
+    };
+    await guardarWaFeed(
+      env,
+      [producto],
+      [{ id: "celulares", name: "Celulares", parentId: null, active: true }],
+      "Center Phone"
+    );
+
+    const res = await waFeedApp.request(FEED_URL, {}, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Wa-Feed-Cache")).toBe("kv");
+    expect(await res.text()).toContain("/producto/5469");
+    // Cero lecturas: el costo lo pagó el snapshot, que ya había leído el catálogo.
+    expect(lecturas()).toBe(0);
+  });
+
+  it("guardarWaFeed no guarda un feed vacío: el endpoint sigue rechazando la descarga", async () => {
+    const { env, kv } = makeEnv([FILA]);
+    await waFeedApp.request(FEED_URL, {}, env);
+    expect(kv._map.has(WA_FEED_CACHE_KEY)).toBe(true);
+
+    await guardarWaFeed(env, [], [], "Center Phone");
+    expect(kv._map.has(WA_FEED_CACHE_KEY)).toBe(false);
   });
 
   it("sin token o con token inválido ni se lee D1 ni la copia", async () => {

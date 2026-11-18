@@ -1,3 +1,12 @@
+## 2026-11-18 — El feed de WhatsApp deja de leer el catálogo en cada descarga de Meta
+
+- **Pedido**: "hacé que el feed CSV de WhatsApp se sirva desde el snapshot o desde KV en vez de recorrer el catálogo entero en cada descarga de Meta, y decime cuántas filas se ahorran por descarga".
+- **Medición**: un armado desde D1 costaba **1.371 filas** (la consulta recorre todos los publicados para devolver 100 marcados) **+ 22 de categorías = 1.393 filas por descarga**. El caché en KV ya existía, pero con TTL de **300 s** y Meta descargando **cada hora**: la copia vencía mucho antes de la próxima descarga, así que todas leían D1.
+- **El CSV ahora se arma con el snapshot** ([wa-feed.ts](src/worker/wa-feed.ts), [sync.ts](src/worker/sync.ts)): `regenerateSnapshot` ya lee el catálogo completo, así que arma el feed con ese mismo array (`guardarWaFeed`) y lo deja en KV. La descarga pasó a leer solo KV: **1.393 → 0 filas de D1**.
+- **TTL de 7 días como backstop**: la frescura no la da el vencimiento sino la reescritura en cada regeneración (importaciones, syncs, publicar) y la invalidación de los cambios de marcas de WhatsApp. Estirar el TTL era imprescindible: con importaciones cada hora, cada invalidación habría forzado un rearmado igual.
+- **Guarda anti-borrado intacta**: si no queda ningún producto publicable, `guardarWaFeed` borra la copia en vez de guardar un archivo vacío, y el endpoint responde 500 leyendo D1 como antes (un feed vacío vacía el catálogo de Meta).
+- **Verificado**: `npm run typecheck` en 0 y los tests de `wa-feed-cache.test.ts` con 2 casos nuevos (la copia del snapshot se sirve sin leer D1; un feed vacío no se guarda).
+
 ## 2026-11-18 — El sitemap deja de pagar 1.371 filas por cada variante de URL
 
 - **Pedido**: "arreglá el cache del sitemap: medimos que cada descache cuesta 1.371 filas y que cualquier query string genera una entrada nueva porque la clave es `c.req.url`. Normalizá la clave y, si conviene, serví el XML guardado en vez de rearmarlo desde D1".

@@ -11,11 +11,16 @@
 // y se rota desde el panel (Ajustes → Catálogo de WhatsApp) y vive en KV con los
 // ajustes de la tienda.
 //
-// El CSV se sirve desde una copia en KV: así la descarga no lee el catálogo
-// entero en D1 cada vez ni multiplica la factura de filas si la URL se filtra y
-// alguien la golpea. La copia se tira en cada cambio del catálogo (ver
-// invalidateWaFeedCache), así que el TTL es solo el techo de cuánto puede quedar
-// vieja, no la única garantía de frescura.
+// El CSV se arma junto al snapshot del catálogo (ver regenerateSnapshot en
+// sync.ts): ese paso ya leyó toda la tabla de productos, así que la descarga de
+// Meta no toca D1 ni multiplica la factura de filas si la URL se filtra o
+// alguien la golpea. La copia vive en KV y se reescribe en cada regeneración del
+// snapshot; el TTL es solo el techo de cuánto podría quedar vieja si alguna
+// escritura no llegara a invalidarla (ver invalidateWaFeedCache).
+//
+// El endpoint igual sabe armar el archivo por su cuenta leyendo D1, pero es el
+// camino de excepción: sin copia (primer deploy) o después de un cambio de las
+// marcas de WhatsApp, que no regenera el snapshot.
 
 import { Hono } from "hono";
 import type { Context } from "hono";
@@ -24,6 +29,7 @@ import { listCategories, listWhatsAppFeedProducts } from "./db";
 import { getSettings } from "./settings";
 import { timingSafeEqualStr } from "./auth";
 import { buildWaFeed } from "../shared/wa-feed";
+import type { Category, Product } from "../shared/types";
 
 export const waFeedApp = new Hono<{ Bindings: Env }>();
 
@@ -31,10 +37,14 @@ export const waFeedApp = new Hono<{ Bindings: Env }>();
 export const WA_FEED_CACHE_KEY = "wa:feed:cache:v1";
 
 /**
- * Vencimiento corto de la copia. Es el techo de frescura si alguna escritura no
- * llegara a invalidarla; los cambios del panel se ven igual al instante.
+ * Vencimiento de la copia: 7 días, solo como backstop. No es el mecanismo de
+ * frescura —cada regenerateSnapshot la reescribe y cada cambio de marcas la
+ * tira—, pero tiene que ser bastante más largo que el intervalo de descarga de
+ * Meta (cada hora o cada día). Con los 5 minutos de antes, la copia ya había
+ * vencido cuando Meta volvía a pedir el archivo: cada descarga leía el catálogo
+ * entero (1.371 filas de productos + 22 de categorías).
  */
-export const WA_FEED_CACHE_TTL_SECONDS = 300;
+export const WA_FEED_CACHE_TTL_SECONDS = 604_800;
 
 /**
  * Tira la copia del feed. Se llama desde cada cambio que puede alterar el archivo:
@@ -49,10 +59,53 @@ export async function invalidateWaFeedCache(env: Env): Promise<void> {
     await env.KV.delete(WA_FEED_CACHE_KEY);
   } catch (e) {
     // Best-effort a propósito: acá ya se guardó un cambio de verdad (o se sincronizó) y
-    // no puede fallar la operación entera porque el caché no responda. La copia vence
-    // sola en WA_FEED_CACHE_TTL_SECONDS, así que lo peor es un feed de unos minutos de
-    // antigüedad, y el error queda en Workers Logs.
+    // no puede fallar la operación entera porque el caché no responda. La copia se
+    // rearma en la próxima descarga leyendo D1, y el error queda en Workers Logs.
     console.error("invalidateWaFeedCache falló:", e);
+  }
+}
+
+/** Origen público del sitio, para los links del CSV. */
+export function origenWaFeed(env: Env, actual: string): string {
+  return (env.CF_SITE_ORIGIN ?? "").replace(/\/+$/, "") || actual;
+}
+
+/**
+ * Arma el CSV con un catálogo ya leído y deja la copia en KV. La llama
+ * regenerateSnapshot, que ya pagó la lectura completa de productos: así el feed
+ * no cuesta filas de D1 ni siquiera cuando Meta lo pide todos los días.
+ *
+ * Si no queda ningún producto publicable, borra la copia en vez de guardar un
+ * archivo vacío: el guard anti-borrado del endpoint tiene que decidir sobre D1 y
+ * responder 500, porque un feed vacío vacía el catálogo de WhatsApp.
+ */
+export async function guardarWaFeed(
+  env: Env,
+  products: Product[],
+  categories: Category[],
+  storeName: string,
+): Promise<void> {
+  // Sin origen configurado no se puede armar los links: lo hace el endpoint, que
+  // conoce el host del request.
+  const origin = (env.CF_SITE_ORIGIN ?? "").replace(/\/+$/, "");
+  if (origin === "") return;
+
+  const { csv, included } = buildWaFeed(
+    products.filter((p) => p.waPublish === true && p.status === "published"),
+    { origin, storeName, categoryNames: new Map(categories.map((cat) => [cat.id, cat.name])) },
+  );
+  if (included === 0) {
+    await invalidateWaFeedCache(env);
+    return;
+  }
+  try {
+    await env.KV.put(WA_FEED_CACHE_KEY, JSON.stringify({ csv, included }), {
+      expirationTtl: WA_FEED_CACHE_TTL_SECONDS,
+    });
+  } catch (e) {
+    // Igual que la invalidación: el snapshot ya está guardado y no puede fallar por
+    // la copia del feed. La descarga siguiente lo arma desde D1.
+    console.error("guardarWaFeed: no se pudo guardar la copia en KV:", e);
   }
 }
 
@@ -75,8 +128,9 @@ waFeedApp.get("/api/whatsapp/feed.csv", async (c) => {
     return c.json({ error: "No encontrado" }, 404);
   }
 
-  // Copia en KV: si está, la descarga no toca D1. Un JSON ilegible se trata como
-  // fallo de caché (se rearma), no como error de la descarga.
+  // Copia en KV: es el camino normal (la deja regenerateSnapshot), así que la
+  // descarga no toca D1. Un JSON ilegible se trata como fallo de caché (se
+  // rearma), no como error de la descarga.
   const cacheado = await c.env.KV.get<{ csv?: string; included?: number }>(WA_FEED_CACHE_KEY, "json").catch(() => null);
   if (cacheado && typeof cacheado.csv === "string" && cacheado.csv !== "") {
     console.log(`wa-feed: servido desde KV (${cacheado.included ?? "?"} producto(s), sin leer D1)`);
@@ -98,7 +152,7 @@ waFeedApp.get("/api/whatsapp/feed.csv", async (c) => {
     return c.text("No hay productos marcados para el catálogo de WhatsApp", 500);
   }
 
-  const origin = (c.env.CF_SITE_ORIGIN ?? "").replace(/\/+$/, "") || new URL(c.req.url).origin;
+  const origin = origenWaFeed(c.env, new URL(c.req.url).origin);
   const { csv, included, skipped } = buildWaFeed(products, {
     origin,
     storeName: settings.storeName ?? "",
