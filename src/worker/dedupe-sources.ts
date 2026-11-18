@@ -83,38 +83,65 @@ function mismaFicha(a: { priceCents: number; imageUrl: string }, b: Fila): boole
   return true;
 }
 
-/** Todas las filas importadas de un host (en UNA lectura, se filtra en JS:
- *  el `lower()` de SQLite no baja las mayúsculas acentuadas). */
-async function filasDelProveedor(db: D1Database, host: string): Promise<Fila[]> {
-  const res = await db
-    .prepare(
-      `SELECT id, title, price_cents, image_url, source_url, status, subcategory_id, created_at
-       FROM products
-       WHERE source_url IS NOT NULL`
-    )
-    .all<{
-      id: string;
-      title: string;
-      price_cents: number;
-      image_url: string | null;
-      source_url: string | null;
-      status: string;
-      subcategory_id: string | null;
-      created_at: number;
-    }>();
+/** Títulos por consulta de candidatos. Viajan en UN bind JSON (`json_each`), así
+ *  que el límite de 100 parámetros por sentencia de D1 no acota el lote; 400 deja
+ *  la respuesta en un tamaño cómodo (la fuente más grande trae ~700 items). */
+const TITLE_LOOKUP_CHUNK = 400;
+
+interface FilaRow {
+  id: string;
+  title: string;
+  price_cents: number;
+  image_url: string | null;
+  source_url: string | null;
+  status: string;
+  subcategory_id: string | null;
+  created_at: number;
+}
+
+function aFila(r: FilaRow): Fila {
+  return {
+    id: String(r.id),
+    title: String(r.title),
+    priceCents: Number(r.price_cents),
+    imageUrl: String(r.image_url ?? ""),
+    sourceUrl: r.source_url == null ? null : String(r.source_url),
+    status: String(r.status),
+    subcategoryId: r.subcategory_id == null ? null : String(r.subcategory_id),
+    createdAt: Number(r.created_at ?? 0),
+  };
+}
+
+/** Filas candidatas: las que comparten TÍTULO con algún item de la importación.
+ *
+ *  Antes se leía TODO el catálogo importado (2.090 filas) en cada importación
+ *  —unas 23 por día— aunque el listado no trajera ninguna novedad: el dedupe
+ *  solo compara por título, así que con `idx_products_title` alcanza con pedir
+ *  esas filas. Si la importación no cambió, el candidato de cada item es su
+ *  propia fila, o sea una lectura por item en vez de una por producto del
+ *  proveedor.
+ *
+ *  El título se compara exacto en SQL a propósito: el listado paraguas y el de la
+ *  categoría salen de la misma ficha del proveedor y el texto llega idéntico
+ *  (verificado sobre los 670 títulos repetidos entre fuentes de producción: el
+ *  único distinto es Tecnova contra hacetupedido, que es otro proveedor y el
+ *  dedupe ya descarta por host). La comparación fina sigue siendo la normalizada
+ *  de `claveTitulo`, que ahora recorta estos candidatos. */
+async function filasCandidatas(db: D1Database, titles: string[]): Promise<Fila[]> {
+  const unicos = [...new Set(titles)];
   const out: Fila[] = [];
-  for (const r of res.results) {
-    if (hostDeFuente(r.source_url ?? null) !== host) continue;
-    out.push({
-      id: String(r.id),
-      title: String(r.title),
-      priceCents: Number(r.price_cents),
-      imageUrl: String(r.image_url ?? ""),
-      sourceUrl: r.source_url == null ? null : String(r.source_url),
-      status: String(r.status),
-      subcategoryId: r.subcategory_id == null ? null : String(r.subcategory_id),
-      createdAt: Number(r.created_at ?? 0),
-    });
+  for (let i = 0; i < unicos.length; i += TITLE_LOOKUP_CHUNK) {
+    const chunk = unicos.slice(i, i + TITLE_LOOKUP_CHUNK);
+    const res = await db
+      .prepare(
+        `SELECT id, title, price_cents, image_url, source_url, status, subcategory_id, created_at
+         FROM products
+         WHERE source_url IS NOT NULL
+           AND title IN (SELECT value FROM json_each(?1))`
+      )
+      .bind(JSON.stringify(chunk))
+      .all<FilaRow>();
+    for (const r of res.results) out.push(aFila(r));
   }
   return out;
 }
@@ -169,9 +196,12 @@ export async function dedupeEntreFuentes(
   const host = hostDeFuente(sourceUrl);
   if (host === null || items.length === 0) return { descartados: 0, ocultados: 0, items };
 
-  const filas = await filasDelProveedor(db, host);
+  const filas = await filasCandidatas(db, items.map((p) => p.title));
   const porClave = new Map<string, Fila[]>();
   for (const f of filas) {
+    // El recorte por título lo hizo SQL; el host se compara acá porque el
+    // `lower()` de SQLite no baja las mayúsculas acentuadas.
+    if (hostDeFuente(f.sourceUrl) !== host) continue;
     const k = claveTitulo(f.title);
     const lista = porClave.get(k);
     if (lista) lista.push(f);

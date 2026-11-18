@@ -34,6 +34,8 @@ interface FakeD1 {
   db: D1Database;
   lecturas: { sql: string; binds: unknown[] }[];
   escrituras: { sql: string; binds: unknown[] }[];
+  /** Filas que devolvieron las lecturas (para probar que el SQL recorta candidatos). */
+  devueltas: number;
   /** from_id → to_id de product_redirects. */
   redirects: Record<string, string>;
   /** ids que quedaron con status hidden. */
@@ -76,6 +78,7 @@ function makeDb(filas: Fila[], redirects: Record<string, string> = {}): FakeD1 {
   const lecturas: { sql: string; binds: unknown[] }[] = [];
   const escrituras: { sql: string; binds: unknown[] }[] = [];
   const ocultos = new Set<string>();
+  let devueltas = 0;
 
   const ejecutar = async (sql: string, binds: unknown[]) => {
     escrituras.push({ sql, binds });
@@ -108,21 +111,23 @@ function makeDb(filas: Fila[], redirects: Record<string, string> = {}): FakeD1 {
       const conBinds = (binds: unknown[]) => ({
         all: async () => {
           lecturas.push({ sql, binds });
-          // El SELECT real filtra source_url IS NOT NULL: las altas manuales no entran.
-          return {
-            results: filas
-              .filter((f) => f.sourceUrl !== null)
-              .map((f) => ({
-                id: f.id,
-                title: f.title,
-                price_cents: f.priceCents,
-                image_url: f.imageUrl,
-                source_url: f.sourceUrl,
-                status: f.status,
-                subcategory_id: f.subcategoryId,
-                created_at: f.createdAt,
-              })),
-          };
+          // El SELECT real filtra source_url IS NOT NULL (las altas manuales no
+          // entran) y recorta por título con `title IN (json_each(?1))`.
+          const titulos = new Set((JSON.parse(String(binds[0] ?? "[]")) as string[]) ?? []);
+          const results = filas
+            .filter((f) => f.sourceUrl !== null && titulos.has(f.title))
+            .map((f) => ({
+              id: f.id,
+              title: f.title,
+              price_cents: f.priceCents,
+              image_url: f.imageUrl,
+              source_url: f.sourceUrl,
+              status: f.status,
+              subcategory_id: f.subcategoryId,
+              created_at: f.createdAt,
+            }));
+          devueltas += results.length;
+          return { results };
         },
         run: () => ejecutar(sql, binds),
         first: async () => null,
@@ -130,7 +135,16 @@ function makeDb(filas: Fila[], redirects: Record<string, string> = {}): FakeD1 {
       return { ...conBinds([]), bind: (...binds: unknown[]) => conBinds(binds) };
     },
   };
-  return { db: db as unknown as D1Database, lecturas, escrituras, redirects, ocultos };
+  return {
+    db: db as unknown as D1Database,
+    lecturas,
+    escrituras,
+    redirects,
+    ocultos,
+    get devueltas() {
+      return devueltas;
+    },
+  };
 }
 
 describe("claveTitulo / hostDeFuente", () => {
@@ -219,6 +233,35 @@ describe("dedupeEntreFuentes", () => {
 
     expect(r.items).toHaveLength(1);
     expect(f.escrituras).toHaveLength(0);
+  });
+
+  it("pide solo las filas con el título de la importación, no el catálogo entero", async () => {
+    // 2.000 filas de otras fuentes con títulos que no vienen en esta importación:
+    // el recorte por título de SQL las deja afuera (antes se leían todas).
+    const ajenas = Array.from({ length: 2000 }, (_, i) =>
+      fila({ id: `ajeno-${i}`, title: `Producto ajeno ${i}` })
+    );
+    const f = makeDb([...ajenas, fila({ id: SLUG })]);
+    const r = await dedupeEntreFuentes(f.db, [item({ id: SLUG, sourceUrl: CABLES, subcategoryId: "cables" })], CABLES, 5000);
+
+    expect(r.items.map((p) => p.id)).toEqual([SLUG]);
+    expect(f.lecturas).toHaveLength(1);
+    expect(f.lecturas[0]?.sql).toContain("json_each");
+    expect(f.devueltas).toBe(1);
+    expect(f.escrituras).toHaveLength(0);
+  });
+
+  it("una importación con un id nuevo sí trae los candidatos de ese título", async () => {
+    // El item no existe todavía: su candidato es la copia de la otra fuente.
+    const f = makeDb([
+      fila({ id: SLUG }),
+      fila({ id: "ajeno-1", title: "Producto ajeno 1" }),
+    ]);
+    const r = await dedupeEntreFuentes(f.db, [item({ id: "4693" })], ELECTRONICA, 5000);
+
+    expect(r.descartados).toBe(1);
+    expect(f.devueltas).toBe(1); // solo la copia con ese título
+    expect(f.redirects).toEqual({ "4693": SLUG });
   });
 
   it("sin sourceUrl no hace nada", async () => {
