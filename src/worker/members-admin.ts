@@ -15,6 +15,7 @@ import type { Dict, Env } from "./db";
 import { nowMs, saveSettings } from "./settings";
 import { insertMember, rowToMember, validateMemberInput } from "./loyalty";
 import { memberTierPercent, type Member } from "../shared/loyalty";
+import { invalidarSitemap } from "./seo";
 
 const COLUMNS =
   "id, code, name, phone, email, birthday, active, source, created_at, updated_at, last_order_at, discount_percent";
@@ -138,13 +139,9 @@ export function registerMemberAdminRoutes(app: Hono<{ Bindings: Env }>): void {
     if (!body || typeof body.enabled !== "boolean") return c.json({ error: "Body inválido" }, 400);
 
     const settings = await saveSettings(c.env.KV, { loyaltyEnabled: body.enabled });
-    // El sitemap se cachea 24 h en el borde: se suelta para que /club entre o
+    // El sitemap se cachea 24 h (borde y KV): se suelta para que /club entre o
     // salga del índice al instante y no quede una copia vieja.
-    try {
-      await caches.default.delete(new URL("/sitemap.xml", c.req.url).toString());
-    } catch {
-      // Cache API ausente (tests): el TTL lo corrige solo.
-    }
+    await invalidarSitemap(c.env);
     return c.json({ ok: true, loyaltyEnabled: settings.loyaltyEnabled });
   });
 

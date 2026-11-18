@@ -12,6 +12,7 @@
 // muestran y el botón "Escribir una reseña" abre la ficha del local.
 
 import { Hono } from "hono";
+import { invalidarSitemap } from "./seo";
 import type { Dict, Env } from "./db";
 import { forceHttpsUrl, getSettings, newId, nowMs, saveSettings } from "./settings";
 import { displayRating, validateReviewInput, type GoogleReview } from "../shared/reviews";
@@ -181,6 +182,9 @@ export function registerReviewsAdminRoutes(app: Hono<{ Bindings: Env }>): void {
     if (Object.keys(next).length === 0) return c.json({ error: "Body inválido" }, 400);
 
     const settings = await saveSettings(c.env.KV, next);
+    // /resenas entra o sale del sitemap según este toggle: si cambió, se suelta
+    // la copia cacheada (borde y KV) para no esperar al TTL.
+    if (next.googleReviewsEnabled !== undefined) await invalidarSitemap(c.env);
     return c.json({
       ok: true,
       config: {

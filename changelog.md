@@ -1,3 +1,14 @@
+## 2026-11-18 — El sitemap deja de pagar 1.371 filas por cada variante de URL
+
+- **Pedido**: "arreglá el cache del sitemap: medimos que cada descache cuesta 1.371 filas y que cualquier query string genera una entrada nueva porque la clave es `c.req.url`. Normalizá la clave y, si conviene, serví el XML guardado en vez de rearmarlo desde D1".
+- **Clave normalizada** ([seo.ts](src/worker/seo.ts)): pasa a ser `${origen del sitio}/sitemap.xml`, sin query string y sin depender del host del request. Antes `?utm=...` o `?x=1` creaban una entrada nueva en el caché del PoP —cada una costaba **1.371 filas**, la medición que dejó el `wrangler tail`— y el espejo workers.dev tenía la suya aunque el XML publicado es siempre el mismo.
+- **XML guardado en KV** (`seo:sitemap:xml`, 24 h): cuando el PoP no tiene la respuesta, la lee de KV en vez de recorrer los publicados. D1 se toca **una vez por día como mucho** (la primera petición después del vencimiento) en lugar de una vez por descache y por variante. El TTL es el mismo que el del borde, así que la frescura no cambia.
+- **Invalidación**: `invalidarSitemap(env)` suelta la copia de KV y la del PoP. La usa el toggle del club —que ya invalidaba— y ahora también la configuración de reseñas, que decide si `/resenas` entra al sitemap.
+- **Costo**: un `KV.put` por día y una lectura de KV por descache de PoP; las peticiones que aciertan en el caché del borde no tocan KV ni D1. Nada de escrituras por request.
+- **Verificado**: `npm run typecheck` en 0 y **20 tests en `seo.test.ts`** (3 nuevos: una query string no crea otra entrada y usa la clave normalizada; el XML se sirve desde KV sin tocar D1; `invalidarSitemap` borra KV y el caché del PoP).
+- **Deploy**: `npm run deploy` → versión **`1e00276d-5144-443c-8158-55c1f0d051e9`**, con los bindings y el schedule intactos.
+- **Verificado en producción**: con `wrangler tail` enganchado, `GET /sitemap.xml?probe=...` dejó **una sola** línea `d1_uso ruta=/sitemap.xml filas=1371 consultas=1` (el armado desde D1), y las dos siguientes —otra query distinta y sin query— **no agregaron ninguna**: la clave normalizada las sirve desde el caché. Los tres XML salieron idénticos (mismo md5, **261.189 bytes**), la copia quedó legible en KV (`seo:sitemap:xml`) y `centerphone.com.ar/sitemap.xml` responde 200 con ese mismo tamaño, igual que `robots.txt`.
+
 ## 2026-11-18 — Revisión de la instrumentación de D1: menos código, la misma cobertura
 
 - **Pedido**: "revisá con ojos frescos la instrumentación de D1 y el cambio de los conteos del panel: simplificá lo que sobre, cambiá de enfoque donde haya algo mejor y sacá lo que no aporte".

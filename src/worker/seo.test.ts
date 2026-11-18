@@ -9,7 +9,7 @@
 //   redirigía y Google podía tener copias indexadas sin versión canónica).
 // - El espejo workers.dev responde X-Robots-Tag: noindex (duplicados).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { seoApp } from "./seo";
+import { invalidarSitemap, seoApp, SITEMAP_KV_KEY } from "./seo";
 import { applyWorkersDevNoIndex } from "./security";
 import worker from "./index";
 import type { Env } from "./db";
@@ -125,6 +125,64 @@ describe("sitemap.xml", () => {
     // Sin fecha válida se omite la etiqueta en vez de inventar la fecha de hoy.
     expect(xml).toContain("producto/p-3</loc><changefreq>");
     expect(xml).not.toMatch(/producto\/p-3<\/loc><lastmod>/);
+  });
+
+  it("usa una clave normalizada: la query string no crea otra entrada", async () => {
+    // Antes la clave era `c.req.url`: cada variante (?utm=..., ?x=1) costaba
+    // 1.371 filas de D1 por una entrada nueva en el caché del PoP.
+    const match = vi.fn(async () => undefined);
+    const put = vi.fn(async () => {});
+    vi.stubGlobal("caches", { default: { match, put } });
+    const pendientes: Promise<unknown>[] = [];
+    const ctxLocal = {
+      waitUntil: (p: Promise<unknown>) => pendientes.push(p),
+      passThroughOnException: () => {},
+    } as unknown as ExecutionContext;
+
+    await seoApp.request("/sitemap.xml?utm=newsletter&x=1", {}, mockEnv(), ctxLocal);
+    await Promise.all(pendientes);
+
+    expect(match).toHaveBeenCalledWith("https://centerphone.com.ar/sitemap.xml");
+    expect(put).toHaveBeenCalledWith("https://centerphone.com.ar/sitemap.xml", expect.anything());
+  });
+
+  it("sirve el XML guardado en KV sin tocar D1", async () => {
+    let consultas = 0;
+    const env = mockEnv();
+    env.DB = {
+      prepare: () => {
+        consultas += 1;
+        return { all: async () => ({ results: [] }), first: async () => null, run: async () => ({ success: true }) };
+      },
+    } as unknown as D1Database;
+    env.KV = {
+      get: async (k: string) => (k === SITEMAP_KV_KEY ? "<urlset>guardado</urlset>" : null),
+      put: async () => {},
+      delete: async () => {},
+    } as unknown as KVNamespace;
+
+    const res = await seoApp.request("/sitemap.xml", {}, env, ctx);
+    expect(await res.text()).toBe("<urlset>guardado</urlset>");
+    expect(consultas).toBe(0);
+  });
+
+  it("invalidarSitemap suelta la copia de KV y la del PoP", async () => {
+    const borrados: string[] = [];
+    const cacheDel = vi.fn(async () => {});
+    vi.stubGlobal("caches", { default: { match: async () => undefined, put: async () => {}, delete: cacheDel } });
+    const env = mockEnv();
+    env.KV = {
+      get: async () => null,
+      put: async () => {},
+      delete: async (k: string) => {
+        borrados.push(k);
+      },
+    } as unknown as KVNamespace;
+
+    await invalidarSitemap(env);
+
+    expect(borrados).toEqual([SITEMAP_KV_KEY]);
+    expect(cacheDel).toHaveBeenCalledWith("https://centerphone.com.ar/sitemap.xml");
   });
 
   it("robots.txt bloquea admin y el feed, y publica el sitemap", async () => {
