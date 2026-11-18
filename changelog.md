@@ -1,3 +1,9 @@
+## 2026-11-18 — Publica la variante C y el theme-color nuevo en todas las páginas
+
+- **Commit**: `6f0d72c` — "Pasa el catálogo a la variante C: tema oscuro ordenado" (21 archivos: `styles.css`, `reviews.css`, `catalog.ts`, las siete páginas, el manifest, las tres páginas del worker y la maqueta de `disenos/`). Quedan afuera `package.json` (claves `allowScripts` de una instalación anterior) y las capturas de `screenshots/tema-oscuro-ordenado/`, que son de verificación local.
+- **Deploy**: `npm run deploy` → versión **`341884a3-ad24-4d6a-bc48-33475063783a`**, 22 archivos subidos; los bindings `KV`, `EMAIL`, `DB`, `ASSETS`, `CF_ACCOUNT_ID` y `CF_SITE_ORIGIN` siguen igual y el cron quedó en `0 * * * *`.
+- **Verificado en producción**: `/`, `/resenas`, `/club`, `/devoluciones`, `/politica-de-privacidad`, `/politica-de-cambios-y-devoluciones`, una ficha y una ruta inexistente (404) responden con `theme-color` `#0d1319`; `/manifest.webmanifest` devuelve `theme_color` y `background_color` `#0d1319`. El CSS publicado (`/assets/html-CD3QioZ1.css`) trae `--radius: 10px` y la etiqueta `.tb-label`, y no tiene ninguna coincidencia de `repeating-linear-gradient` (scanlines) ni de `#0b0f14`.
+
 ## 2026-11-18 — El color de la barra del navegador pasa a #0d1319 en todas las páginas
 
 - **Pedido**: "sigue habiendo #0b0f14 en las demás páginas (ficha, reseñas, club, devoluciones, legales, 404) y en el manifest... encontrá de dónde se emite ese color y unificalo con #0d1319".
@@ -19,7 +25,7 @@
 - **Tipografía**: la interfaz pasa a sans (`--font-sans`) y el mono queda para datos —precios de tarjeta y ficha, códigos, ejes de gráficos— con `--font-mono` ya definido (antes caía al valor heredado).
 - **Pestaña del navegador**: `theme-color` de `#0b0f14` a `#0d1319`.
 - **Verificado**: `npm run typecheck` en 0 y `npm run build` en 0; dev server en `127.0.0.1:8787` con `/`, `/resenas` y `/politica-de-privacidad` en 200. Capturas de home (escritorio y 390 px), una ficha y `/resenas` revisadas: etiquetas visibles en escritorio y ocultas en móvil, precios en mono, chips en pastilla y sin scanlines. Medido en el navegador: el header mide 59 px y la toolbar queda en `top: 59px` (49/49 en móvil), así que la barra sticky no deja hueco ni se monta de más.
-- **Sin tocar**: estructura, lógica, panel, filtros, carrito y checkout. Sin deploy ni commit.
+- **Sin tocar**: estructura, lógica, panel, filtros, carrito y checkout.
 
 ## 2026-11-18 — Maqueta de la home en tres variantes para elegir la versión clara
 
