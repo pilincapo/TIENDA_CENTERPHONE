@@ -25,31 +25,34 @@ function fecha(ms: number): string {
 }
 
 const STYLE = `
-  :root{--bg:#0d1319;--panel:#10161d;--panel-2:#161e27;--border:#223041;--border-bright:#33475e;
-        --text:#d7e2ea;--muted:#7d8f9f;--brand:#3fb950;--amber:#e3b341;
-        --shadow:4px 4px 0 rgb(0 0 0 / .55);
-        --font:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  :root{--bg:#0d1319;--panel:#151d26;--panel-2:#1b242e;--border:#26333f;--border-bright:#38495a;
+        --text:#e2e9ef;--muted:#93a4b3;--brand:#4cc45e;--amber:#e3b341;
+        --radius:10px;--radius-sm:8px;
+        --shadow:0 12px 26px rgb(0 0 0 / .38);
+        --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,system-ui,sans-serif;
+        --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;padding:24px;display:flex;justify-content:center}
-  body::before{content:"";position:fixed;inset:0;z-index:9;pointer-events:none;background:repeating-linear-gradient(to bottom,transparent 0 2px,rgb(0 0 0/.12) 3px,transparent 4px);mix-blend-mode:multiply}
-  .card{background:var(--panel);border:1px solid var(--border-bright);box-shadow:var(--shadow);padding:28px 24px;max-width:640px;width:100%;position:relative;z-index:10}
+  /* align-items:flex-start evita que la tarjeta se estire a todo el alto
+     cuando el contenido es corto (solicitud no encontrada). */
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;padding:28px 24px;display:flex;justify-content:center;align-items:flex-start}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:30px 26px;max-width:640px;width:100%}
   .eyebrow{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.1em;margin:0 0 6px}
-  h1{font-size:19px;margin:0 0 4px;font-weight:800}
-  .code{font-size:22px;font-weight:800;color:var(--amber);letter-spacing:.08em;margin:6px 0 0}
-  .badge{display:inline-block;padding:3px 10px;font-size:12px;font-weight:700;border:1px solid var(--brand);color:var(--brand);margin:12px 0 0}
-  .badge.en_revision,.badge.aprobada{color:var(--amber);border-color:var(--amber)}
-  .badge.cerrada{color:var(--muted);border-color:var(--border-bright)}
+  h1{font-size:20px;margin:0 0 4px;font-weight:800;letter-spacing:-.01em}
+  .code{font-family:var(--mono);font-size:22px;font-weight:800;color:var(--amber);letter-spacing:.08em;margin:6px 0 0}
+  .badge{display:inline-block;padding:3px 11px;font-size:12px;font-weight:700;border:1px solid transparent;border-radius:999px;color:var(--brand);background:rgb(76 196 94 / .14);margin:12px 0 0}
+  .badge.en_revision,.badge.aprobada{color:var(--amber);background:rgb(227 179 65 / .12)}
+  .badge.cerrada{color:var(--muted);background:rgb(147 164 179 / .14)}
   .meta{color:var(--muted);font-size:12.5px;margin:10px 0 0;line-height:1.6}
-  hr{border:none;border-top:1px solid var(--border-bright);margin:18px 0}
-  h2{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:0 0 10px}
-  .respuesta{background:var(--panel-2);border-left:3px solid var(--brand);padding:12px 14px;font-size:14px;line-height:1.6;white-space:pre-wrap;margin:0}
+  hr{border:none;border-top:1px solid var(--border);margin:18px 0}
+  h2{font-size:12.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:0 0 10px}
+  .respuesta{background:var(--panel-2);border-left:3px solid var(--brand);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:12px 14px;font-size:14px;line-height:1.6;white-space:pre-wrap;margin:0}
   ol.hist{list-style:none;margin:0;padding:0}
   ol.hist li{position:relative;padding:0 0 14px 22px;font-size:13.5px;line-height:1.5}
   ol.hist li::before{content:"›";position:absolute;left:0;top:-1px;color:var(--brand);font-weight:800}
   ol.hist li:last-child{padding-bottom:0}
   ol.hist time{display:block;color:var(--muted);font-size:12px}
   a{color:var(--brand);text-decoration:underline}
-  .actions{display:flex;flex-wrap:wrap;gap:14px;margin-top:20px;font-size:13.5px}
+  .actions{display:flex;flex-wrap:wrap;gap:14px;margin-top:22px;font-size:13.5px}
   .note{color:var(--muted);font-size:12.5px;line-height:1.6;margin:18px 0 0}
   .empty{color:var(--muted);font-size:13.5px;margin:0}
 `;
@@ -69,7 +72,7 @@ returnsPageApp.get("/devoluciones/seguimiento/:token", async (c) => {
   if (!data) {
     const html = `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex"><title>Seguimiento no encontrado — ${esc(storeName)}</title>
+<meta name="robots" content="noindex"><meta name="theme-color" content="#0d1319"><title>Seguimiento no encontrado — ${esc(storeName)}</title>
 <link rel="icon" type="image/png" href="/favicon.png"><style>${STYLE}</style></head>
 <body><div class="card">
   <p class="eyebrow">${esc(storeName)}</p>
@@ -92,7 +95,7 @@ returnsPageApp.get("/devoluciones/seguimiento/:token", async (c) => {
 
   const html = `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex"><title>Seguimiento ${esc(data.code)} — ${esc(storeName)}</title>
+<meta name="robots" content="noindex"><meta name="theme-color" content="#0d1319"><title>Seguimiento ${esc(data.code)} — ${esc(storeName)}</title>
 <link rel="icon" type="image/png" href="/favicon.png"><style>${STYLE}</style></head>
 <body><div class="card">
   <p class="eyebrow">${esc(storeName)} · Seguimiento de solicitud</p>

@@ -1,3 +1,34 @@
+## 2026-11-18 — Comparación de bordes a 3:1 (medición, sin aplicar)
+
+- **Pedido**: subir `--border` y `--border-bright` a 3:1 sobre `--panel` y mostrar la comparación con el estado actual antes de aplicar nada.
+- **Colores que hacen falta**: 3:1 justo sobre `--panel` (#151d26) pide `--border` **#556a80** (3.04) y `--border-bright` **#66798f** (3.80); para pasar también sobre `--panel-2` (#1b242e), donde viven inputs, selects y chips, hacen falta **#5f7489** (3.25) y **#6b7f95** (3.81).
+- **Cómo se comparó**: tres capturas del mismo estado de la home en `screenshots/bordes/` (`actual`, `3a1-panel`, `3a1-panel2`), cambiando solo esos dos tokens con CSS en memoria en el navegador. Ningún archivo del sitio se tocó.
+- **Observación**: a 3:1 los bordes dejan de leerse como marco y compiten con las fotos de producto, y `--border` queda casi tan claro como `--border-bright`, con lo que se pierde la jerarquía de dos tonos que aprobaste. Queda a decisión del usuario.
+
+## 2026-11-18 — Limpieza del CSS del tema: un nombre por token y sin reglas muertas
+
+- **Pedido**: "revisá con ojos frescos el cambio de tema de esta rama... puede haber reglas duplicadas, tokens muertos o contrastes flojos. Simplificá lo que sobre... sin cambiar el resultado visual que ya se aprobó".
+- **Tokens renombrados**: los `--term-*` que quedaban del tema CRT pasan a los nombres del tema —`--term-amber` → `--amber`, `--term-amber-soft` → `--amber-soft`, `--term-green-soft` → `--brand-soft`, `--term-shadow` → `--shadow` y `--term-shadow-sm` → `--shadow-sm`— para que convivan con los que ya seguían ese patrón (`--blue-soft`, `--danger-soft`, `--muted-soft`). No queda ninguna referencia a `--term-*` en `src`, `admin` ni las páginas.
+- **Tokens muertos fuera**: `--accent` y `--brand-2` (alias exactos de `--brand`, sin un solo uso) y `--muted-2`, que existía solo para llegar a AA sobre fondos verdes: con la paleta nueva `--muted` da **5.16:1** sobre `--brand-soft` y **5.28:1** sobre `--amber-soft`, así que sus cuatro usos (notas legales y del carrito) pasan a `--muted`.
+- **Contraste flojo corregido**: el texto rojo del badge de oferta sobre `--danger-soft` quedaba en **4.46:1**; bajando el alfa de `.12` a `.10` sube a **4.57:1** (AA) sin cambio perceptible.
+- **Duplicados**: se borró el segundo bloque `.grid`, idéntico al primero y sesenta líneas más abajo; y se fusionaron `.st-hour`, `.st-daychart` y `.footer-link`, que estaban partidos en dos reglas del mismo selector sin motivo.
+- **Código muerto**: se fueron las utilidades `.term-shadow` y `.term-hairline`, que no usaba ningún marcado.
+- **Queda anotado, sin tocar**: los bordes `--border-bright` sobre `--panel` dan **1.84:1** y WCAG 2.1 (1.4.11) pide 3:1 para el contorno de los controles; oscurecerlos o aclararlos cambiaría el look aprobado, así que es una decisión pendiente, no un descuido.
+- **Verificado**: `npm run typecheck` y `npm run build` en 0. En el navegador, a 1300 px: `catalog-main` en 22/28/32, grilla de 18 px con cinco columnas, `.tb-label` visible, toolbar en `top: 59px` con radio de 10 px, chips en pastilla, precios en mono y `--danger-soft` al `.10`; a 480 px se mantienen los valores móviles. Los tokens eliminados resuelven vacío y la auditoría de tokens no encuentra ninguno sin uso.
+
+## 2026-11-18 — Las páginas que arma el worker toman el tema nuevo
+
+- **Pedido**: "las tres páginas que arma el worker (mantenimiento, pedidos y devoluciones) solo cambiaron el fondo y quedaron con la paleta vieja de paneles, bordes y verdoso. Ponelas en línea con el tema nuevo y revisá también cómo quedó el panel `/admin/` y `/seguimiento`".
+- **Paleta completa** ([maintenance.ts](src/worker/maintenance.ts), [orders-page.ts](src/worker/orders-page.ts) —incluye la variante "pedido no encontrado"— y [returns-page.ts](src/worker/returns-page.ts)): pasan de `#10161d`/`#161e27`/`#223041`/`#33475e`/`#d7e2ea`/`#7d8f9f`/`#3fb950` a los tokens de `styles.css` —`#151d26`, `#1b242e`, `#26333f`, `#38495a`, `#e2e9ef`, `#93a4b3` y `#4cc45e`— con `--on-brand` para el texto sobre verde y los mismos grises de estado.
+- **Radios y sombras**: tarjetas a 10 px con `0 12px 26px`, botones, inputs y chips a 8 px, badges de estado en pastilla rellena; se fueron las sombras duras `4px 4px 0` y las scanlines `body::before` de las tres páginas.
+- **Tipografía**: la misma del sitio (sans del sistema para la interfaz, mono del sistema solo para el ID del pedido y el código de seguimiento). Se eliminan el `preconnect` y el `<link>` a Google Fonts (JetBrains Mono), así que estas páginas ya no hacen pedidos externos.
+- **CSP al día**: al sacar Google Fonts, la cabecera de mantenimiento seguía habilitando `fonts.googleapis.com` y `fonts.gstatic.com`; ahora queda en `style-src 'unsafe-inline'` y sin `font-src`, que es todo lo que la página necesita.
+- **theme-color**: las tres páginas y [admin/index.html](admin/index.html) declaran ahora `#0d1319`; la 404 del sitio ya lo heredaba de `public/404.html`.
+- **Arreglo visto al revisar**: en la página de devoluciones la tarjeta se estiraba a todo el alto cuando el contenido era corto ("solicitud no encontrada"); `align-items:flex-start` la deja pegada arriba.
+- **Panel `/admin/`**: no tiene estilos propios más allá de `styles.css`, así que toma el tema solo. Medido en el login: tarjeta `#151d26` con radio de 10 px, input de 10 px, botón verde `#4cc45e` de 8 px, sans y sin scanlines. El panel autenticado no se pudo revisar (pide contraseña y no se leen secretos de `.dev.vars`), así que conviene una pasada visual con sesión.
+- **`/seguimiento`**: no tiene página ni estilos que ajustar: es un 302 a la URL configurada en el panel (`https://repairpro.centerphone.com.ar/track-lite` por defecto).
+- **Verificado**: `npm run typecheck` y `npm run build` en 0. En el dev server, `/pedido/361c0382…` sirve `--panel:#151d26`, `--brand:#4cc45e` y `theme-color #0d1319`; `/devoluciones/seguimiento/noexiste` sirve la misma paleta y la tarjeta compacta; `/admin/` sirve `#0d1319`. Capturas revisadas de mantenimiento (renderizado aparte), pedido, devolución y login. Sin deploy ni commit.
+
 ## 2026-11-18 — Publica la variante C y el theme-color nuevo en todas las páginas
 
 - **Commit**: `6f0d72c` — "Pasa el catálogo a la variante C: tema oscuro ordenado" (21 archivos: `styles.css`, `reviews.css`, `catalog.ts`, las siete páginas, el manifest, las tres páginas del worker y la maqueta de `disenos/`). Quedan afuera `package.json` (claves `allowScripts` de una instalación anterior) y las capturas de `screenshots/tema-oscuro-ordenado/`, que son de verificación local.

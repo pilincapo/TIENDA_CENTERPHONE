@@ -43,17 +43,19 @@ orderPageApp.get("/pedido/:id", async (c) => {
     const html = `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#0d1319">
 <title>Pedido no encontrado</title>
 <style>
-  :root{--bg:#0d1319;--panel:#10161d;--border-bright:#33475e;--text:#d7e2ea;--muted:#7d8f9f;--brand:#3fb950;--shadow:4px 4px 0 rgb(0 0 0 / .55);--font:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  :root{--bg:#0d1319;--panel:#151d26;--panel-2:#1b242e;--border:#26333f;--border-bright:#38495a;
+        --text:#e2e9ef;--muted:#93a4b3;--brand:#4cc45e;--radius:10px;--radius-sm:8px;
+        --shadow:0 12px 26px rgb(0 0 0 / .38);
+        --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,system-ui,sans-serif}
+  *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center}
-  body::before{content:"";position:fixed;inset:0;z-index:9;pointer-events:none;background:repeating-linear-gradient(to bottom,transparent 0 2px,rgb(0 0 0/.12) 3px,transparent 4px);mix-blend-mode:multiply}
-  .card{background:var(--panel);border:1px solid var(--border-bright);box-shadow:var(--shadow);padding:36px 28px;max-width:440px;position:relative;z-index:10}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:38px 28px;max-width:440px;width:100%}
   .emoji{font-size:44px}
-  h1{font-size:18px;margin:16px 0 8px}
-  p{color:var(--muted);font-size:14px;margin:0 0 8px;line-height:1.5}
+  h1{font-size:19px;margin:16px 0 8px;font-weight:800;letter-spacing:-.01em}
+  p{color:var(--muted);font-size:14px;margin:0 0 8px;line-height:1.55}
   a{color:var(--brand);text-decoration:none;font-weight:600}
   a:hover{text-decoration:underline}
 </style></head>
@@ -81,29 +83,29 @@ orderPageApp.get("/pedido/:id", async (c) => {
   const html = `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#0d1319">
 <title>Pedido ${esc(order.id.slice(0, 8))}… — ${esc(storeName)}</title>
 <style>
-  :root{--bg:#0d1319;--panel:#10161d;--panel-2:#161e27;--border:#223041;--border-bright:#33475e;
-        --text:#d7e2ea;--muted:#7d8f9f;--brand:#3fb950;--brand-dark:#2e9e3f;--danger:#f85149;--amber:#e3b341;
-        --shadow:4px 4px 0 rgb(0 0 0 / .55);
-        --font:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  :root{--bg:#0d1319;--panel:#151d26;--panel-2:#1b242e;--border:#26333f;--border-bright:#38495a;
+        --text:#e2e9ef;--muted:#93a4b3;--brand:#4cc45e;--brand-dark:#3fae51;--on-brand:#04180a;
+        --danger:#f85149;--amber:#e3b341;--radius:10px;--radius-sm:8px;
+        --shadow:0 12px 26px rgb(0 0 0 / .38);
+        --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,system-ui,sans-serif;
+        --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-  body::before{content:"";position:fixed;inset:0;z-index:9;pointer-events:none;background:repeating-linear-gradient(to bottom,transparent 0 2px,rgb(0 0 0/.12) 3px,transparent 4px);mix-blend-mode:multiply}
-  .card{background:var(--panel);border:1px solid var(--border-bright);box-shadow:var(--shadow);padding:32px 28px;max-width:460px;width:100%;position:relative;z-index:10}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:34px 28px;max-width:460px;width:100%}
   .st-emoji{font-size:40px}
-  h1{font-size:18px;margin:12px 0 4px;font-weight:800}
-  .st-badge{display:inline-block;padding:2px 10px;font-size:12px;font-weight:700;border:1px solid var(--border-bright);margin-bottom:10px}
-  .st-badge.pending{color:var(--amber);border-color:var(--amber)}
-  .st-badge.paid{color:var(--brand);border-color:var(--brand)}
-  .st-badge.cancelled,.st-badge.rejected{color:var(--danger);border-color:var(--danger)}
+  h1{font-size:19px;margin:12px 0 4px;font-weight:800;letter-spacing:-.01em}
+  .st-badge{display:inline-block;padding:3px 11px;font-size:12px;font-weight:700;border:1px solid transparent;border-radius:999px;margin-bottom:10px}
+  .st-badge.pending{color:var(--amber);background:rgb(227 179 65 / .12)}
+  .st-badge.paid{color:var(--brand);background:rgb(76 196 94 / .14)}
+  .st-badge.cancelled,.st-badge.rejected{color:var(--danger);background:rgb(248 81 73 / .12)}
   .order-id{color:var(--muted);font-size:13px;margin:0 0 4px}
-  code{background:var(--panel-2);border:1px solid var(--border);padding:1px 6px}
+  code{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1px 6px;font-family:var(--mono)}
   .paid-line{color:var(--brand);font-size:13px;margin:4px 0 0}
   .note{color:var(--muted);font-size:13px;margin:12px 0 0;line-height:1.5}
-  hr{border:none;border-top:1px solid var(--border-bright);margin:16px 0 4px}
+  hr{border:none;border-top:1px solid var(--border);margin:16px 0 4px}
   table{width:100%;border-collapse:collapse;font-size:14px}
   .total{font-size:16px;margin:0;text-align:left}
   .total b{color:var(--brand)}
@@ -112,9 +114,9 @@ orderPageApp.get("/pedido/:id", async (c) => {
   /* Recordatorio del derecho de revocación (Ley 24.240, art. 34 in fine):
      la confirmación de la compra a distancia es el momento natural para
      informarlo. Enlace estático a la política, misma CSP (self). */
-  .revoca{font-size:13px;line-height:1.55;color:var(--muted);margin:16px 0 0;border-left:3px solid var(--amber);background:rgb(227 179 65 / .08);padding:10px 12px}
+  .revoca{font-size:13px;line-height:1.55;color:var(--muted);margin:16px 0 0;border-left:3px solid var(--amber);border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:rgb(227 179 65 / .08);padding:10px 12px}
   .revoca a{color:var(--amber);font-weight:700;text-decoration:underline}
-  .wa-btn{display:block;background:var(--brand);color:#04180a;text-decoration:none;padding:14px;font-weight:700;font-size:14px;margin-top:18px;border:1px solid var(--brand);box-shadow:2px 2px 0 rgb(0 0 0/.45);text-align:center}
+  .wa-btn{display:block;background:var(--brand);color:var(--on-brand);text-decoration:none;padding:14px;font-weight:700;font-size:14px;margin-top:18px;border-radius:var(--radius-sm);border:1px solid var(--brand);text-align:center}
   .wa-btn:hover{background:var(--brand-dark);border-color:var(--brand-dark)}
   .back{display:block;margin-top:12px;color:var(--muted);text-decoration:underline;font-size:14px}
   .back:hover{color:var(--brand)}

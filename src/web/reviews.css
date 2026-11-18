@@ -42,7 +42,7 @@
   border-radius: var(--radius-sm);
   background: var(--panel-2); color: var(--text); border: 1px solid var(--border-bright);
 }
-.rv-write:hover { border-color: #fbbc04; color: #fbbc04; box-shadow: var(--term-shadow-sm); }
+.rv-write:hover { border-color: #fbbc04; color: #fbbc04; box-shadow: var(--shadow-sm); }
 
 /* ===== Filtros ===== */
 .rv-filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 18px 0 20px; }
@@ -61,7 +61,7 @@
   display: flex; flex-direction: column; gap: 10px;
   transition: border-color .15s, box-shadow .15s, transform .15s;
 }
-.rv-card:hover { border-color: #fbbc04; box-shadow: var(--term-shadow); transform: translateY(-2px); }
+.rv-card:hover { border-color: #fbbc04; box-shadow: var(--shadow); transform: translateY(-2px); }
 .rv-card-top { display: flex; align-items: center; gap: 10px; }
 .rv-avatar {
   width: 32px; height: 32px; flex: 0 0 auto; border-radius: 50%;
