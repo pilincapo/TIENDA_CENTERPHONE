@@ -1,3 +1,9 @@
+## 2026-11-18 — Publica el borde de controles a 3:1
+
+- **Commit**: `ffe9e81` — "Sube los bordes de los controles a 3:1 con un token propio" (3 archivos: `styles.css`, `reviews.css` y este changelog). Quedan afuera, como siempre, `package.json` (claves `allowScripts`) y las capturas de `screenshots/`.
+- **Deploy**: `npm run deploy` → versión **`fa3103cd-0986-4cbc-a77d-93d54b70d6af`**, 21 archivos subidos. Los bindings `KV`, `EMAIL`, `DB`, `ASSETS`, `CF_ACCOUNT_ID` y `CF_SITE_ORIGIN` siguen igual y el cron quedó en `0 * * * *`.
+- **Verificado en producción**: `/` responde 200 con `theme-color` `#0d1319`; el CSS publicado (`/assets/html-CCUVmGqR.css`) trae `--control-border: #5f7489` y 19 usos de `var(--control-border)`, mientras `.card` sigue en `--border-bright`; `/assets/reviews-Cm0ewTc8.css` aplica el token al botón `.rv-write`.
+
 ## 2026-11-18 — Los controles llegan a 3:1 sin tocar tarjetas ni separadores
 
 - **Pedido**: "aplicá la variante de bordes que recomendaste: que inputs, selects, botones y chips lleguen a 3:1 con un token propio, dejando tarjetas y separadores como están".
