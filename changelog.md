@@ -1,3 +1,11 @@
+## 2026-11-18 — Los controles llegan a 3:1 sin tocar tarjetas ni separadores
+
+- **Pedido**: "aplicá la variante de bordes que recomendaste: que inputs, selects, botones y chips lleguen a 3:1 con un token propio, dejando tarjetas y separadores como están".
+- **Token nuevo**: `--control-border: #5f7489` en [styles.css](src/web/styles.css) — 3.25:1 sobre `--panel-2`, 3.52:1 sobre `--panel` y 3.87:1 sobre `--bg`, así pasa el mínimo de 3:1 que pide WCAG 1.4.11 para el contorno de un control en todas las superficies donde vive.
+- **Dónde se aplica** (20 bordes): buscador del hero y de la ficha, `.btn`, `.chip`, `.tb-view-btn`, `.tb-sort select`, `.modal-x`, `.footer-social-btn`, `.card-add`/`.card-buy`, `.cart-qty-btn`, `.cart-fields input`, `.cart-member-row input`, `.switch-ui`, `.login-card input`, `.field input/select/textarea`, `.filters input[type="number"]`, `.ship-quote-toggle`, `.ship-quote-cp`, `.ship-quote-edit` y el botón `.rv-write` de reseñas, que toma el mismo token del tema.
+- **Qué no se movió**: tarjetas, paneles, modales, pie y cajas siguen en `--border-bright`; toolbar, separadores, divisores y contadores en `--border`; los chips y botones activos en verde de marca y los badges de estado en su tono. El token no se usa para dibujar superficies a propósito: si todo el borde sube a 3:1 el contenido pierde el marco y compite con las fotos.
+- **Verificado**: `npm run typecheck` y `npm run build` en 0. Medido en el dev server a 1240 px: chip apagado, `select` de orden, input del buscador y `.btn` en `rgb(95, 116, 137)`; `.card` sigue en `rgb(56, 73, 90)`, toolbar y contador en `rgb(38, 51, 63)` y el chip activo en `rgb(76, 196, 94)`. Captura comparativa en `screenshots/bordes/control-3a1.png`. Sin commit ni deploy.
+
 ## 2026-11-18 — Comparación de bordes a 3:1 (medición, sin aplicar)
 
 - **Pedido**: subir `--border` y `--border-bright` a 3:1 sobre `--panel` y mostrar la comparación con el estado actual antes de aplicar nada.

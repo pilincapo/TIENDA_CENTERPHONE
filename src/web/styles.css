@@ -9,6 +9,12 @@
   --panel-2: #1b242e;
   --border: #26333f;
   --border-bright: #38495a;
+  /* Borde de controles (inputs, selects, botones y chips). --border-bright da
+     1.84:1 sobre --panel y WCAG 1.4.11 pide 3:1 para el contorno de un
+     control; este tono llega a 3.25:1 sobre --panel-2 y 3.52:1 sobre --panel.
+     Solo lo usan controles: tarjetas y separadores siguen en --border /
+     --border-bright, que es lo que evita que todo se lea como un marco. */
+  --control-border: #5f7489;
   --text: #e2e9ef;
   --muted: #93a4b3;
   --brand: #4cc45e;
@@ -276,7 +282,7 @@ img { max-width: 100%; display: block; }
 .hero-search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 15px; opacity: .7; color: var(--muted); }
 .hero-search input {
   width: 100%; padding: 15px 16px 15px 42px; border-radius: var(--radius);
-  border: 1px solid var(--border-bright); background: var(--panel); color: var(--text);
+  border: 1px solid var(--control-border); background: var(--panel); color: var(--text);
   font-size: 14px; font-family: var(--font-sans);
   box-shadow: var(--shadow-sm);
 }
@@ -308,7 +314,7 @@ img { max-width: 100%; display: block; }
 .filters .price-row { display: flex; gap: 8px; align-items: center; }
 .filters input[type="number"] {
   width: 90px; padding: 8px; border-radius: var(--radius);
-  border: 1px solid var(--border-bright); background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--control-border); background: var(--panel-2); color: var(--text);
   font-family: var(--font-sans);
 }
 .filters button { margin-top: 8px; }
@@ -394,7 +400,7 @@ img { max-width: 100%; display: block; }
 /* ===== Botones ===== */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 9px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-bright);
+  padding: 9px 16px; border-radius: var(--radius-sm); border: 1px solid var(--control-border);
   font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text);
   background: var(--panel-2); font-family: var(--font-sans);
   transition: border-color .15s, background-color .15s, color .15s, box-shadow .15s;
@@ -514,7 +520,7 @@ img { max-width: 100%; display: block; }
 }
 .detail-search input {
   flex: 1; min-width: 0; padding: 10px 12px 10px 36px; border-radius: var(--radius);
-  border: 1px solid var(--border-bright); background: var(--panel); color: var(--text);
+  border: 1px solid var(--control-border); background: var(--panel); color: var(--text);
   font-size: 14px; font-family: var(--font-sans);
 }
 .detail-search input::placeholder { color: var(--muted); }
@@ -696,7 +702,7 @@ img { max-width: 100%; display: block; }
 .login-card h1 { margin: 0 0 4px; font-size: 20px; text-align: center; }
 .login-card h1::before { content: "> "; color: var(--brand); }
 .login-card input {
-  padding: 12px; border-radius: var(--radius); border: 1px solid var(--border-bright);
+  padding: 12px; border-radius: var(--radius); border: 1px solid var(--control-border);
   background: var(--panel-2); color: var(--text); font-size: 15px; font-family: var(--font-sans);
 }
 
@@ -740,7 +746,7 @@ img { max-width: 100%; display: block; }
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .field label { font-size: 13px; color: var(--muted); }
 .field input, .field select, .field textarea {
-  padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--border-bright);
+  padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--control-border);
   background: var(--panel-2); color: var(--text); font-size: 14px; font-family: var(--font-sans);
 }
 .field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
@@ -800,7 +806,7 @@ img { max-width: 100%; display: block; }
 .chip {
   flex: 0 0 auto;
   font-size: 12.5px; font-weight: 500; padding: 7px 14px; border-radius: 999px;
-  border: 1px solid var(--border-bright); background: var(--panel); color: var(--text);
+  border: 1px solid var(--control-border); background: var(--panel); color: var(--text);
   cursor: pointer; white-space: nowrap; font-family: var(--font-sans);
   transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease, transform .15s ease;
 }
@@ -860,7 +866,7 @@ img { max-width: 100%; display: block; }
 .tb-view-btn {
   min-width: 28px; min-height: 28px; padding: 2px 6px; border-radius: var(--radius-sm);
   display: inline-flex; align-items: center; justify-content: center;
-  border: 1px solid var(--border-bright); background: var(--panel); color: var(--muted);
+  border: 1px solid var(--control-border); background: var(--panel); color: var(--muted);
   font-size: 13px; line-height: 1; cursor: pointer; font-family: var(--font-sans);
   transition: border-color .15s, color .15s, background-color .15s;
 }
@@ -878,7 +884,7 @@ img { max-width: 100%; display: block; }
 .tb-count b, .tb-count { letter-spacing: .02em; }
 .tb-sort select {
   padding: 6px 9px; border-radius: var(--radius-sm); font-size: 11.5px; font-weight: 500;
-  border: 1px solid var(--border-bright); background: var(--panel-2); color: var(--text); cursor: pointer;
+  border: 1px solid var(--control-border); background: var(--panel-2); color: var(--text); cursor: pointer;
   font-family: var(--font-sans);
   transition: border-color .15s ease;
 }
@@ -1109,7 +1115,7 @@ a.topnav-btn {
 .modal-x {
   position: absolute; top: 12px; right: 12px;
   width: 32px; height: 32px; border-radius: var(--radius-sm);
-  border: 1px solid var(--border-bright); background: var(--panel-2); color: var(--muted);
+  border: 1px solid var(--control-border); background: var(--panel-2); color: var(--muted);
   font-size: 14px; cursor: pointer; line-height: 1;
 }
 .modal-x:hover { color: var(--brand); border-color: var(--brand); }
@@ -1178,7 +1184,7 @@ a.topnav-btn {
 .footer-social { display: flex; gap: 10px; flex-wrap: wrap; }
 .footer-social-btn {
   display: inline-flex; align-items: center; gap: 7px;
-  border: 1px solid var(--border-bright); border-radius: var(--radius);
+  border: 1px solid var(--control-border); border-radius: var(--radius);
   padding: 7px 13px; font-size: 13px; font-weight: 600; color: var(--text);
   transition: border-color .15s, color .15s;
 }
@@ -1210,7 +1216,7 @@ a.topnav-btn {
 .card-add, .card-buy {
   flex: 1; padding: 8px 6px; border-radius: var(--radius-sm); cursor: pointer;
   font-family: var(--font-sans); font-size: 12px; font-weight: 700;
-  border: 1px solid var(--border-bright); background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--control-border); background: var(--panel-2); color: var(--text);
   transition: border-color .15s, background-color .15s, color .15s;
 }
 .card-add:hover, .card-buy:hover { border-color: var(--brand); color: var(--brand); }
@@ -1240,7 +1246,7 @@ a.topnav-btn {
 .cart-qty { display: inline-flex; align-items: center; gap: 10px; margin-top: 8px; }
 .cart-qty-btn {
   width: 26px; height: 26px; border-radius: var(--radius-sm); cursor: pointer;
-  border: 1px solid var(--border-bright); background: var(--panel); color: var(--text);
+  border: 1px solid var(--control-border); background: var(--panel); color: var(--text);
   font-size: 14px; font-weight: 700; line-height: 1;
 }
 .cart-qty-btn:hover { border-color: var(--brand); color: var(--brand); }
@@ -1272,7 +1278,7 @@ a.topnav-btn {
 .cart-fields { display: grid; gap: 10px; margin: 6px 0 12px; }
 .cart-fields input {
   width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: var(--radius);
-  border: 1px solid var(--border-bright); background: var(--panel); color: var(--text);
+  border: 1px solid var(--control-border); background: var(--panel); color: var(--text);
   font-size: 14px; font-family: var(--font-sans);
 }
 .cart-fields input:focus { outline: none; border-color: var(--brand); }
@@ -1378,13 +1384,13 @@ a.topnav-btn {
    aplica (WCAG 1.4.3 exime a los componentes inactivos), pero sí la estética. */
 .ship-quote-toggle {
   display: block; width: 100%; padding: 10px 12px; border-radius: var(--radius);
-  background: var(--panel-2); color: var(--muted); border: 1px solid var(--border-bright);
+  background: var(--panel-2); color: var(--muted); border: 1px solid var(--control-border);
   font-size: 13px; font-weight: 600; font-family: var(--font-sans); cursor: wait;
 }
 .ship-quote-form { display: flex; gap: 8px; padding: 0 12px 12px; }
 .ship-quote-cp {
   flex: 1; min-width: 0; padding: 8px 10px; font-size: 14px; font-family: var(--font-mono, var(--font-sans));
-  border: 1px solid var(--border-bright); background: var(--panel); color: var(--text);
+  border: 1px solid var(--control-border); background: var(--panel); color: var(--text);
 }
 .ship-quote-cp:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
 .ship-quote-go {
@@ -1401,7 +1407,7 @@ a.topnav-btn {
 .ship-quote-price { font-size: 15px; font-weight: 800; color: var(--text); }
 .ship-quote-edit {
   margin-left: auto; padding: 4px 10px; font-size: 11px; font-weight: 600;
-  background: none; border: 1px solid var(--border-bright); color: var(--muted); cursor: pointer;
+  background: none; border: 1px solid var(--control-border); color: var(--muted); cursor: pointer;
 }
 .ship-quote-edit:hover { color: var(--text); border-color: var(--text); }
 /* En la ficha: sin caja extra, integrado bajo el precio */
@@ -1726,7 +1732,7 @@ a.topnav-btn {
   flex: 1;
   min-width: 0;
   background: var(--bg);
-  border: 1px solid var(--border-bright);
+  border: 1px solid var(--control-border);
   color: var(--text);
   padding: 9px 10px;
   font-family: inherit;
@@ -1801,7 +1807,7 @@ a.topnav-btn {
   position: relative;
   width: 38px;
   height: 22px;
-  border: 1px solid var(--border-bright);
+  border: 1px solid var(--control-border);
   background: var(--panel);
   transition: background 0.15s, border-color 0.15s;
 }

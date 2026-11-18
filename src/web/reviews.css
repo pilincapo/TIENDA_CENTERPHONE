@@ -40,7 +40,7 @@
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   padding: 9px 14px; font-size: 13px; font-weight: 600; text-decoration: none;
   border-radius: var(--radius-sm);
-  background: var(--panel-2); color: var(--text); border: 1px solid var(--border-bright);
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--control-border);
 }
 .rv-write:hover { border-color: #fbbc04; color: #fbbc04; box-shadow: var(--shadow-sm); }
 
