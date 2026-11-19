@@ -340,6 +340,21 @@ img { max-width: 100%; display: block; }
   outline-offset: 3px;
 }
 .card:active { transform: none; box-shadow: none; }
+/* Tarjeta del catálogo: el enlace es una capa absoluta sobre toda la tarjeta y
+   los botones van por encima. Antes la tarjeta entera era un <a> con botones
+   adentro (contenido interactivo anidado en un enlace: HTML inválido y foco
+   confuso para lectores de pantalla). El hover/active del .card no cambia
+   porque la capa es hija suya. */
+/* `isolation` encierra los z-index de la tarjeta en su propio contexto: la
+   escala del tema deja las fotos en 1000 (ver `.card-img img`), así que la capa
+   del enlace tiene que ir por encima de 1000 para recibir el clic, y con el
+   contexto aislado ese 1001 no compite con la toolbar sticky (también 1001). */
+.card--link { position: relative; isolation: isolate; }
+.card-hit { position: absolute; inset: 0; z-index: 1001; border-radius: inherit; }
+.card--link .card-wa, .card--link .card-buy-row { position: relative; z-index: 1002; }
+/* El foco recorre la capa y los botones: se dibuja el contorno sobre la
+   tarjeta, que es lo que el visitante ve enfocado. */
+.card--link:focus-within { outline: 2px solid var(--amber); outline-offset: 3px; }
 .card-img { aspect-ratio: 1; background: var(--panel-2); display: flex; align-items: center; justify-content: center; padding: 10px; font-size: 40px; overflow: hidden; border-bottom: 1px solid var(--border); }
 .card-img img { width: 100%; height: 100%; object-fit: contain; display: block; transition: transform .3s ease; filter: saturate(.92); }
 .card:hover .card-img img { transform: scale(1.02); filter: saturate(1); }
@@ -383,7 +398,7 @@ img { max-width: 100%; display: block; }
 .grid--list .card-foot { grid-area: price; justify-self: stretch; margin: 0; gap: 12px; }
 .grid--list .card-price { font-size: 16px; }
 .grid--list .card-buy-row { grid-area: buy; justify-self: stretch; margin: 0; }
-.grid--list .card-add, .grid--list .card-buy { flex: 1; }
+.grid--list .card-buy { flex: 1; }
 /* Escritorio: foto más grande y las acciones compactas a la derecha, debajo del
    precio, en lugar de ocupar el ancho entero. */
 @media (min-width: 801px) {
@@ -399,7 +414,7 @@ img { max-width: 100%; display: block; }
   .grid--list .card-price { font-size: 18px; }
   .grid--list .card-foot { justify-self: end; }
   .grid--list .card-buy-row { justify-self: end; }
-  .grid--list .card-add, .grid--list .card-buy {
+  .grid--list .card-buy {
     flex: 0 0 auto; min-width: 92px; padding: 8px 14px; font-size: 12.5px;
   }
 }
@@ -1278,16 +1293,13 @@ a.topnav-btn {
 .card-buy-row {
   display: flex; gap: 8px; margin-top: 10px;
 }
-.card-add, .card-buy {
+.card-buy {
   flex: 1; padding: 8px 6px; border-radius: var(--radius-sm); cursor: pointer;
   font-family: var(--font-sans); font-size: 12px; font-weight: 700;
-  border: 1px solid var(--control-border); background: var(--panel-2); color: var(--text);
+  background: var(--brand); border: 1px solid var(--brand); color: var(--on-brand);
   transition: border-color .15s, background-color .15s, color .15s;
 }
-.card-add:hover, .card-buy:hover { border-color: var(--brand); color: var(--brand); }
-.card-buy { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
 .card-buy:hover { background: var(--brand-dark); border-color: var(--brand-dark); color: var(--on-brand); }
-.card-add.added { border-color: var(--brand); color: var(--brand); }
 .modal-box--cart { max-width: 520px; }
 /* Aire entre el contenido y la barra de scroll del modal: sin esto el total
    quedaba pegado al borde del área scrolleable. */

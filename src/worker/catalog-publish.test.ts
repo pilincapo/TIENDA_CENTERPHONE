@@ -4,7 +4,7 @@
 // regenera el snapshot y limpia la marca.
 import { describe, expect, it } from "vitest";
 import { adminApp } from "./admin";
-import { getCatalogStatus, markCatalogPending, regenerateSnapshot } from "./sync";
+import { getCatalogStatus, markCatalogPending, publishIfPending, regenerateSnapshot } from "./sync";
 import type { Env } from "./db";
 
 interface MockDb {
@@ -188,6 +188,24 @@ describe("publicar: regenera el snapshot y limpia la marca", () => {
     };
     expect(conCambios.pending).toBe(true);
     expect(conCambios.pendingAt).toBeGreaterThan(0);
+  });
+
+  it("publishIfPending publica solo cuando hay cambios (lo usa el cron)", async () => {
+    const { env, kv, m } = makeEnv();
+    // Catálogo al día: no lee nada.
+    expect(await publishIfPending(env)).toBe(false);
+    expect(m.lecturasCompletas).toHaveLength(0);
+
+    await markCatalogPending(env);
+    expect(await publishIfPending(env)).toBe(true);
+    expect(m.lecturasCompletas.length).toBeGreaterThan(0);
+    expect(kv._map.has("catalog:snapshot:v1")).toBe(true);
+    expect((await getCatalogStatus(env)).pending).toBe(false);
+
+    // Ya publicado: la siguiente corrida no vuelve a leer el catálogo.
+    const antes = m.lecturasCompletas.length;
+    expect(await publishIfPending(env)).toBe(false);
+    expect(m.lecturasCompletas).toHaveLength(antes);
   });
 
   it("regenerateSnapshot directo también limpia la marca (lo usa la sincronización)", async () => {

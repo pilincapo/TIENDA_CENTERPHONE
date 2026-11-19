@@ -22,4 +22,23 @@ describe("matchesSearch", () => {
   it("ignora consultas sin letras ni números", () => {
     expect(matchesSearch("---", "Cualquier producto")).toBe(true);
   });
+
+  it("encuentra por sinónimo en los dos sentidos", () => {
+    expect(matchesSearch("celular", "Teléfono liberado")).toBe(true);
+    expect(matchesSearch("telefono", "Celular Samsung A15")).toBe(true);
+    expect(matchesSearch("celu", "Teléfono Samsung")).toBe(true);
+    expect(matchesSearch("auriculares", "Audífono Bluetooth")).toBe(true);
+    expect(matchesSearch("funda", "Case para iPhone 13")).toBe(true);
+  });
+
+  it("no expande sinónimos cuando el término es una marca o un modelo", () => {
+    // «iphone» contiene «phone», pero no es un sinónimo de celular genérico:
+    // buscar un modelo no debe devolver todo el rubro.
+    expect(matchesSearch("iphone", "Teléfono Samsung")).toBe(false);
+    expect(matchesSearch("iphone", "iPhone 13 128GB")).toBe(true);
+  });
+
+  it("el sinónimo no relaja el resto de los términos", () => {
+    expect(matchesSearch("celular azul", "Teléfono Samsung negro")).toBe(false);
+  });
 });

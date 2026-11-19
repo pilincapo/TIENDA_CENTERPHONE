@@ -99,6 +99,19 @@ export async function getCatalogStatus(env: Env): Promise<CatalogStatus> {
   };
 }
 
+/**
+ * Publica el snapshot si el panel dejó cambios sin publicar. Lo corre el cron: así
+ * una alta/edición/baja se ve en el sitio en ≤15 minutos sin que el dueño tenga
+ * que entrar a tocar «Publicar ahora», y sin pagar una lectura completa del
+ * catálogo por cada edición (una sola por corrida, y ninguna si no hay cambios).
+ */
+export async function publishIfPending(env: Env): Promise<boolean> {
+  const { pending } = await getCatalogStatus(env);
+  if (!pending) return false;
+  await regenerateSnapshot(env);
+  return true;
+}
+
 export async function regenerateSnapshot(env: Env): Promise<CatalogSnapshot> {
   const [products, categories] = await Promise.all([
     listProducts(env.DB),

@@ -8,7 +8,7 @@ import { tecnovaApp } from "./tecnova";
 import { forceHttpsUrl, getSettings } from "./settings";
 import { getProduct, getProductsByIds, listRelatedProducts } from "./db";
 import { destinoDeRedirect } from "./rename-ids";
-import { getSnapshot, isSyncDue, regenerateSnapshot, runSync } from "./sync";
+import { getSnapshot, isSyncDue, publishIfPending, regenerateSnapshot, runSync } from "./sync";
 import { runAutoImports } from "./autoimport";
 import { seoApp } from "./seo";
 import { trackEvent, pruneStats, type StatEventType } from "./stats";
@@ -478,6 +478,12 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(runAutoImports(env));
     ctx.waitUntil(pruneStats(env));
+    // Publicación automática del catálogo: el panel solo marca «sin publicar» en
+    // cada escritura (leer todo el catálogo por edición come la cuota de D1), y
+    // acá se publica sola, una lectura como máximo por corrida y solo si hay
+    // cambios. Sin esto un precio editado quedaba invisible hasta que alguien
+    // entrara al panel a tocar «Publicar ahora».
+    ctx.waitUntil(publishIfPending(env).catch((e) => console.error("catálogo: publicación automática falló:", e)));
     // Resumen semanal de seguridad por email (lunes 9:00 AR): si falta el
     // token de logs o el binding de email, se salta sin romper nada.
     ctx.waitUntil(

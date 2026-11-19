@@ -522,12 +522,14 @@ function freshTitle(hours: number): string {
 // URL de imagen con parámetros de resize del CDN de tiendanegocio (soporta
 // ?width=&format=webp; verificado: 373KB PNG -> 32KB WebP a 640px).
 // Las tarjetas se muestran a ~220-327px: 320/480px evitan bajar 640px
-// cuando no hace falta. El original se conserva en `src` como fallback; si la
-// URL no es de ese CDN, se devuelve vacío y se sirve la imagen original.
+// cuando no hace falta, y 640w cubre las pantallas de 2x (una foto de 308 px
+// en un celular Retina pide 616 px, antes se servía la de 480 estirada). El
+// original se conserva en `src` como fallback; si la URL no es de ese CDN, se
+// devuelve vacío y se sirve la imagen original.
 export function cdnSrcset(url: string | null): string {
   if (!url || !url.includes("tiendanegocio.com")) return "";
   const base = url.split("?")[0];
-  return `${base}?width=320&format=webp 320w, ${base}?width=480&format=webp 480w`;
+  return `${base}?width=320&format=webp 320w, ${base}?width=480&format=webp 480w, ${base}?width=640&format=webp 640w`;
 }
 
 function cardHtml(p: Product, eager = false): string {
@@ -535,11 +537,17 @@ function cardHtml(p: Product, eager = false): string {
   const srcset = p.imageUrl ? cdnSrcset(p.imageUrl) : "";
   const loading = eager ? "eager" : "lazy";
   const prio = eager ? ` fetchpriority="high"` : "";
+  // Ancho real de la foto según la vista: ~308 px en la grilla (46vw en móvil) y
+  // 104/168 px en la lista. Con el `sizes` de la grilla, en la vista en lista el
+  // navegador pedía candidatos para un hueco casi el doble de grande.
+  const sizes = state.view === "list"
+    ? "(max-width: 800px) 104px, 168px"
+    : "(max-width: 800px) 46vw, 308px";
   // Fallback: si la variante del CDN falla (ráfaga de requests nuevas al recargar con
   // caché fría — el CDN del proveedor a veces rechaza algunas), reintentos en cascada:
   // webp640 -> original. Queda fijo en el src para no reintentar en bucle.
   const img = p.imageUrl
-    ? `<img src="${esc(p.imageUrl)}"${srcset ? ` srcset="${esc(srcset)}" sizes="(max-width: 800px) 46vw, 308px"` : ""} alt="${esc(p.title)}" loading="${loading}"${prio} decoding="async" data-fallback="${esc(p.imageUrl)}" />`
+    ? `<img src="${esc(p.imageUrl)}"${srcset ? ` srcset="${esc(srcset)}" sizes="${sizes}"` : ""} alt="${esc(p.title)}" loading="${loading}"${prio} decoding="async" data-fallback="${esc(p.imageUrl)}" />`
     : "📱";
   const freshHours = state.settings?.freshHours ?? 48;
   const badges = [
@@ -548,20 +556,29 @@ function cardHtml(p: Product, eager = false): string {
     p.availability === "out_of_stock" ? `<span class="badge badge--stock-out">Sin stock</span>` : "",
     p.availability === "preorder" ? `<span class="badge badge--stock-pre">Bajo pedido</span>` : "",
   ].join("");
-  const wa = state.settings?.whatsappOk
+  // Pago online: solo "En stock" y abre el checkout directo con ese producto (o
+  // el carrito si ya tenía cosas).
+  const buyable = sellsOnline(state.settings) && p.availability === "in_stock";
+  // Un solo camino por tarjeta: si se puede pagar online el botón es «Comprar»;
+  // si no, «Consultar» por WhatsApp (sin stock o modo catálogo). Antes convivían
+  // Agregar + Comprar + Consultar y la tarjeta ofrecía tres decisiones distintas.
+  // «Agregar al carrito» queda en la ficha, donde el visitante ya eligió.
+  const wa = !buyable && state.settings?.whatsappOk
     ? `<button class="card-wa" data-wa="${esc(p.id)}" title="Consultar por WhatsApp">Consultar</button>`
     : "";
-  // Pago online: solo "En stock". Agregar suma al carrito; Comprar abre el
-  // checkout directo con ese producto (o el carrito si ya tenía cosas).
-  const buy = sellsOnline(state.settings) && p.availability === "in_stock"
+  const buy = buyable
     ? `<span class="card-buy-row">
-         <button class="card-add" data-add="${esc(p.id)}" type="button" title="Agregar al carrito">Agregar</button>
          <button class="card-buy" data-buy="${esc(p.id)}" type="button" title="Comprar ahora con MercadoPago">Comprar</button>
        </span>`
     : "";
+  // La tarjeta es un <div> con un enlace en capa (`.card-hit`), no un <a> que
+  // envuelve botones: un botón dentro de un enlace es contenido interactivo
+  // anidado (HTML inválido, foco y lectores de pantalla confusos). El enlace
+  // cubre toda la tarjeta y los botones quedan por encima (ver styles.css).
   return `
     <div class="card-wrap">
-      <a class="card" href="/producto/${esc(p.id)}">
+      <div class="card card--link">
+        <a class="card-hit" href="/producto/${esc(p.id)}" aria-label="${esc(p.title)}"></a>
         <div class="card-img">${img}</div>
         <div class="card-body">
           ${badges ? `<div class="badges">${badges}</div>` : ""}
@@ -572,7 +589,7 @@ function cardHtml(p: Product, eager = false): string {
           </div>
           ${buy}
         </div>
-      </a>
+      </div>
     </div>`;
 }
 

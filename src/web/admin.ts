@@ -113,7 +113,7 @@ async function refrescarEstadoCatalogo(): Promise<void> {
     const s = await api<{ pending: boolean; pendingAt: number | null; generatedAt: number | null }>("/catalog-status");
     const detalle =
       s.pending && s.pendingAt
-        ? `Último cambio sin publicar: ${new Date(s.pendingAt).toLocaleString("es-AR")}. El sitio público se actualiza al sincronizar o al publicar ahora.`
+        ? `Último cambio sin publicar: ${new Date(s.pendingAt).toLocaleString("es-AR")}. Se publica solo cada 15 minutos (o al instante con «Publicar ahora»).`
         : "Los productos que editaste acá se ven al sincronizar o al publicar ahora.";
     mostrarBannerPendiente(s.pending, detalle);
   } catch {
@@ -396,7 +396,7 @@ async function refreshDashboardDynamic(): Promise<void> {
     mostrarBannerPendiente(
       Boolean(catalogo?.pending),
       catalogo?.pending && catalogo.pendingAt
-        ? `Ultimo cambio sin publicar: ${new Date(catalogo.pendingAt).toLocaleString("es-AR")}. El sitio publico se actualiza al sincronizar o al publicar ahora.`
+        ? `Ultimo cambio sin publicar: ${new Date(catalogo.pendingAt).toLocaleString("es-AR")}. Se publica solo cada 15 minutos (o al instante con publicar ahora).`
         : ""
     );
     bodyEl.innerHTML = log.length === 0
@@ -494,7 +494,7 @@ async function viewDashboard(syncFilter = ""): Promise<void> {
   mostrarBannerPendiente(
     Boolean(catalogo?.pending),
     catalogo?.pending && catalogo.pendingAt
-      ? `Ultimo cambio sin publicar: ${new Date(catalogo.pendingAt).toLocaleString("es-AR")}. El sitio publico se actualiza al sincronizar o al publicar ahora.`
+      ? `Ultimo cambio sin publicar: ${new Date(catalogo.pendingAt).toLocaleString("es-AR")}. Se publica solo cada 15 minutos (o al instante con publicar ahora).`
       : ""
   );
   // Si el error mostrado es el mismo que el usuario ya descartó en esta sesión, no re-mostrar.
