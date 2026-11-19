@@ -1,3 +1,16 @@
+## 2026-11-19 — «Consultar» iguala el ancho de Agregar/Comprar en la vista en lista móvil
+
+- **Pedido**: en la vista en lista, igualar el ancho de «Consultar» al de la fila de Agregar/Comprar en móvil y verificar a 390 px que nada se desborde.
+- **Cambio**: `.grid--list .card-foot` pasa de `justify-self: start` a `stretch` (el escritorio ya lo pisaba con `end`), así el pie ocupa todo el ancho de la columna de texto y el botón de WhatsApp, que ya era `flex: 1 1 100%`, llega de borde a borde igual que la fila de acciones. En escritorio no cambia nada.
+- **Verificado** con «Consultar» inyectado a 390 px: el botón pasa de 148 a **221 px** de ancho (mismo ancho que la fila de acciones) y termina en x 350, igual que «Comprar»; sin desborde de tarjeta, sin solapamiento con el precio y sin scroll horizontal. A 1240 px sigue en 80 px alineado a la derecha.
+
+## 2026-11-19 — Vista en lista: precio y acciones a la derecha, botones compactos
+
+- **Pedido**: "rediseñar la vista cuando se selecciona vista en lista. están mal distribuidos los botones. mostrar antes de modificar", y después "opción A".
+- **Problema medido**: en escritorio la fila medía 1169 px de ancho y el cuerpo estiraba todo: `Agregar` y `Comprar` quedaban en **476 px cada uno** (dos barras a lo ancho de la fila), el precio solo y centrado a la izquierda con ~900 px de vacío, y la tarjeta 182 px de alto. En móvil los tres botones se partían en dos filas desiguales.
+- **Cambio**: `.grid--list .card-body` pasa de columna flex a **grilla de dos columnas**: título y badges a la izquierda, precio con `Consultar` arriba a la derecha y `Agregar`/`Comprar` debajo con ancho natural (`min-width: 92px`, `padding: 8px 14px`). La foto sube de 116 a 168 px en escritorio. En ≤800 px la grilla queda de una columna con el orden badges → título → precio → acciones, y los botones vuelven a repartirse a mitades para el dedo. Todo es CSS sobre `.grid--list`; el HTML de la tarjeta no cambió.
+- **Verificado**: `npm run build` en 0 y medido en el dev server: la fila baja de 182 a **170 px** en escritorio, los botones pasan de 476 a **92 px** cada uno y quedan alineados al borde derecho; a 390 px la tarjeta conserva foto de 104 px, precio y acciones apilados sin desbordar. Capturas en `screenshots/lista/` (`opcionA-*.png` de la maqueta y las de verificación). Sin commit ni deploy.
+
 ## 2026-11-18 — Publica el borde de controles a 3:1
 
 - **Commit**: `ffe9e81` — "Sube los bordes de los controles a 3:1 con un token propio" (3 archivos: `styles.css`, `reviews.css` y este changelog). Quedan afuera, como siempre, `package.json` (claves `allowScripts`) y las capturas de `screenshots/`.

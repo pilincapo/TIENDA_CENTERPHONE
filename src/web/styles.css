@@ -359,12 +359,50 @@ img { max-width: 100%; display: block; }
 .grid.grid--list { grid-template-columns: 1fr; }
 .grid--list .card { flex-direction: row; align-items: stretch; }
 .grid--list .card-img {
-  width: 116px; flex: 0 0 auto; aspect-ratio: 1;
+  width: 104px; flex: 0 0 auto; aspect-ratio: 1;
   border-bottom: none; border-right: 1px solid var(--border);
 }
-.grid--list .card-body { flex: 1 1 auto; min-width: 0; }
-.grid--list .card-title { min-height: 0; }
-@media (min-width: 801px) { .grid--list .card-img { width: 180px; } }
+/* Cuerpo en grilla: el texto a la izquierda y el precio con las acciones a la
+   derecha. Antes el cuerpo era una columna flex y «Agregar»/«Comprar» se
+   estiraban a todo el ancho de la fila (476 px cada uno en escritorio), así
+   que los botones pesaban más que el producto y el precio quedaba flotando
+   solo en el medio. */
+.grid--list .card-body {
+  flex: 1 1 auto; min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "badges" "title" "price" "buy";
+  align-content: start; row-gap: 6px;
+  padding: 12px 12px 14px;
+}
+.grid--list .badges { grid-area: badges; }
+.grid--list .card-title { grid-area: title; min-height: 0; font-size: 13px; }
+/* El pie se estira al ancho de la columna para que «Consultar» quede del mismo
+   ancho que la fila de Agregar/Comprar en móvil; en escritorio se alinea a la
+   derecha con justify-self: end. */
+.grid--list .card-foot { grid-area: price; justify-self: stretch; margin: 0; gap: 12px; }
+.grid--list .card-price { font-size: 16px; }
+.grid--list .card-buy-row { grid-area: buy; justify-self: stretch; margin: 0; }
+.grid--list .card-add, .grid--list .card-buy { flex: 1; }
+/* Escritorio: foto más grande y las acciones compactas a la derecha, debajo del
+   precio, en lugar de ocupar el ancho entero. */
+@media (min-width: 801px) {
+  .grid--list .card-img { width: 168px; }
+  .grid--list .card-body {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "badges price" "title buy";
+    align-content: center; align-items: center;
+    column-gap: 24px; row-gap: 8px;
+    padding: 14px 18px;
+  }
+  .grid--list .card-title { font-size: 15px; align-self: start; }
+  .grid--list .card-price { font-size: 18px; }
+  .grid--list .card-foot { justify-self: end; }
+  .grid--list .card-buy-row { justify-self: end; }
+  .grid--list .card-add, .grid--list .card-buy {
+    flex: 0 0 auto; min-width: 92px; padding: 8px 14px; font-size: 12.5px;
+  }
+}
 
 /* ===== Badges ===== */
 .badges { display: flex; gap: 6px; flex-wrap: wrap; }
