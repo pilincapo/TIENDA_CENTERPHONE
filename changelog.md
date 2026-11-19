@@ -1,3 +1,10 @@
+## 2026-11-19 — Deploy a producción de las tarjetas con una sola acción
+
+- **Deployado**: `npm run deploy` (build + worker + assets) con la versión `dac763eb-ea5c-40cc-acbe-53890e5c3273`. Antes: `npm run typecheck` en 0 y **613 tests** en verde.
+- **Qué subió**: lo de `78f4862` (toolbar compacta) y `b366ce4` (una sola acción por tarjeta, publicación automática del snapshot por cron, sinónimos en la búsqueda, `sizes`/640w en las fotos y analítica sin storage).
+- **Verificado en producción** (`https://centerphone.com.ar`): home y `/api/catalog` en 200; el bundle del catálogo que sirve el sitio (`catalog-DeWN1_aD.js`) y el CSS (`html-Cu_8TdP6.css`) ya traen la capa `card-hit`/`.card--link`, el `sizes` nuevo y ningún rastro de `card-add`. El cron `0 * * * *` quedó desplegado con el worker, así que los cambios sin publicar del panel salen solos en ≤15 minutos.
+- **No verificado desde acá**: el clic a clic sobre las tarjetas de producción (solo se comprobó markup y respuestas HTTP; el comportamiento se midió antes en el dev server).
+
 ## 2026-11-19 — Una sola acción por tarjeta, publicación automática y búsqueda por sinónimos
 
 - **Pedido**: "1,2,3,4,10,11,12" sobre la lista de mejoras propuesta (sacar los botones de adentro del enlace, unificar el camino de compra, publicar el snapshot sin intervención, sinónimos en la búsqueda, imágenes, commit de la toolbar y analítica sin storage).
