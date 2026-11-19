@@ -866,16 +866,20 @@ img { max-width: 100%; display: block; }
 }
 .toolbar {
   position: sticky; top: 59px; z-index: 1001;
-  display: flex; flex-direction: column; gap: 10px;
+  display: flex; flex-direction: column; gap: 6px;
   /* 27px + el borde de 1px alinean los chips con el borde de las tarjetas
      (catalog-main tiene 28px de padding). */
-  max-width: 1280px; margin: 0 auto; padding: 12px 27px;
+  max-width: 1280px; margin: 0 auto; padding: 8px 27px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
+/* Chips de la toolbar del catálogo: más bajos que los del resto del sitio
+   para que las filas de filtros no se coman media pantalla. Los del panel y
+   la página de reseñas conservan su tamaño. */
+.toolbar .chip { font-size: 12px; padding: 5px 11px; }
 .tb-row {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 6px;
   overflow-x: auto; scrollbar-width: none;
 }
 .tb-row::-webkit-scrollbar { display: none; }
@@ -902,7 +906,7 @@ img { max-width: 100%; display: block; }
    (WCAG 2.2 SC 2.5.8) y estado activo igual que un chip. */
 .tb-view { flex: 0 0 auto; display: inline-flex; gap: 4px; }
 .tb-view-btn {
-  min-width: 28px; min-height: 28px; padding: 2px 6px; border-radius: var(--radius-sm);
+  min-width: 24px; min-height: 24px; padding: 2px 5px; border-radius: var(--radius-sm);
   display: inline-flex; align-items: center; justify-content: center;
   border: 1px solid var(--control-border); background: var(--panel); color: var(--muted);
   font-size: 13px; line-height: 1; cursor: pointer; font-family: var(--font-sans);
@@ -920,8 +924,24 @@ img { max-width: 100%; display: block; }
   white-space: nowrap;
 }
 .tb-count b, .tb-count { letter-spacing: .02em; }
+/* Plegado de la fila de etiquetas: mantiene la toolbar en dos filas visibles
+   (Ordenar + categorías) y deja las etiquetas a un toque. */
+.tb-more {
+  flex: 0 0 auto; margin-left: auto;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--control-border); background: var(--panel-2); color: var(--text);
+  font-size: 11.5px; font-weight: 600; font-family: var(--font-sans); cursor: pointer;
+  transition: border-color .15s, color .15s, background-color .15s;
+}
+.tb-more:hover, .tb-more[aria-expanded="true"] { border-color: var(--brand); color: var(--brand); }
+.tb-more-icon { font-size: 12px; line-height: 1; }
+.tb-more-n {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+  color: var(--brand); background: var(--brand-soft); border-radius: 999px; padding: 0 5px;
+}
 .tb-sort select {
-  padding: 6px 9px; border-radius: var(--radius-sm); font-size: 11.5px; font-weight: 500;
+  padding: 4px 9px; border-radius: var(--radius-sm); font-size: 11.5px; font-weight: 500;
   border: 1px solid var(--control-border); background: var(--panel-2); color: var(--text); cursor: pointer;
   font-family: var(--font-sans);
   transition: border-color .15s ease;
@@ -1015,25 +1035,32 @@ img { max-width: 100%; display: block; }
   .card-wa { flex: 1 1 100%; margin-left: 0; padding: 7px 9px; font-size: 12px; }
   .layout { padding: 16px 12px; }
   .catalog-main { padding: 12px 12px 20px; }
-  .toolbar { top: 49px; padding: 10px 11px; gap: 6px; }
+  .toolbar { top: 49px; padding: 8px 11px; gap: 6px; }
 }
 @media (max-width: 800px) and (min-width: 481px) {
   .toolbar { top: 58px; }
-  .chip { font-size: 11.5px; padding: 6px 11px; }
+  .toolbar .chip { font-size: 11.5px; padding: 5px 10px; }
   .tb-sort { font-size: 11px; }
-  .tb-sort select { padding: 6px 8px; font-size: 11.5px; }
+  .tb-sort select { padding: 4px 8px; font-size: 11.5px; }
   .tb-spacer { display: none; }
   .tb-row { scroll-padding-left: 2px; }
 }
 /* Móvil chico: compactar la toolbar para que Ordenar siempre entre. */
 @media (max-width: 480px) {
   .tb-sort { font-size: 10.5px; gap: 4px; }
-  .tb-sort select { padding: 5px 6px; font-size: 11px; max-width: 46vw; }
-  .tb-count { font-size: 10.5px; padding: 4px 8px; }
+  .tb-sort select { padding: 4px 6px; font-size: 11px; max-width: 46vw; }
+  .tb-count { font-size: 10.5px; padding: 3px 7px; }
   /* Con el alternador la fila puede superar el ancho: que envuelva en vez
      de desbordar (el select ya esta limitado a 46vw). */
   .tb-top { flex-wrap: wrap; row-gap: 6px; }
-  .tb-view-btn { min-width: 26px; min-height: 26px; font-size: 12px; }
+  .tb-view-btn { min-width: 24px; min-height: 24px; font-size: 12px; }
+  /* El botón de etiquetas queda solo con el icono: con texto la fila de
+     Ordenar envolvía y la toolbar crecía en vez de achicarse. */
+  .tb-more {
+    padding: 0; min-width: 24px; min-height: 24px; justify-content: center; gap: 2px;
+    font-size: 13px;
+  }
+  .tb-more-txt { display: none; }
 }
 
 /* ===== Header: nav ===== */

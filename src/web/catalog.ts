@@ -80,6 +80,12 @@ const state = {
   view: loadView(),
 };
 
+// La fila de etiquetas arranca plegada: eran tres filas fijas arriba del
+// catálogo y en móvil ocupaban casi un quinto de la pantalla. Se abre desde el
+// botón «Etiquetas» y queda abierta mientras haya una etiqueta aplicada, para
+// no esconder el filtro que el visitante acaba de tocar.
+let tagsOpen = false;
+
 const el = {
   search: document.getElementById("search") as HTMLInputElement,
   toolbar: document.getElementById("toolbar") as HTMLElement,
@@ -263,6 +269,12 @@ function renderToolbar(): void {
           <option value="random" ${state.sort === "random" ? "selected" : ""}>Aleatorio</option>
         </select>
       </label>
+      <button type="button" class="tb-more" id="tb-more" aria-label="Etiquetas"
+        aria-expanded="${tagsOpen ? "true" : "false"}" aria-controls="tb-tags-row">
+        <span class="tb-more-txt">Etiquetas</span>
+        <span class="tb-more-icon" aria-hidden="true">☰</span>
+        ${state.tags.size ? `<span class="tb-more-n">${state.tags.size}</span>` : ""}
+      </button>
       <span class="tb-count" id="tb-count" hidden></span>
       <div class="tb-view" role="group" aria-label="Vista del catálogo">
         <button type="button" class="tb-view-btn ${state.view === "grid" ? "on" : ""}" data-view="grid"
@@ -285,7 +297,7 @@ function renderToolbar(): void {
         <button class="chip chip--sub ${state.category === s.id ? "on" : ""}" data-cat="${esc(s.id)}">↳ ${esc(s.name)}</button>
       `).join("")}
     </div>` : ""}
-    <div class="tb-row">
+    <div class="tb-row" id="tb-tags-row"${tagsOpen ? "" : " hidden"}>
       <span class="tb-label">Etiquetas</span>
       ${(["new", "featured", "offer"] as Tag[]).map((t) => `
         <button class="chip ${state.tags.has(t) ? "on" : ""}" data-tag="${t}">${tagLabel(t)}</button>
@@ -329,11 +341,25 @@ function renderToolbar(): void {
       const t = btn.dataset.tag as Tag;
       if (state.tags.has(t)) state.tags.delete(t);
       else state.tags.add(t);
+      // Con una etiqueta recién elegida la fila queda a la vista: el filtro
+      // activo no puede esconderse detrás del botón que lo abrió.
+      tagsOpen = true;
       resetPager();
       render();
     });
   });
   el.toolbar.querySelector("#clear-filters")?.addEventListener("click", clearFilters);
+  // Plegar/desplegar la fila de etiquetas sin redibujar la toolbar, para no
+  // perder el scroll horizontal de los chips de categorías.
+  el.toolbar.querySelector("#tb-more")?.addEventListener("click", () => {
+    const btn = el.toolbar.querySelector<HTMLButtonElement>("#tb-more");
+    const row = el.toolbar.querySelector<HTMLElement>("#tb-tags-row");
+    if (!btn || !row) return;
+    tagsOpen = row.hidden;
+    row.hidden = !tagsOpen;
+    btn.setAttribute("aria-expanded", String(tagsOpen));
+    updateToolbarMasks();
+  });
   updateToolbarMasks();
   setupToolbarMaskScroll();
 }
