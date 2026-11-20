@@ -1,3 +1,10 @@
+## 2026-11-20 — Parte el panel de administración en módulos por página
+
+- **Pedido**: `src/web/admin.ts` tenía ~4.500 líneas con todas las pestañas adentro; partirlo por página sin cambiar comportamiento, con typecheck y tests en verde.
+- **Estructura**: `src/web/admin.ts` queda como entrada (solo arranca el panel). Los módulos viven en `src/web/admin/`: `ui.ts` (elementos fijos del HTML, `api`, avisos, insignias de pestaña, banner de «sin publicar» y barra de progreso), `router.ts` (hash + render serializado), `boot.ts` (sesión, login/logout, inactividad) y una pestaña por archivo: `dashboard`, `products`, `categories`, `import`, `import-repeat` (grilla de horarios y box «repetir»), `rules`, `autoimports`, `orders`, `returns`, `club`, `settings`, `changelog`, `security` y `stats`.
+- **Sin cambios de comportamiento**: el código se movió tal cual; lo único que cambió es cómo se comparte el estado. `dirtyGuardArmed` pasa a `setDirtyGuardArmed()` (un `let` importado no se puede asignar desde otro módulo) y los dos flags que usan dos pestañas (`pendingAutoFuente` y `refocusSearch`) viven en `ui-state.ts`.
+- **Verificado**: `npm run typecheck` en 0, los 631 tests en verde, `npm run build` OK y el panel carga sin errores de módulo en consola en local (el único error es el 401 esperado de `/session` sin sesión). No se recorrieron las pestañas a mano.
+
 ## 2026-11-20 — Deja el working tree limpio (capturas y `allowScripts`)
 
 - **Pedido**: decidir qué hacer con el bloque `allowScripts` de `package.json` y con `screenshots/panel-avisos-frenados.png` para que `git status` no muestre nada suelto.
