@@ -153,7 +153,7 @@ waFeedApp.get("/api/whatsapp/feed.csv", async (c) => {
   }
 
   const origin = origenWaFeed(c.env, new URL(c.req.url).origin);
-  const { csv, included, skipped } = buildWaFeed(products, {
+  const { csv, included, skipped, avisos } = buildWaFeed(products, {
     origin,
     storeName: settings.storeName ?? "",
     categoryNames: new Map(categories.map((cat) => [cat.id, cat.name])),
@@ -163,6 +163,15 @@ waFeedApp.get("/api/whatsapp/feed.csv", async (c) => {
     console.warn(
       `wa-feed: ${skipped.length} producto(s) quedaron fuera del feed: ${skipped
         .map((s) => `${s.id} (${s.reason})`)
+        .join("; ")}`
+    );
+  }
+  // Fotos que Meta rechaza: el ítem va igual (sacarlo achicaría el catálogo), pero
+  // queda el aviso para cambiarlas. El panel muestra el mismo número.
+  if (avisos.length > 0) {
+    console.warn(
+      `wa-feed: ${avisos.length} producto(s) con foto que Meta rechaza: ${avisos
+        .map((a) => `${a.id} (${a.reason})`)
         .join("; ")}`
     );
   }

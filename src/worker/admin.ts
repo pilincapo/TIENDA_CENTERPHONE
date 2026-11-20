@@ -7,7 +7,7 @@ import type { AutoImport } from "../shared/autoimport";
 import { TAGS } from "../shared/types";
 import type { Dict, Env } from "./db";
 import {
-  countProducts, countProductsByCategory, countProductsBySource, countProductsByStatus, countWhatsAppProducts, deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct,
+  countProducts, countProductsByCategory, countProductsBySource, countProductsByStatus, countWhatsAppProducts, countWhatsAppPhotosNoAptas, deleteAutoImport, deleteCategory, deletePriceRule, deleteProduct,
   getAutoImportByUrl, getProduct, hideProductsByIds, insertSyncLog, lastSyncLogByDetail, listAutoImports, listCategories, listPriceRules,
   listProductsPaged, listSyncLog, listSyncLogByTrigger, repararNombreCategoria, repararTextoProducto, setProductsWaPublish, setWhatsAppScope, upsertAutoImport, waCategoryScope, waSourceScope, whatsAppScopePreview,
   upsertCategory, upsertPriceRule, upsertProduct,
@@ -358,7 +358,10 @@ adminApp.post("/products/whatsapp/scope", async (c) => {
  * vez genera el token y lo guarda con los ajustes; el formulario de Configuración
  * guarda campo por campo, así que el token nunca se pisa al guardar.
  */
-async function whatsAppFeedUrl(env: Env, forceNewToken: boolean): Promise<{ url: string; token: string; count: number }> {
+async function whatsAppFeedUrl(
+  env: Env,
+  forceNewToken: boolean,
+): Promise<{ url: string; token: string; count: number; fotosNoAptas: number }> {
   const settings = await getSettings(env.KV);
   let token = settings.whatsappFeedToken ?? "";
   if (token === "" || forceNewToken) {
@@ -366,7 +369,11 @@ async function whatsAppFeedUrl(env: Env, forceNewToken: boolean): Promise<{ url:
     await saveSettings(env.KV, { whatsappFeedToken: token });
   }
   const origin = (env.CF_SITE_ORIGIN ?? "").replace(/\/+$/, "");
-  return { url: `${origin}/api/whatsapp/feed.csv?t=${token}`, token, count: await countWhatsAppProducts(env.DB) };
+  const [count, fotosNoAptas] = await Promise.all([
+    countWhatsAppProducts(env.DB),
+    countWhatsAppPhotosNoAptas(env.DB),
+  ]);
+  return { url: `${origin}/api/whatsapp/feed.csv?t=${token}`, token, count, fotosNoAptas };
 }
 
 adminApp.get("/whatsapp/feed-url", async (c) => {

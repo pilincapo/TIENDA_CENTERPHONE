@@ -610,6 +610,25 @@ export async function countWhatsAppProducts(db: D1Database): Promise<number> {
   return Number(row?.n ?? 0);
 }
 
+/**
+ * De los productos del feed, cuántos tienen una foto con un formato que Meta
+ * rechaza (WebP, SVG, GIF): Meta pide JPEG o PNG de 500×500 px como mínimo.
+ *
+ * El count va por extensión, igual que `waImageProblem` (una consulta, sin bajar
+ * una sola imagen). El panel lo muestra al lado del tamaño del feed para que no
+ * haya que adivinar por qué un producto marcado no aparece en WhatsApp.
+ */
+export async function countWhatsAppPhotosNoAptas(db: D1Database): Promise<number> {
+  const row = await filaUnica<Dict>(
+    db.prepare(
+      `SELECT COUNT(*) AS n FROM products
+        WHERE wa_publish = 1 AND status = 'published'
+          AND (LOWER(image_url) LIKE '%.webp%' OR LOWER(image_url) LIKE '%.svg%' OR LOWER(image_url) LIKE '%.gif%')`,
+    ),
+  );
+  return Number(row?.n ?? 0);
+}
+
 export interface WaScopePreview {
   /** Productos del alcance, en cualquier estado. */
   total: number;

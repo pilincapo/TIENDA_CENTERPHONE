@@ -7,6 +7,7 @@ import {
   waAvailability,
   waBrand,
   waDescription,
+  waImageProblem,
   waPrice,
   WA_FEED_COLUMNS,
   WA_MAX_ID,
@@ -274,5 +275,44 @@ describe("aviso de catálogo casi vacío", () => {
     expect(avisoCatalogoVacio(100, 100)).toBe("");
     expect(avisoCatalogoVacio(110, 100)).toBe("");
     expect(avisoCatalogoVacio(feedResultante(true, 100, 0, 10), 100)).toBe("");
+  });
+});
+
+// Meta pide JPEG o PNG de 500×500 px como mínimo. Los .webp del catálogo (21 hoy,
+// 20 de ellos en el CDN de Tiendanube, que no convierte a JPEG por URL) y el .svg
+// de relleno son los que hacen que un producto marcado no se publique.
+describe("foto que Meta rechaza", () => {
+  it("acepta JPEG y PNG, con o sin parámetros en la URL", () => {
+    expect(waImageProblem("https://cdn.ejemplo.com/foto.jpg")).toBe("");
+    expect(waImageProblem("https://cdn.ejemplo.com/foto.jpeg")).toBe("");
+    expect(waImageProblem("https://cdn.ejemplo.com/foto.png")).toBe("");
+    expect(waImageProblem("https://cdn.ejemplo.com/foto.png?width=800&format=jpeg")).toBe("");
+  });
+
+  it("marca WebP, SVG y GIF aunque la URL lleve query o mayúsculas", () => {
+    expect(waImageProblem("https://cdn.ejemplo.com/foto.webp")).toContain("WebP");
+    expect(waImageProblem("https://cdn.ejemplo.com/foto.WEBP?width=1024")).toContain("WebP");
+    expect(waImageProblem("https://cdn.ejemplo.com/vacio.svg")).toContain("SVG");
+    expect(waImageProblem("https://cdn.ejemplo.com/foto.gif")).toContain("GIF");
+  });
+
+  it("un producto con WebP igual entra al feed, pero queda avisado", () => {
+    const r = buildWaFeed(
+      [
+        prod({ id: "ok", imageUrl: "https://cdn.ejemplo.com/foto.jpg" }),
+        prod({ id: "webp", imageUrl: "https://cdn.ejemplo.com/foto.webp" }),
+      ],
+      OPTS,
+    );
+    expect(r.included).toBe(2);
+    expect(r.skipped).toHaveLength(0);
+    expect(r.avisos).toHaveLength(1);
+    expect(r.avisos[0]?.id).toBe("webp");
+    expect(r.avisos[0]?.reason).toContain("WebP");
+  });
+
+  it("un feed con las fotos en orden no genera avisos", () => {
+    const r = buildWaFeed([prod({ id: "a" }), prod({ id: "b" })], OPTS);
+    expect(r.avisos).toHaveLength(0);
   });
 });

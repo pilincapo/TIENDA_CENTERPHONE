@@ -20,6 +20,7 @@ import { formatPrice } from "../shared/format";
 import type { Order, OrderItem } from "../shared/types";
 import { effectiveMemberPercent, memberDiscountCents, memberPhoneMatches } from "../shared/loyalty";
 import { getActiveMemberByCode, touchMemberOrder } from "./loyalty";
+import { notifySale } from "./sale-notify";
 
 export const checkoutApp = new Hono<{ Bindings: Env }>();
 
@@ -252,6 +253,22 @@ checkoutApp.post("/api/orders/transfer", async (c) => {
   if ("error" in created) return c.json({ error: created.error }, created.status);
   const { order, cartTotal, discountPercent, memberDiscountPercent } = created;
 
+  // Aviso inmediato al vendedor: este pedido no se cierra solo, hay que acreditar
+  // la transferencia. Sale por email (binding ya configurado para el resumen de
+  // seguridad) sin bloquear la respuesta ni poder romper el checkout: notifySale
+  // atrapa sus propios errores. El resumen semanal no cubre este caso porque un
+  // pendiente de hoy no aparece en el panel hasta que alguien lo abre.
+  const avisoTransferencia = notifySale(c.env, order, "transfer", {
+    storeName: settings.storeName,
+    currencySymbol: settings.currencySymbol,
+  }).catch((e) => console.error("venta: aviso de transferencia falló:", e));
+  try {
+    c.executionCtx.waitUntil(avisoTransferencia);
+  } catch {
+    // Sin ExecutionContext (tests de la ruta): se espera para no perder el aviso.
+    await avisoTransferencia;
+  }
+
   // CBU/alias configurable: si el vendedor lo cargó, va pre-cargado en el
   // mensaje de WhatsApp para que el comprador transfiera sin preguntar.
   const wa = settings.whatsappPhone.replace(/\D/g, "");
@@ -316,6 +333,14 @@ checkoutApp.post("/api/payments/webhook", async (c) => {
     // El email lo informa MP en la re-consulta; si viene, queda persistido.
     await updateOrderStatus(c.env.DB, orderId, "paid", { mpPaymentId: id, payerEmail: payment.payerEmail });
     console.log(`seguridad: webhook mp confirmó pago del pedido ${orderId} (payment ${id})`);
+    // Aviso al vendedor de que entró la plata. Es la única notificación activa de
+    // una venta: hasta ahora había que mirar el panel para enterarse. La marca en
+    // KV evita el email duplicado si MP reintenta la misma notificación.
+    const settings = await getSettings(c.env.KV);
+    await notifySale(c.env, order, "paid", {
+      storeName: settings.storeName,
+      currencySymbol: settings.currencySymbol,
+    });
   })().catch(() => { /* el webhook nunca debe tirar excepción al waitUntil */ }));
 
   return c.json({ received: true });

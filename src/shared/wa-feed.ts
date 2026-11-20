@@ -116,6 +116,33 @@ export interface WaFeedResult {
   included: number;
   /** Productos marcados que quedaron afuera, con el motivo (se loguea en el worker). */
   skipped: { id: string; reason: string }[];
+  /**
+   * Productos que SÍ entran al feed pero con una foto que Meta rechaza (WebP,
+   * SVG). Se mandan igual —saltearlos vaciaría el catálogo poco a poco— y el
+   * panel los muestra para que se cambie la foto.
+   */
+  avisos: { id: string; reason: string }[];
+}
+
+/**
+ * ¿La foto de este producto la acepta Meta? El catálogo de WhatsApp pide JPEG o
+ * PNG de al menos 500×500 px.
+ *
+ * No se descarga la imagen (sería una request por producto): se juzga por la
+ * extensión, que es lo que delata a los 21 `.webp` y al `.svg` de relleno que hay
+ * hoy en el catálogo. El tamaño no se puede saber sin bajarla, así que ese caso
+ * queda del lado de Commerce Manager.
+ *
+ * Devuelve "" cuando la foto sirve, o el motivo por el que no.
+ */
+export function waImageProblem(url: string): string {
+  // Se corta query y hash con un regex (no con split) porque el índice del array
+  // tipa como posiblemente indefinido con noUncheckedIndexedAccess.
+  const limpia = String(url ?? "").trim().toLowerCase().replace(/[?#].*$/, "");
+  if (/\.svg$/.test(limpia)) return "la foto es un SVG (Meta pide JPEG o PNG)";
+  if (/\.webp$/.test(limpia)) return "la foto es WebP (Meta pide JPEG o PNG)";
+  if (/\.gif$/.test(limpia)) return "la foto es GIF (Meta pide JPEG o PNG)";
+  return "";
 }
 
 /**
@@ -162,6 +189,7 @@ export function avisoCatalogoVacio(resultante: number, hoy: number): string {
 export function buildWaFeed(products: Product[], opts: WaFeedOptions): WaFeedResult {
   const filas: string[] = [WA_FEED_COLUMNS.join(",")];
   const skipped: { id: string; reason: string }[] = [];
+  const avisos: { id: string; reason: string }[] = [];
   const storeName = normalizar(opts.storeName);
   const origin = opts.origin.replace(/\/+$/, "");
 
@@ -183,6 +211,9 @@ export function buildWaFeed(products: Product[], opts: WaFeedOptions): WaFeedRes
       skipped.push({ id, reason: "sin foto accesible (image_link es obligatorio y debe ser http/https)" });
       continue;
     }
+    // Entra igual, pero queda anotado: Meta va a rechazar el ítem por la foto.
+    const problemaFoto = waImageProblem(image);
+    if (problemaFoto !== "") avisos.push({ id, reason: problemaFoto });
     const categoria = p.categoryId ? opts.categoryNames?.get(p.categoryId) ?? "" : "";
     filas.push(
       [
@@ -203,5 +234,5 @@ export function buildWaFeed(products: Product[], opts: WaFeedOptions): WaFeedRes
 
   // \r\n (RFC 4180) y salto final: Meta acepta ambos fines de línea y así el
   // archivo no queda con la última fila pegada al EOF si alguien lo abre a mano.
-  return { csv: `${filas.join("\r\n")}\r\n`, included: filas.length - 1, skipped };
+  return { csv: `${filas.join("\r\n")}\r\n`, included: filas.length - 1, skipped, avisos };
 }

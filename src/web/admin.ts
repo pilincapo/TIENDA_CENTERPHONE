@@ -3681,7 +3681,7 @@ async function viewSettings(): Promise<void> {
               <button type="button" class="btn" id="wa-feed-copy">📋 Copiar URL</button>
               <button type="button" class="btn" id="wa-feed-rotate">🔄 Regenerar URL</button>
             </div>
-            <p class="muted">Productos marcados ahora: <strong id="wa-feed-count">…</strong></p>
+            <p class="muted">Productos marcados ahora: <strong id="wa-feed-count">…</strong> <span id="wa-feed-bad"></span></p>
             <p class="muted">Cómo conectarlo (una sola vez):<br>
             1. Commerce Manager → tu catálogo → <strong>Fuentes de datos</strong> → <strong>Agregar fuente</strong> → <strong>Feed programado</strong> (por URL).<br>
             2. Pegá esta URL, elegí la frecuencia (lo más seguido que permite Meta es cada hora) y el tipo de feed.<br>
@@ -3807,12 +3807,21 @@ async function viewSettings(): Promise<void> {
   // nunca lo pisa (el input tampoco tiene name: no entra al FormData).
   const waUrl = form.querySelector<HTMLInputElement>("#wa-feed-url");
   const waFeedCount = form.querySelector<HTMLElement>("#wa-feed-count");
+  const waFeedBad = form.querySelector<HTMLElement>("#wa-feed-bad");
   if (waUrl) {
     waUrl.placeholder = "Obteniendo…";
     try {
-      const info = await api<{ url: string; count: number }>("/whatsapp/feed-url");
+      const info = await api<{ url: string; count: number; fotosNoAptas: number }>("/whatsapp/feed-url");
       waUrl.value = info.url;
       if (waFeedCount) waFeedCount.textContent = String(info.count);
+      // Fotos que Meta rechaza: el ítem se manda igual, pero no se publica. Sin
+      // este aviso, un producto marcado que no aparece en WhatsApp parece un
+      // error del feed.
+      if (waFeedBad) {
+        waFeedBad.textContent = info.fotosNoAptas > 0
+          ? ` — ⚠️ ${info.fotosNoAptas} con foto que Meta rechaza (WebP/SVG): cambiala por una JPEG o PNG de 500×500 px o ese producto no se publica.`
+          : "";
+      }
     } catch {
       waUrl.placeholder = "No se pudo obtener la URL (recargá la pestaña)";
     }
