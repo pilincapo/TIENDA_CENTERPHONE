@@ -71,20 +71,46 @@ async function bumpCounter(kv: KVNamespace, key: string): Promise<number> {
  */
 async function saleCap(env: Env, kind: SaleKind, opts: SaleNotifyOpts, now: number): Promise<string | null> {
   if (kind !== "transfer") return null;
-  if ((opts.attempts ?? 0) > ATTEMPTS_MAX) return "demasiados intentos desde la misma IP";
+  if ((opts.attempts ?? 0) > ATTEMPTS_MAX) return frenar(env, "demasiados intentos desde la misma IP", now);
   const dia = dayKey(now);
   const ip = (opts.ip ?? "").trim();
   try {
     if (ip !== "") {
       const porIp = await bumpCounter(env.KV, `venta:ip:${ipHash(ip)}:${dia}`);
-      if (porIp > IP_MAX_PER_DAY) return "tope diario por IP";
+      if (porIp > IP_MAX_PER_DAY) return frenar(env, "tope diario por IP", now);
     }
     const delDia = await bumpCounter(env.KV, `venta:dia:${dia}`);
-    if (delDia > DAY_MAX) return "tope diario de avisos";
+    if (delDia > DAY_MAX) return frenar(env, "tope diario de avisos", now);
   } catch {
     return null;
   }
   return null;
+}
+
+/**
+ * Registra el corte en el contador del día (lo lee el panel) y devuelve el motivo.
+ * La cuenta es informativa: si KV falla se pierde el número, no el corte.
+ */
+async function frenar(env: Env, motivo: string, now: number): Promise<string> {
+  try {
+    await bumpCounter(env.KV, BLOCKED_PREFIX + dayKey(now));
+  } catch {
+    // sin contador igual se frena el aviso
+  }
+  return motivo;
+}
+
+/**
+ * Cuántos avisos de venta se frenaron por tope en el día en curso (UTC, igual
+ * que los contadores). 0 si no hay KV, si falla o si todavía no hubo ninguno.
+ */
+export async function countBlockedSales(env: Env, now = Date.now()): Promise<number> {
+  try {
+    const raw = await env.KV.get(BLOCKED_PREFIX + dayKey(now));
+    return Math.max(0, Number(raw) || 0);
+  } catch {
+    return 0;
+  }
 }
 
 /** Origen del email: el mismo que usa el resumen semanal. */
@@ -109,6 +135,9 @@ const DAY_MAX = 40;
 const ATTEMPTS_MAX = 3;
 /** Los contadores viven 2 días: alcanzan para el día en curso y el borde de UTC. */
 const COUNTER_TTL_SECONDS = 2 * 24 * 3600;
+
+/** Contador de avisos frenados del día: el panel lo muestra sin abrir los logs. */
+const BLOCKED_PREFIX = "venta:frenados:";
 
 /** Link a WhatsApp del comprador, con el pedido ya escrito. */
 function waComprador(order: Order): string {

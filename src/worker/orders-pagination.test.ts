@@ -208,3 +208,26 @@ describe("GET /api/admin/orders (paginado)", () => {
     expect(body.orders.map((o) => o.id)).toEqual(["o7"]);
   });
 });
+
+describe("GET /api/admin/orders: avisos frenados por tope", () => {
+  it("informa los avisos que hoy frenaron los topes", async () => {
+    const kv = {
+      get: async (k: string) => (k.startsWith("venta:frenados:") ? "4" : null),
+      put: async () => {},
+    } as unknown as KVNamespace;
+    const env = mockEnv(kv);
+    const cookie = await loginYCookie(env);
+    const res = await adminApp.request("/orders", { headers: { Cookie: cookie } }, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { salesBlockedToday?: number };
+    expect(body.salesBlockedToday).toBe(4);
+  });
+
+  it("con KV vacío informa 0", async () => {
+    const env = mockEnv(mockKV());
+    const cookie = await loginYCookie(env);
+    const res = await adminApp.request("/orders", { headers: { Cookie: cookie } }, env);
+    const body = (await res.json()) as { salesBlockedToday?: number };
+    expect(body.salesBlockedToday).toBe(0);
+  });
+});

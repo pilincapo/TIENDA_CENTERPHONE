@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { Env } from "./db";
 import type { Order } from "../shared/types";
 import { formatPrice } from "../shared/format";
-import { notifySale, saleEmailText, saleNotifyKey } from "./sale-notify";
+import { countBlockedSales, notifySale, saleEmailText, saleNotifyKey } from "./sale-notify";
 
 function pedido(over: Partial<Order> = {}): Order {
   return {
@@ -170,5 +170,23 @@ describe("topes anti-abuso del aviso por transferencia", () => {
     expect(enviados).toHaveLength(40);
     // El de pago lo dispara el webhook de MP (no un endpoint público): sigue saliendo.
     expect((await notifySale(env, pedido({ id: "dia-pagado" }), "paid", { ip: "10.0.0.99" })).sent).toBe(true);
+  });
+});
+
+describe("contador de avisos frenados (lo muestra el panel)", () => {
+  it("empieza en 0 y suma cada corte, sin contar los avisos que salen", async () => {
+    const { env } = makeEnv();
+    expect(await countBlockedSales(env)).toBe(0);
+    for (let i = 0; i < 3; i += 1) {
+      expect((await notifySale(env, pedido({ id: `frenado-${i}` }), "transfer", { ip: "1.1.1.1" })).sent).toBe(true);
+    }
+    await notifySale(env, pedido({ id: "frenado-3" }), "transfer", { ip: "1.1.1.1" });
+    await notifySale(env, pedido({ id: "frenado-4" }), "transfer", { ip: "1.1.1.1" });
+    expect(await countBlockedSales(env)).toBe(2);
+  });
+
+  it("sin KV responde 0 y no rompe el panel", async () => {
+    const sinKv = { KV: undefined } as unknown as Env;
+    expect(await countBlockedSales(sinKv)).toBe(0);
   });
 });

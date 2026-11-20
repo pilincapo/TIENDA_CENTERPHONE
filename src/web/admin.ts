@@ -2749,6 +2749,8 @@ interface OrdersPage {
   pages: number;
   limit: number;
   counts: Record<string, number>;
+  /** Avisos de venta frenados hoy por los topes anti-abuso (puede venir ausente). */
+  salesBlockedToday?: number;
 }
 
 // Estado que sobrevive a los re-renders: filtrar o buscar no te manda a la página 1
@@ -2835,6 +2837,9 @@ async function viewOrders(statusFilter = ""): Promise<void> {
       ${payments.configured && payments.enabled
         ? `<p class="muted">Pago online activo: MercadoPago confirma solo vía webhook.</p>`
         : `<p class="muted">Pago online ${payments.configured ? "configurado pero <b>desactivado</b> en Configuración → Pagos" : "<b>sin token</b>: configurá el secret <code>MERCADOPAGO_ACCESS_TOKEN</code> (ver Configuración → Pagos)"}. Los pedidos que veas acá se confirman a mano.</p>`}
+      ${(data.salesBlockedToday ?? 0) > 0
+        ? `<p class="muted" id="ord-sales-blocked">⚠️ Hoy se frenaron <b>${data.salesBlockedToday}</b> aviso${(data.salesBlockedToday ?? 0) !== 1 ? "s" : ""} de venta por los topes anti-abuso (3 por IP y 40 por día): el pedido se guardó igual, pero <b>no salió el email</b>. Revisá los pendientes de hoy por si hay una venta real sin avisar.</p>`
+        : ""}
       ${orders.length === 0
         ? `<p class="muted">Todavía no hay pedidos${ordState.status !== "" ? " con este estado" : ""}${ordState.q !== "" ? ` buscando "${esc(ordState.q)}"` : ""}.</p>`
         : `<table class="table ord-table">
