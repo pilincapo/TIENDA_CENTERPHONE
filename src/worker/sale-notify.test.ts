@@ -135,3 +135,40 @@ describe("envío del aviso", () => {
     expect(out.motivo).toBe("fallo de envío");
   });
 });
+
+describe("topes anti-abuso del aviso por transferencia", () => {
+  it("corta después de 3 avisos por IP en el día y no castiga a otra IP", async () => {
+    const { env, enviados } = makeEnv();
+    for (let i = 0; i < 3; i += 1) {
+      const out = await notifySale(env, pedido({ id: `pedido-ip-${i}` }), "transfer", { ip: "1.2.3.4" });
+      expect(out.sent).toBe(true);
+    }
+    const cuarto = await notifySale(env, pedido({ id: "pedido-ip-3" }), "transfer", { ip: "1.2.3.4" });
+    expect(cuarto.sent).toBe(false);
+    expect(cuarto.motivo).toBe("tope diario por IP");
+    expect(enviados).toHaveLength(3);
+    // Una compra real desde otra conexión sigue avisando.
+    expect((await notifySale(env, pedido({ id: "pedido-otra-ip" }), "transfer", { ip: "5.6.7.8" })).sent).toBe(true);
+  });
+
+  it("no avisa si la misma IP ya hizo varios intentos de checkout en el minuto", async () => {
+    const { env, enviados } = makeEnv();
+    const out = await notifySale(env, pedido(), "transfer", { ip: "9.9.9.9", attempts: 4 });
+    expect(out.sent).toBe(false);
+    expect(out.motivo).toBe("demasiados intentos desde la misma IP");
+    expect(enviados).toHaveLength(0);
+  });
+
+  it("el tope global del día frena el resto y no toca el aviso de pago acreditado", async () => {
+    const { env, enviados } = makeEnv();
+    for (let i = 0; i < 40; i += 1) {
+      expect((await notifySale(env, pedido({ id: `dia-${i}` }), "transfer", { ip: `10.0.0.${i}` })).sent).toBe(true);
+    }
+    const fuera = await notifySale(env, pedido({ id: "dia-40" }), "transfer", { ip: "10.0.0.99" });
+    expect(fuera.sent).toBe(false);
+    expect(fuera.motivo).toBe("tope diario de avisos");
+    expect(enviados).toHaveLength(40);
+    // El de pago lo dispara el webhook de MP (no un endpoint público): sigue saliendo.
+    expect((await notifySale(env, pedido({ id: "dia-pagado" }), "paid", { ip: "10.0.0.99" })).sent).toBe(true);
+  });
+});

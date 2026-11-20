@@ -1,3 +1,11 @@
+## 2026-11-20 — Topes al aviso de venta por transferencia
+
+- **Pedido**: «El aviso de venta por transferencia sale en un endpoint público: alguien podría crear pedidos en bucle y llenar la casilla del dueño, o quemar la cuota de envío y dejar sin resumen semanal. Poné un tope razonable (por IP y por día) reutilizando el rate limit que ya tiene el checkout, sin perder el aviso de una venta real».
+- **Riesgo**: `POST /api/orders/transfer` crea el pedido y manda el email sin fricción (nombre + WhatsApp + un ítem del carrito). El rate limit del checkout (10/min por IP) vivía en memoria del isolate y no limita la cantidad de emails: un goteo lento o un ataque repartido entre isolates podía llenar la casilla y consumir la cuota diaria del plan gratuito de Email Routing — y con ella el resumen semanal de seguridad.
+- **Topes** en [sale-notify.ts](src/worker/sale-notify.ts), solo para el aviso por transferencia: **3 avisos por IP y día**, **40 avisos en total por día** (contadores en KV `venta:ip:<hash>:<día>` y `venta:dia:<día>`, TTL 2 días, con la IP hasheada para no guardarla en claro) y **corte si la misma IP ya hizo más de 3 intentos de checkout en el mismo minuto**, que es el contador del rate limit existente ([checkout.ts](src/worker/checkout.ts), que ahora devuelve el número de intento). El aviso de **pago acreditado** no se limita: lo dispara el webhook de MercadoPago, que re-consulta el pago contra su API.
+- **Sin perder ventas**: un pedido silenciado por el tope **se guarda igual en D1** y aparece en el panel; lo que no sale es el email. Cada corte deja un `console.warn` con el motivo y el id del pedido en Workers Logs, y si KV falla se manda el aviso (mejor un email de más que perder una venta).
+- **Verificado**: `npm run typecheck` en 0 y **628 tests** en verde (3 nuevos: tope por IP, corte por intentos repetidos y tope global del día sin afectar el aviso de pago). No se probó el envío real (el binding `EMAIL` no existe en local) ni se forzó un bucle contra producción.
+
 ## 2026-11-20 — Aviso de venta por email, fotos del feed y smoke test
 
 - **Pedido**: "4 y 1. luego 2 y 3" sobre la lista de mejoras propuesta (smoke test, aviso de venta, fotos del feed de WhatsApp, revisión en Search Console).

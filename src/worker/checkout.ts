@@ -36,11 +36,17 @@ function checkoutBlocked(ip: string): boolean {
   if (!entry || entry.resetAt < now) return false;
   return entry.count >= 10;
 }
-function recordCheckoutAttempt(ip: string): void {
+/** Suma el intento y devuelve cuántos lleva esa IP en el minuto en curso (lo
+ *  usa el aviso de venta para no disparar email a un script). */
+function recordCheckoutAttempt(ip: string): number {
   const now = Date.now();
   const entry = checkoutAttempts.get(ip);
-  if (!entry || entry.resetAt < now) checkoutAttempts.set(ip, { count: 1, resetAt: now + 60_000 });
-  else entry.count += 1;
+  if (!entry || entry.resetAt < now) {
+    checkoutAttempts.set(ip, { count: 1, resetAt: now + 60_000 });
+    return 1;
+  }
+  entry.count += 1;
+  return entry.count;
 }
 
 function sameSiteOrigin(c: { req: { header: (n: string) => string | undefined; url: string } }): boolean {
@@ -240,7 +246,7 @@ checkoutApp.post("/api/orders/transfer", async (c) => {
   if (!sameSiteOrigin(c)) return c.json({ error: "Origen no permitido" }, 403);
   const ip = c.req.header("CF-Connecting-IP") ?? "local";
   if (checkoutBlocked(ip)) return c.json({ error: "Demasiados intentos. Probá en un minuto." }, 429);
-  recordCheckoutAttempt(ip);
+  const attempts = recordCheckoutAttempt(ip);
 
   const settings = await getSettings(c.env.KV);
   // Modo catálogo: no se crean pedidos. El sitio solo muestra precios y WhatsApp,
@@ -258,9 +264,13 @@ checkoutApp.post("/api/orders/transfer", async (c) => {
   // seguridad) sin bloquear la respuesta ni poder romper el checkout: notifySale
   // atrapa sus propios errores. El resumen semanal no cubre este caso porque un
   // pendiente de hoy no aparece en el panel hasta que alguien lo abre.
+  // La ruta es pública: el aviso lleva el IP y los intentos del rate limit para
+  // que un bucle no llene la casilla ni queme la cuota de envío (ver sale-notify).
   const avisoTransferencia = notifySale(c.env, order, "transfer", {
     storeName: settings.storeName,
     currencySymbol: settings.currencySymbol,
+    ip,
+    attempts,
   }).catch((e) => console.error("venta: aviso de transferencia falló:", e));
   try {
     c.executionCtx.waitUntil(avisoTransferencia);
