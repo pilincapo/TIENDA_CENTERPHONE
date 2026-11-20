@@ -84,8 +84,19 @@ function mockEnv(kv: KVNamespace): Env {
   return { KV: kv, DB: makeDb(), ADMIN_PASSWORD: "pass-de-test" } as unknown as Env;
 }
 
+// Prefijos que pidió list(): el primer test comprueba que la lista vacía sale
+// del camino real (list → []) y no del catch de un KV sin list().
+const listPrefixes: string[] = [];
+
 function mockKV(): KVNamespace {
-  return { get: async () => null, put: async () => {} } as unknown as KVNamespace;
+  return {
+    get: async () => null,
+    put: async () => {},
+    list: async (opts?: { prefix?: string }) => {
+      listPrefixes.push(opts?.prefix ?? "");
+      return { keys: [] };
+    },
+  } as unknown as KVNamespace;
 }
 
 async function loginYCookie(env: Env): Promise<string> {
@@ -129,7 +140,9 @@ describe("GET /api/admin/orders (paginado)", () => {
     expect(body.limit).toBe(50);
     expect(body.counts).toEqual({ pending: 2, paid: 2, cancelled: 1, rejected: 1, archived: 1 });
     // Sin cortes registrados en KV el aviso del panel queda vacío (y no se muestra).
+    // El mock tiene list(): la lista vacía viene de la consulta real por prefijo.
     expect(body.salesBlockedIds).toEqual([]);
+    expect(listPrefixes).toContain(`venta:frenado:${new Date().toISOString().slice(0, 10)}:`);
   });
 
   it("pagina con limit=2: página 2 trae 2 distintos y pages=3", async () => {

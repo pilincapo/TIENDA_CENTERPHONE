@@ -1,3 +1,16 @@
+## 2026-11-20 — Deploy de los avisos frenados y limpieza del repo
+
+- **Pedido**: deployar y revisar qué quedó suelto en el repo (archivos residuales y capturas), borrando lo que ya no sirve.
+- **Deploy**: `npm run deploy` del worker **celu-store** con el cartel de avisos frenados y sus links a `/pedido/<id>`; `npm run smoke` en verde sobre el dominio.
+- **Limpieza**: borrados los logs viejos de la raíz (`.deploy2.log`, `.wrangler-dev.log`, `wr8796.log`, `wrangler-dev.log`), el `test-results/` de Playwright, las capturas de maquetas de sesiones pasadas con sus scripts sueltos (`screenshots/bordes/`, `screenshots/lista/`, `screenshots/toolbar/`, `screenshots/tema-oscuro-ordenado/`, `screenshots/verificar-tarjetas.cjs`) y el grafo generado `graphify-out/`. Se conservan las capturas versionadas (`resenas-*.png`, `version-clara/`) y la del cartel de esta tanda.
+- **Verificado**: `npm run typecheck` en 0, los 631 tests en verde y el build de producción sin errores.
+
+## 2026-11-20 — El test de pedidos sin cortes prueba el camino real de KV
+
+- **Pedido**: en `orders-pagination.test.ts` el caso «sin cortes» pasaba de casualidad: el mock de KV no tenía `list`, así que `blockedSalesToday` tiraba excepción y el `catch` devolvía `[]` sin consultar nada.
+- **Test**: el mock ahora implementa `list()` devolviendo una lista vacía y anota el prefijo consultado; el test asserta `venta:frenado:<día>:` para que quede probado que la lista vacía sale de la consulta real.
+- **Verificado**: `npm run typecheck` en 0 y los 11 tests del archivo en verde.
+
 ## 2026-11-20 — El cartel de avisos frenados muestra qué pedidos revisar
 
 - **Pedido**: ver no solo cuántos avisos se frenaron, sino cuáles, para revisarlos uno por uno.
