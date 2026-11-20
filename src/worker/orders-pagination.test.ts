@@ -118,6 +118,7 @@ describe("GET /api/admin/orders (paginado)", () => {
       pages: number;
       limit: number;
       counts: { pending: number; paid: number; cancelled: number; rejected: number; archived: number };
+      salesBlockedToday: number;
     };
     // 7 pedidos en total, pero o7 está archivado: no aparece en "Todos".
     expect(body.orders.map((o) => o.id)).not.toContain("o7");
@@ -127,6 +128,8 @@ describe("GET /api/admin/orders (paginado)", () => {
     expect(body.pages).toBe(1);
     expect(body.limit).toBe(50);
     expect(body.counts).toEqual({ pending: 2, paid: 2, cancelled: 1, rejected: 1, archived: 1 });
+    // Sin cortes registrados en KV el aviso del panel queda en 0 (y no se muestra).
+    expect(body.salesBlockedToday).toBe(0);
   });
 
   it("pagina con limit=2: página 2 trae 2 distintos y pages=3", async () => {
@@ -221,13 +224,5 @@ describe("GET /api/admin/orders: avisos frenados por tope", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { salesBlockedToday?: number };
     expect(body.salesBlockedToday).toBe(4);
-  });
-
-  it("con KV vacío informa 0", async () => {
-    const env = mockEnv(mockKV());
-    const cookie = await loginYCookie(env);
-    const res = await adminApp.request("/orders", { headers: { Cookie: cookie } }, env);
-    const body = (await res.json()) as { salesBlockedToday?: number };
-    expect(body.salesBlockedToday).toBe(0);
   });
 });

@@ -1,9 +1,17 @@
+## 2026-11-20 — Limpieza de los topes del aviso de venta
+
+- **Pedido**: revisar con ojos frescos los dos commits de la sesión (los topes y el aviso en Pedidos), buscando casos de más, y dejarlo lo más limpio posible.
+- **Lo que sobraba**: el parámetro `now` de `saleCap`, `blockNotice` y `countBlockedSales` —nadie lo pasaba, los tests usan el día real— y un test del endpoint que repetía el login solo para comprobar el 0: esa comprobación quedó como una línea en el test que ya pedía la lista.
+- **Lo que estaba desordenado**: `bumpCounter` y `saleCap` referenciaban constantes declaradas 40 líneas más abajo (funcionaba por el hoisting, pero se leía al revés). Ahora las claves y los topes están juntos y **arriba** de quien los usa. `frenar()` pasó a `blockNotice()` (los nombres de función del módulo son en inglés) y los prefijos a `NOTIFIED_PREFIX`/`NOTIFIED_TTL_SECONDS`, que se distinguen del contador de frenados.
+- **Panel**: el aviso ya no repite los números de los topes en el texto («3 por IP y 40 por día»): si cambian las constantes, el cartel mentiría. Queda «por los topes anti-abuso» y los números viven en un solo lugar.
+- **Verificado**: `npm run typecheck` en 0, **631 tests** en verde y `npm run build` en 0.
+
 ## 2026-11-20 — El panel de pedidos muestra los avisos frenados por tope
 
 - **Pedido**: «Sumá al panel de ajustes o al de pedidos un aviso de cuántos avisos de venta se frenaron por tope hoy, leyendo el contador que ya queda en KV, para que el dueño se entere sin mirar Workers Logs».
 - **Antes**: el tope dejaba solo un `console.warn` en Workers Logs. Si un pedido real quedaba sin email, el único aviso era el pedido pendiente en la tabla: nada decía que el email no había salido.
 - **Contador**: cada corte suma 1 en `venta:frenados:<día>` (KV, TTL 2 días, mismo día UTC que los topes). `countBlockedSales()` en [sale-notify.ts](src/worker/sale-notify.ts) lo lee y devuelve **0** si no hay KV o falla, así el panel nunca se rompe por esto.
-- **Panel**: `GET /api/admin/orders` devuelve `salesBlockedToday` (una lectura de KV por carga de la pestaña, no por request público) y la pestaña **Ventas → Pedidos** muestra arriba de la tabla: «⚠️ Hoy se frenaron N avisos de venta por los topes anti-abuso (3 por IP y 40 por día): el pedido se guardó igual, pero no salió el email. Revisá los pendientes de hoy por si hay una venta real sin avisar». Con 0 no aparece nada ([admin.ts](src/web/admin.ts)).
+- **Panel**: `GET /api/admin/orders` devuelve `salesBlockedToday` (una lectura de KV por carga de la pestaña, no por request público) y la pestaña **Ventas → Pedidos** muestra arriba de la tabla: «⚠️ Hoy se frenaron N avisos de venta por los topes anti-abuso: el pedido se guardó igual, pero no salió el email. Revisá los pendientes de hoy por si hay una venta real sin avisar». Con 0 no aparece nada ([admin.ts](src/web/admin.ts)).
 - **Verificado**: `npm run typecheck` en 0, **632 tests** en verde (4 nuevos: dos del contador y dos del endpoint), `npm run build` en 0. El endpoint local responde `salesBlockedToday: 0` con sesión (no hubo cortes en la base local). **No verificado**: el cartel con un número mayor a 0 en el navegador, porque para eso habría que sembrar el contador en el KV local.
 
 ## 2026-11-20 — Topes al aviso de venta por transferencia

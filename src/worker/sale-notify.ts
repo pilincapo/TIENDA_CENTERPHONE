@@ -39,6 +39,30 @@ export interface SaleNotifyOpts {
   attempts?: number;
 }
 
+// ---- Claves y topes ----
+// El aviso por transferencia lo dispara un endpoint público: cualquiera puede
+// crear pedidos en bucle y llenar la casilla del dueño, o quemar la cuota de
+// envío y dejar sin resumen semanal. El rate limit del checkout (10 por minuto
+// por IP) frena una ráfaga, pero vive en memoria del isolate: un goteo lento o
+// un ataque repartido entre isolates lo esquiva. Por eso los topes se cuentan en
+// KV (compartido por todo el worker) y por día.
+
+/** Marca de "ya avisado" por pedido. 7 días alcanzan de sobra para los reintentos. */
+const NOTIFIED_PREFIX = "venta:avisada:";
+const NOTIFIED_TTL_SECONDS = 7 * 24 * 3600;
+/** Contador de avisos frenados del día: el panel lo muestra sin abrir los logs. */
+const BLOCKED_PREFIX = "venta:frenados:";
+/** Los contadores viven 2 días: alcanzan para el día en curso y el borde de UTC. */
+const COUNTER_TTL_SECONDS = 2 * 24 * 3600;
+
+/** Avisos por IP y por día. Un comprador real no llega a tanto. */
+const IP_MAX_PER_DAY = 3;
+/** Avisos en total por día: el techo de la cuota de email y del resumen semanal. */
+const DAY_MAX = 40;
+/** Intentos de checkout en el mismo minuto que ya delatan un script, no a alguien
+ *  que se equivocó dos veces con el WhatsApp. */
+const ATTEMPTS_MAX = 3;
+
 /** Hash corto de la IP: alcanza para contar por origen sin guardar el dato en claro. */
 function ipHash(ip: string): string {
   let h = 5381;
@@ -51,7 +75,7 @@ function dayKey(now: number): string {
   return new Date(now).toISOString().slice(0, 10);
 }
 
-/** Suma 1 al contador y devuelve el valor nuevo (lanza si KV falla: lo atrapa saleCap). */
+/** Suma 1 al contador y devuelve el valor nuevo (lanza si KV falla: lo atrapa quien llama). */
 async function bumpCounter(kv: KVNamespace, key: string): Promise<number> {
   const raw = await kv.get(key);
   const next = (Number(raw) || 0) + 1;
@@ -69,18 +93,18 @@ async function bumpCounter(kv: KVNamespace, key: string): Promise<number> {
  * re-consulta el pago contra su API, así que no se puede provocar desde afuera.
  * Si KV falla se prefiere avisar (un email de más antes que perder una venta).
  */
-async function saleCap(env: Env, kind: SaleKind, opts: SaleNotifyOpts, now: number): Promise<string | null> {
+async function saleCap(env: Env, kind: SaleKind, opts: SaleNotifyOpts): Promise<string | null> {
   if (kind !== "transfer") return null;
-  if ((opts.attempts ?? 0) > ATTEMPTS_MAX) return frenar(env, "demasiados intentos desde la misma IP", now);
-  const dia = dayKey(now);
+  if ((opts.attempts ?? 0) > ATTEMPTS_MAX) return blockNotice(env, "demasiados intentos desde la misma IP");
+  const dia = dayKey(Date.now());
   const ip = (opts.ip ?? "").trim();
   try {
     if (ip !== "") {
       const porIp = await bumpCounter(env.KV, `venta:ip:${ipHash(ip)}:${dia}`);
-      if (porIp > IP_MAX_PER_DAY) return frenar(env, "tope diario por IP", now);
+      if (porIp > IP_MAX_PER_DAY) return blockNotice(env, "tope diario por IP");
     }
     const delDia = await bumpCounter(env.KV, `venta:dia:${dia}`);
-    if (delDia > DAY_MAX) return frenar(env, "tope diario de avisos", now);
+    if (delDia > DAY_MAX) return blockNotice(env, "tope diario de avisos");
   } catch {
     return null;
   }
@@ -88,12 +112,12 @@ async function saleCap(env: Env, kind: SaleKind, opts: SaleNotifyOpts, now: numb
 }
 
 /**
- * Registra el corte en el contador del día (lo lee el panel) y devuelve el motivo.
+ * Suma el corte en el contador del día (lo lee el panel) y devuelve el motivo.
  * La cuenta es informativa: si KV falla se pierde el número, no el corte.
  */
-async function frenar(env: Env, motivo: string, now: number): Promise<string> {
+async function blockNotice(env: Env, motivo: string): Promise<string> {
   try {
-    await bumpCounter(env.KV, BLOCKED_PREFIX + dayKey(now));
+    await bumpCounter(env.KV, BLOCKED_PREFIX + dayKey(Date.now()));
   } catch {
     // sin contador igual se frena el aviso
   }
@@ -104,10 +128,9 @@ async function frenar(env: Env, motivo: string, now: number): Promise<string> {
  * Cuántos avisos de venta se frenaron por tope en el día en curso (UTC, igual
  * que los contadores). 0 si no hay KV, si falla o si todavía no hubo ninguno.
  */
-export async function countBlockedSales(env: Env, now = Date.now()): Promise<number> {
+export async function countBlockedSales(env: Env): Promise<number> {
   try {
-    const raw = await env.KV.get(BLOCKED_PREFIX + dayKey(now));
-    return Math.max(0, Number(raw) || 0);
+    return Number(await env.KV.get(BLOCKED_PREFIX + dayKey(Date.now()))) || 0;
   } catch {
     return 0;
   }
@@ -115,29 +138,6 @@ export async function countBlockedSales(env: Env, now = Date.now()): Promise<num
 
 /** Origen del email: el mismo que usa el resumen semanal. */
 const AVISO_FROM = "noreply@centerphone.com.ar";
-
-/** Marca de "ya avisado" por pedido. 7 días alcanzan de sobra para los reintentos. */
-const KV_PREFIX = "venta:avisada:";
-const KV_TTL_SECONDS = 7 * 24 * 3600;
-
-// ---- Topes del aviso por transferencia ----
-// El rate limit del checkout (10 por minuto por IP) frena una ráfaga, pero vive
-// en memoria del isolate: un goteo lento o un ataque repartido entre isolates lo
-// esquiva. Estos contadores van a KV (compartidos por todo el worker) y cuentan
-// por día; el del checkout se reutiliza como primer filtro para el script obvio.
-
-/** Avisos por IP y por día. Un comprador real no llega a tanto. */
-const IP_MAX_PER_DAY = 3;
-/** Avisos en total por día: el techo de la cuota de email y del resumen semanal. */
-const DAY_MAX = 40;
-/** Intentos de checkout en el mismo minuto que ya delatan un script, no a alguien
- *  que se equivocó dos veces con el WhatsApp. */
-const ATTEMPTS_MAX = 3;
-/** Los contadores viven 2 días: alcanzan para el día en curso y el borde de UTC. */
-const COUNTER_TTL_SECONDS = 2 * 24 * 3600;
-
-/** Contador de avisos frenados del día: el panel lo muestra sin abrir los logs. */
-const BLOCKED_PREFIX = "venta:frenados:";
 
 /** Link a WhatsApp del comprador, con el pedido ya escrito. */
 function waComprador(order: Order): string {
@@ -206,7 +206,7 @@ export async function notifySale(
   if (!env.EMAIL) return { sent: false, motivo: "sin binding de email" };
 
   // Un aviso por pedido: los reintentos de MercadoPago notifican el mismo pago.
-  const clave = KV_PREFIX + order.id;
+  const clave = NOTIFIED_PREFIX + order.id;
   try {
     if ((await env.KV.get(clave)) !== null) return { sent: false, motivo: "ya avisado" };
   } catch {
@@ -215,7 +215,7 @@ export async function notifySale(
 
   // Un pedido real silenciado por el tope queda igual en D1 y se ve en el panel:
   // se pierde el email, no la venta. El warn deja el rastro en Workers Logs.
-  const tope = await saleCap(env, kind, opts, Date.now());
+  const tope = await saleCap(env, kind, opts);
   if (tope !== null) {
     console.warn(`venta: aviso frenado (${tope}) del pedido ${order.id}`);
     return { sent: false, motivo: tope };
@@ -235,7 +235,7 @@ export async function notifySale(
   }
 
   try {
-    await env.KV.put(clave, String(Date.now()), { expirationTtl: KV_TTL_SECONDS });
+    await env.KV.put(clave, String(Date.now()), { expirationTtl: NOTIFIED_TTL_SECONDS });
   } catch {
     // Sin la marca, un reintento de MP podría mandar un segundo email. Se acepta.
   }
@@ -245,5 +245,5 @@ export async function notifySale(
 
 /** Solo para tests: arma la clave de deduplicación sin duplicar el prefijo. */
 export function saleNotifyKey(orderId: string): string {
-  return KV_PREFIX + orderId;
+  return NOTIFIED_PREFIX + orderId;
 }
