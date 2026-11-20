@@ -19,3 +19,7 @@ playwright-report/
 
 # Adjuntos de conversaciones importadas (pueden traer secretos).
 .cloud-attachments/
+
+# Capturas de verificación: quedan locales. Las que ya están versionadas
+# (resenas-*.png, version-clara/) siguen en git; las nuevas no se commitean.
+screenshots/

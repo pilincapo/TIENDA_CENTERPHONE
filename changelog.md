@@ -1,3 +1,10 @@
+## 2026-11-20 — Deja el working tree limpio (capturas y `allowScripts`)
+
+- **Pedido**: decidir qué hacer con el bloque `allowScripts` de `package.json` y con `screenshots/panel-avisos-frenados.png` para que `git status` no muestre nada suelto.
+- **Capturas**: `screenshots/` pasa a `.gitignore`. Las capturas son de verificación local y no se commitean; las ya versionadas (`resenas-*.png`, `version-clara/`) siguen en git. El PNG del cartel de avisos queda en disco, sin versionar.
+- **`allowScripts`**: se commitea tal cual. Es un campo que solo lee la instalación local (npm lo ignora y el build no lo mira), así que no le cambia nada a quien clone el repo, y a cambio `package.json` queda idéntico a lo que hay en disco: ningún cambio de dependencias puede quedar invisible. Se descartó `git update-index --skip-worktree`, que dejaba el archivo fuera de `git status` y podía tragarse un `npm install` con dependencias nuevas; y revertirlo borraba las aprobaciones de esbuild/workerd que necesita la próxima instalación.
+- **Verificado**: `git status --porcelain` vacío, ningún archivo con flag especial (`git ls-files -v` sin `S`) y las capturas listadas como ignoradas.
+
 ## 2026-11-20 — Deploy de los avisos frenados y limpieza del repo
 
 - **Pedido**: deployar y revisar qué quedó suelto en el repo (archivos residuales y capturas), borrando lo que ya no sirve.
