@@ -118,7 +118,7 @@ describe("GET /api/admin/orders (paginado)", () => {
       pages: number;
       limit: number;
       counts: { pending: number; paid: number; cancelled: number; rejected: number; archived: number };
-      salesBlockedToday: number;
+      salesBlockedIds: string[];
     };
     // 7 pedidos en total, pero o7 está archivado: no aparece en "Todos".
     expect(body.orders.map((o) => o.id)).not.toContain("o7");
@@ -128,8 +128,8 @@ describe("GET /api/admin/orders (paginado)", () => {
     expect(body.pages).toBe(1);
     expect(body.limit).toBe(50);
     expect(body.counts).toEqual({ pending: 2, paid: 2, cancelled: 1, rejected: 1, archived: 1 });
-    // Sin cortes registrados en KV el aviso del panel queda en 0 (y no se muestra).
-    expect(body.salesBlockedToday).toBe(0);
+    // Sin cortes registrados en KV el aviso del panel queda vacío (y no se muestra).
+    expect(body.salesBlockedIds).toEqual([]);
   });
 
   it("pagina con limit=2: página 2 trae 2 distintos y pages=3", async () => {
@@ -212,17 +212,20 @@ describe("GET /api/admin/orders (paginado)", () => {
   });
 });
 
-describe("GET /api/admin/orders: avisos frenados por tope", () => {
-  it("informa los avisos que hoy frenaron los topes", async () => {
+describe("GET /api/admin/orders: pedidos con aviso frenado", () => {
+  it("informa los pedidos cuyos avisos frenaron los topes", async () => {
+    const dia = new Date().toISOString().slice(0, 10);
+    const prefijo = `venta:frenado:${dia}:`;
     const kv = {
-      get: async (k: string) => (k.startsWith("venta:frenados:") ? "4" : null),
+      get: async () => null,
       put: async () => {},
+      list: async () => ({ keys: [{ name: `${prefijo}pedido-a` }, { name: `${prefijo}pedido-b` }] }),
     } as unknown as KVNamespace;
     const env = mockEnv(kv);
     const cookie = await loginYCookie(env);
     const res = await adminApp.request("/orders", { headers: { Cookie: cookie } }, env);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { salesBlockedToday?: number };
-    expect(body.salesBlockedToday).toBe(4);
+    const body = (await res.json()) as { salesBlockedIds?: string[] };
+    expect(body.salesBlockedIds).toEqual(["pedido-a", "pedido-b"]);
   });
 });

@@ -2749,8 +2749,8 @@ interface OrdersPage {
   pages: number;
   limit: number;
   counts: Record<string, number>;
-  /** Avisos de venta frenados hoy por los topes anti-abuso (puede venir ausente). */
-  salesBlockedToday?: number;
+  /** Pedidos cuyos avisos de venta frenaron hoy los topes anti-abuso (puede venir ausente). */
+  salesBlockedIds?: string[];
 }
 
 // Estado que sobrevive a los re-renders: filtrar o buscar no te manda a la página 1
@@ -2785,8 +2785,8 @@ async function viewOrders(statusFilter = ""): Promise<void> {
     api<{ settings: StoreSettings }>("/settings"),
   ]);
   const symbol = settings.currencySymbol || "$";
-  // Avisos de venta que hoy no salieron por los topes anti-abuso (0 = todo normal).
-  const blocked = data.salesBlockedToday ?? 0;
+  // Pedidos cuyos avisos hoy no salieron por los topes anti-abuso (vacío = todo normal).
+  const blockedIds = data.salesBlockedIds ?? [];
   // Counter de la pestaña: pedidos pendientes (de los totales del servidor, sin request extra).
   updatePendingBadge(data.counts.pending ?? 0);
   const chips = ["", "pending", "paid", "cancelled", "rejected", "archived"];
@@ -2839,8 +2839,8 @@ async function viewOrders(statusFilter = ""): Promise<void> {
       ${payments.configured && payments.enabled
         ? `<p class="muted">Pago online activo: MercadoPago confirma solo vía webhook.</p>`
         : `<p class="muted">Pago online ${payments.configured ? "configurado pero <b>desactivado</b> en Configuración → Pagos" : "<b>sin token</b>: configurá el secret <code>MERCADOPAGO_ACCESS_TOKEN</code> (ver Configuración → Pagos)"}. Los pedidos que veas acá se confirman a mano.</p>`}
-      ${blocked > 0
-        ? `<p class="muted" id="ord-sales-blocked">⚠️ Hoy se frenaron <b>${blocked}</b> aviso${blocked !== 1 ? "s" : ""} de venta por los topes anti-abuso: el pedido se guardó igual, pero <b>no salió el email</b>. Revisá los pendientes de hoy por si hay una venta real sin avisar.</p>`
+      ${blockedIds.length > 0
+        ? `<p class="muted" id="ord-sales-blocked">⚠️ Hoy se frenaron <b>${blockedIds.length}</b> aviso${blockedIds.length !== 1 ? "s" : ""} de venta por los topes anti-abuso: el pedido se guardó igual, pero <b>no salió el email</b>. Revisalos uno por uno: ${blockedIds.map((id) => `<a href="/pedido/${esc(id)}" target="_blank" rel="noopener" title="Ver el pedido ${esc(id)}">${esc(id.slice(0, 8).toUpperCase())}</a>`).join(" · ")}</p>`
         : ""}
       ${orders.length === 0
         ? `<p class="muted">Todavía no hay pedidos${ordState.status !== "" ? " con este estado" : ""}${ordState.q !== "" ? ` buscando "${esc(ordState.q)}"` : ""}.</p>`

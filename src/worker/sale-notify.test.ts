@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { Env } from "./db";
 import type { Order } from "../shared/types";
 import { formatPrice } from "../shared/format";
-import { countBlockedSales, notifySale, saleEmailText, saleNotifyKey } from "./sale-notify";
+import { blockedSalesToday, notifySale, saleEmailText, saleNotifyKey } from "./sale-notify";
 
 function pedido(over: Partial<Order> = {}): Order {
   return {
@@ -37,6 +37,13 @@ function makeKv(): KVNamespace & { _map: Map<string, string> } {
     get: async (k: string) => map.get(k) ?? null,
     put: async (k: string, v: string) => { map.set(k, v); },
     delete: async (k: string) => { map.delete(k); },
+    list: async (opts?: { prefix?: string }) => {
+      const prefix = opts?.prefix ?? "";
+      return {
+        keys: [...map.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })),
+        list_complete: true,
+      };
+    },
     _map: map,
   };
   return kv as unknown as KVNamespace & { _map: Map<string, string> };
@@ -173,20 +180,20 @@ describe("topes anti-abuso del aviso por transferencia", () => {
   });
 });
 
-describe("contador de avisos frenados (lo muestra el panel)", () => {
-  it("empieza en 0 y suma cada corte, sin contar los avisos que salen", async () => {
+describe("pedidos frenados del día (los muestra el panel)", () => {
+  it("guarda el id de cada corte, sin contar los avisos que salen", async () => {
     const { env } = makeEnv();
-    expect(await countBlockedSales(env)).toBe(0);
+    expect(await blockedSalesToday(env)).toEqual([]);
     for (let i = 0; i < 3; i += 1) {
       expect((await notifySale(env, pedido({ id: `frenado-${i}` }), "transfer", { ip: "1.1.1.1" })).sent).toBe(true);
     }
     await notifySale(env, pedido({ id: "frenado-3" }), "transfer", { ip: "1.1.1.1" });
     await notifySale(env, pedido({ id: "frenado-4" }), "transfer", { ip: "1.1.1.1" });
-    expect(await countBlockedSales(env)).toBe(2);
+    expect(await blockedSalesToday(env)).toEqual(["frenado-3", "frenado-4"]);
   });
 
-  it("sin KV responde 0 y no rompe el panel", async () => {
+  it("sin KV devuelve la lista vacía y no rompe el panel", async () => {
     const sinKv = { KV: undefined } as unknown as Env;
-    expect(await countBlockedSales(sinKv)).toBe(0);
+    expect(await blockedSalesToday(sinKv)).toEqual([]);
   });
 });

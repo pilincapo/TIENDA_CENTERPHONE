@@ -50,8 +50,9 @@ export interface SaleNotifyOpts {
 /** Marca de "ya avisado" por pedido. 7 días alcanzan de sobra para los reintentos. */
 const NOTIFIED_PREFIX = "venta:avisada:";
 const NOTIFIED_TTL_SECONDS = 7 * 24 * 3600;
-/** Contador de avisos frenados del día: el panel lo muestra sin abrir los logs. */
-const BLOCKED_PREFIX = "venta:frenados:";
+/** Un registro por aviso frenado del día, con el id del pedido en la clave: el
+ *  panel los lista para que el dueño los revise sin abrir Workers Logs. */
+const BLOCKED_PREFIX = "venta:frenado:";
 /** Los contadores viven 2 días: alcanzan para el día en curso y el borde de UTC. */
 const COUNTER_TTL_SECONDS = 2 * 24 * 3600;
 
@@ -95,16 +96,16 @@ async function bumpCounter(kv: KVNamespace, key: string): Promise<number> {
  */
 async function saleCap(env: Env, kind: SaleKind, opts: SaleNotifyOpts): Promise<string | null> {
   if (kind !== "transfer") return null;
-  if ((opts.attempts ?? 0) > ATTEMPTS_MAX) return blockNotice(env, "demasiados intentos desde la misma IP");
+  if ((opts.attempts ?? 0) > ATTEMPTS_MAX) return "demasiados intentos desde la misma IP";
   const dia = dayKey(Date.now());
   const ip = (opts.ip ?? "").trim();
   try {
     if (ip !== "") {
       const porIp = await bumpCounter(env.KV, `venta:ip:${ipHash(ip)}:${dia}`);
-      if (porIp > IP_MAX_PER_DAY) return blockNotice(env, "tope diario por IP");
+      if (porIp > IP_MAX_PER_DAY) return "tope diario por IP";
     }
     const delDia = await bumpCounter(env.KV, `venta:dia:${dia}`);
-    if (delDia > DAY_MAX) return blockNotice(env, "tope diario de avisos");
+    if (delDia > DAY_MAX) return "tope diario de avisos";
   } catch {
     return null;
   }
@@ -112,27 +113,30 @@ async function saleCap(env: Env, kind: SaleKind, opts: SaleNotifyOpts): Promise<
 }
 
 /**
- * Suma el corte en el contador del día (lo lee el panel) y devuelve el motivo.
- * La cuenta es informativa: si KV falla se pierde el número, no el corte.
+ * Anota el pedido frenado del día (una clave por pedido, con el id adentro) para
+ * que el panel pueda listarlos. Es informativo: si KV falla se pierde el apunte,
+ * no el corte.
  */
-async function blockNotice(env: Env, motivo: string): Promise<string> {
+async function recordBlocked(env: Env, orderId: string, motivo: string): Promise<void> {
   try {
-    await bumpCounter(env.KV, BLOCKED_PREFIX + dayKey(Date.now()));
+    // El valor guarda el motivo, así desde wrangler se ve por qué se frenó.
+    await env.KV.put(`${BLOCKED_PREFIX}${dayKey(Date.now())}:${orderId}`, motivo, { expirationTtl: COUNTER_TTL_SECONDS });
   } catch {
-    // sin contador igual se frena el aviso
+    // sin registro igual se frena el aviso
   }
-  return motivo;
 }
 
 /**
- * Cuántos avisos de venta se frenaron por tope en el día en curso (UTC, igual
- * que los contadores). 0 si no hay KV, si falla o si todavía no hubo ninguno.
+ * Ids de los pedidos cuyos avisos se frenaron hoy por tope (día UTC, igual que
+ * los contadores). Lista vacía si no hay KV, si falla o si todavía no hubo cortes.
  */
-export async function countBlockedSales(env: Env): Promise<number> {
+export async function blockedSalesToday(env: Env): Promise<string[]> {
+  const prefijo = `${BLOCKED_PREFIX}${dayKey(Date.now())}:`;
   try {
-    return Number(await env.KV.get(BLOCKED_PREFIX + dayKey(Date.now()))) || 0;
+    const { keys } = await env.KV.list({ prefix: prefijo });
+    return keys.map((k) => k.name.slice(prefijo.length));
   } catch {
-    return 0;
+    return [];
   }
 }
 
@@ -217,6 +221,7 @@ export async function notifySale(
   // se pierde el email, no la venta. El warn deja el rastro en Workers Logs.
   const tope = await saleCap(env, kind, opts);
   if (tope !== null) {
+    await recordBlocked(env, order.id, tope);
     console.warn(`venta: aviso frenado (${tope}) del pedido ${order.id}`);
     return { sent: false, motivo: tope };
   }

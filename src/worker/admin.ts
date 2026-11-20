@@ -25,7 +25,7 @@ import { forceHttpsUrl, getSettings, isStoreMode, newId, nowMs, sanitizeAnnounce
 import { parseExclusionList, sanitizeSyncExcludeList } from "../shared/sync-exclusions";
 import { configProblem, fetchSecurityEvents } from "./security-log";
 import { adminSetOrderStatus, adminSetOrderArchive, adminSetOrderUnarchive, countOrders, countOrdersByStatus, listOrdersPaged, setOrderNotifiedWa } from "./orders";
-import { countBlockedSales } from "./sale-notify";
+import { blockedSalesToday } from "./sale-notify";
 import {
   clearSessionCookieHeader, createSessionToken, randomToken, readSessionCookie,
   SESSION_TTL_MS, sessionCookieHeader, verifySessionToken,
@@ -554,13 +554,13 @@ adminApp.get("/orders", async (c) => {
     statusParam && ORDER_STATUSES.includes(statusParam as OrderStatus) ? statusParam as OrderStatus : "";
   const page = Math.max(1, Math.min(500, Math.trunc(Number(c.req.query("page") ?? 1)) || 1));
   const limit = Math.max(1, Math.min(200, Math.trunc(Number(c.req.query("limit") ?? 50)) || 50));
-  const [orders, total, counts, salesBlockedToday] = await Promise.all([
+  const [orders, total, counts, salesBlockedIds] = await Promise.all([
     listOrdersPaged(c.env.DB, { status, q, limit, offset: (page - 1) * limit }),
     countOrders(c.env.DB, { status, q }),
     countOrdersByStatus(c.env.DB),
-    // Avisos de venta que los topes anti-abuso dejaron sin email hoy: el dueño
-    // se entera acá y no tiene que abrir Workers Logs.
-    countBlockedSales(c.env),
+    // Pedidos cuyos avisos de venta los topes anti-abuso dejaron sin email hoy:
+    // el dueño los revisa acá y no tiene que abrir Workers Logs.
+    blockedSalesToday(c.env),
   ]);
   return c.json({
     orders,
@@ -569,7 +569,7 @@ adminApp.get("/orders", async (c) => {
     pages: Math.max(1, Math.ceil(total / limit)),
     limit,
     counts: { pending: counts.pending, paid: counts.paid, cancelled: counts.cancelled, rejected: counts.rejected, archived: counts.archived },
-    salesBlockedToday,
+    salesBlockedIds,
   });
 });
 

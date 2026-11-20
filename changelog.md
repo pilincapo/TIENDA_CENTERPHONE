@@ -1,3 +1,10 @@
+## 2026-11-20 — El cartel de avisos frenados muestra qué pedidos revisar
+
+- **Pedido**: ver no solo cuántos avisos se frenaron, sino cuáles, para revisarlos uno por uno.
+- **KV**: el contador `venta:frenados:<día>` (un número) pasó a una clave por pedido, `venta:frenado:<día>:<id>`, con el motivo como valor y los mismos 2 días de TTL. Sigue siendo **una escritura por corte** (no una por request) y el conteo sale de `KV.list` con ese prefijo: no hay read-modify-write ni dos datos que se puedan desincronizar.
+- **Panel**: `GET /api/admin/orders` devuelve `salesBlockedIds` en lugar de `salesBlockedToday`, y el cartel lista cada id como link a `/pedido/<id>` (el mismo destino del botón «Ver») con el código corto de 8 caracteres.
+- **Verificado**: `npm run typecheck` en 0, tests en verde y `npm run build` en 0; endpoint local con dos claves sembradas y después borradas.
+
 ## 2026-11-20 — Limpieza de los topes del aviso de venta
 
 - **Pedido**: revisar con ojos frescos los dos commits de la sesión (los topes y el aviso en Pedidos), buscando casos de más, y dejarlo lo más limpio posible.
